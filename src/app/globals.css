@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 229 54% 3%;
+  --foreground: 210 40% 98%;
+  --card: 226 43% 9%;
+  --card-foreground: 210 40% 98%;
+  --primary: 184 100% 66%;
+  --primary-foreground: 224 71% 4%;
+  --secondary: 248 60% 18%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 225 26% 15%;
+  --muted-foreground: 218 16% 68%;
+  --accent: 269 94% 65%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 225 30% 22%;
+  --input: 225 30% 22%;
+  --ring: 184 100% 66%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(83, 244, 255, 0.12), transparent 28rem),
+    radial-gradient(circle at 85% 5%, rgba(168, 85, 247, 0.14), transparent 26rem),
+    #050712;
+  color: hsl(var(--foreground));
+}
+
+::selection {
+  background: rgba(83, 244, 255, 0.35);
+  color: white;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050712;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(83, 244, 255, 0.55), rgba(168, 85, 247, 0.55));
+  border-radius: 999px;
+}
+
+@layer components {
+  .glass-panel {
+    @apply border border-white/10 bg-white/[0.065] shadow-2xl shadow-black/30 backdrop-blur-2xl;
+  }
+
+  .premium-gradient-text {
+    @apply bg-gradient-to-r from-white via-cyan-100 to-violet-200 bg-clip-text text-transparent;
+  }
+
+  .sentra-focus {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sentra-cyan/80 focus-visible:ring-offset-2 focus-visible:ring-offset-sentra-ink;
+  }
+}
