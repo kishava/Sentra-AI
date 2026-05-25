@@ -19,7 +19,8 @@ For current officeholders, search for the latest election, appointment, or swear
 Do not volunteer an "as of today" date unless the user requests it; cite the source's dated event instead.
 Do not force simple factual questions into an enterprise intelligence brief.
 Do not reuse unrelated demo intelligence or repeat a previous answer unless the user asks about it.
-Use markdown and keep the answer readable.`;
+Use clean markdown. For answers longer than a short paragraph, organize information with descriptive ### headings and bullet lists. Put forecasts in a distinct ### Outlook section only when requested or relevant. Never output dense unstructured paragraphs.
+Do not create a Sources section; source links are added by the application.`;
 
 function getFreshnessDate() {
   const timeZone = process.env.SENTRA_TIMEZONE || "Asia/Colombo";
@@ -110,7 +111,7 @@ export async function generateChatResponse(message: string) {
     return text;
   }
 
-  return `${text}\n\n**Sources**\n${sources
+  return `${text}\n\n### Sources\n${sources
     .map(([url, title]) => `- [${title}](${url})`)
     .join("\n")}`;
 }

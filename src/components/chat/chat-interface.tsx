@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import { motion } from "framer-motion";
 import { Bot, Mic2, MicOff, Send, Sparkles, Volume2 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,12 +33,46 @@ const initialMessages: ChatMessage[] = [
   },
 ];
 
+const assistantMarkdownComponents: Components = {
+  h1: ({ children }) => <h2 className="mb-3 mt-6 text-xl font-semibold text-white first:mt-0">{children}</h2>,
+  h2: ({ children }) => <h2 className="mb-3 mt-6 text-lg font-semibold text-white first:mt-0">{children}</h2>,
+  h3: ({ children }) => (
+    <h3 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-[0.18em] text-sentra-cyan first:mt-0">
+      {children}
+    </h3>
+  ),
+  p: ({ children }) => <p className="mb-3 text-sm leading-7 text-white/72 last:mb-0">{children}</p>,
+  strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+  ul: ({ children }) => (
+    <ul className="mb-4 space-y-2 pl-1 last:mb-0 [&_li]:relative [&_li]:pl-4 [&_li]:before:absolute [&_li]:before:left-0 [&_li]:before:top-2.5 [&_li]:before:h-1.5 [&_li]:before:w-1.5 [&_li]:before:rounded-full [&_li]:before:bg-sentra-cyan">
+      {children}
+    </ul>
+  ),
+  ol: ({ children }) => <ol className="mb-4 list-decimal space-y-2 pl-5 text-white/72 last:mb-0">{children}</ol>,
+  li: ({ children }) => <li className="text-sm leading-6 text-white/72">{children}</li>,
+  a: ({ children, href }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="break-words text-sentra-cyan underline decoration-cyan-300/30 underline-offset-4 transition hover:text-white"
+    >
+      {children}
+    </a>
+  ),
+  blockquote: ({ children }) => (
+    <blockquote className="my-4 rounded-r-2xl border-l-2 border-sentra-cyan/60 bg-white/[0.04] px-4 py-3">
+      {children}
+    </blockquote>
+  ),
+};
+
 function AssistantMessage({ content, animated }: { content: string; animated?: boolean }) {
   const displayed = useTypewriter(content, animated);
 
   return (
-    <div className="prose prose-invert max-w-none prose-p:text-white/68 prose-strong:text-white prose-li:text-white/65">
-      <ReactMarkdown>{displayed}</ReactMarkdown>
+    <div className="max-w-none">
+      <ReactMarkdown components={assistantMarkdownComponents}>{displayed}</ReactMarkdown>
     </div>
   );
 }
