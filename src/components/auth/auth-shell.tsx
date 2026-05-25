@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Github, Mail, ShieldCheck } from "lucide-react";
+import { Code2, Mail, ShieldCheck } from "lucide-react";
 import { AiOrb } from "@/components/shared/ai-orb";
 import { ParticleField } from "@/components/shared/particle-field";
 import { Badge } from "@/components/ui/badge";
@@ -63,7 +63,7 @@ export function AuthShell({ mode }: AuthShellProps) {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Button variant="ghost" className="rounded-2xl">
-                <Github className="h-4 w-4" /> GitHub
+                <Code2 className="h-4 w-4" /> GitHub
               </Button>
               <Button variant="ghost" className="rounded-2xl">
                 <Mail className="h-4 w-4" /> Google

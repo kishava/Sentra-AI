@@ -1,3 +1,5 @@
+"use client";
+
 import { Activity, BellRing, Building2, Radar, Sparkles, TrendingUp } from "lucide-react";
 import { AppShell } from "@/components/dashboard/app-shell";
 import { IntelligenceCharts } from "@/components/dashboard/intelligence-charts";

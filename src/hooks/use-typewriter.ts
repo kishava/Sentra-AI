@@ -6,13 +6,10 @@ export function useTypewriter(text: string, active = true) {
   const [displayed, setDisplayed] = useState(active ? "" : text);
 
   useEffect(() => {
-    if (!active) {
-      setDisplayed(text);
-      return;
-    }
+    if (!active) return;
 
-    setDisplayed("");
     let index = 0;
+    const reset = window.setTimeout(() => setDisplayed(""), 0);
     const interval = window.setInterval(() => {
       index += 4;
       setDisplayed(text.slice(0, index));
@@ -21,8 +18,11 @@ export function useTypewriter(text: string, active = true) {
       }
     }, 14);
 
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearTimeout(reset);
+      window.clearInterval(interval);
+    };
   }, [active, text]);
 
-  return displayed;
+  return active ? displayed : text;
 }
