@@ -72,18 +72,26 @@ export function ChatInterface() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: trimmed, history: messages }),
       });
-      const data = (await response.json()) as { message: string };
+      const data = (await response.json()) as { message?: string; error?: string };
+
+      if (!response.ok || typeof data.message !== "string" || !data.message.trim()) {
+        throw new Error(data.error || "Sentra returned an empty response.");
+      }
+
+      const reply = data.message;
       setMessages((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: data.message,
+          content: reply,
           createdAt: new Date().toISOString(),
         },
       ]);
-    } catch {
-      toast.error("Sentra could not complete the analysis.");
+    } catch (error) {
+      toast.error("Sentra could not complete the analysis.", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
     } finally {
       setLoading(false);
     }
@@ -104,8 +112,8 @@ export function ChatInterface() {
         audio.onended = () => setSpeaking(false);
         await audio.play();
       } else {
-        toast.message("Demo voice mode active", {
-          description: "Add ElevenLabs keys to enable realistic AI analyst playback.",
+        toast.message("Voice is still in demo mode", {
+          description: "Restart the dev server so Next.js reloads your ElevenLabs key.",
         });
         window.setTimeout(() => setSpeaking(false), 1800);
       }
@@ -214,8 +222,8 @@ export function ChatInterface() {
             <AiOrb speaking={speaking} size="md" className="mx-auto" />
             <h3 className="mt-6 text-xl font-semibold text-white">Voice analyst</h3>
             <p className="mt-2 text-sm leading-6 text-white/55">
-              ElevenLabs playback activates when API keys are configured. Demo mode keeps the
-              reactive orb and playback UX visible.
+              Click the voice button on an AI response to hear the configured ElevenLabs analyst
+              voice. Restart the dev server after changing voice settings.
             </p>
             <Button variant="ghost" className="mt-5">
               <Mic2 className="h-4 w-4" /> Voice controls
