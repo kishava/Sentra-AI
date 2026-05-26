@@ -49,14 +49,14 @@ export function CommandPalette({ className }: { className?: string }) {
     <>
       <button
         className={cn(
-          "sentra-focus flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/60 backdrop-blur-xl transition hover:border-cyan-200/30 hover:text-white",
+          "sentra-focus flex w-full min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/60 backdrop-blur-xl transition hover:border-cyan-200/30 hover:text-white",
           className,
         )}
         onClick={() => setOpen(true)}
       >
-        <Search className="h-4 w-4" />
-        Search signals, companies, risks...
-        <kbd className="ml-auto rounded-lg border border-white/10 bg-white/10 px-2 py-1 text-[10px] text-white/50">
+        <Search className="h-4 w-4 shrink-0" />
+        <span className="min-w-0 truncate text-left">Search signals, companies, risks...</span>
+        <kbd className="ml-auto hidden shrink-0 rounded-lg border border-white/10 bg-white/10 px-2 py-1 text-[10px] text-white/50 sm:inline-block">
           Ctrl K
         </kbd>
       </button>
@@ -71,11 +71,11 @@ export function CommandPalette({ className }: { className?: string }) {
               onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-center gap-3 border-b border-white/10 px-5">
-                <Search className="h-4 w-4 text-sentra-cyan" />
+                <Search className="h-4 w-4 shrink-0 text-sentra-cyan" />
                 <Command.Input
                   autoFocus
                   placeholder="Command Sentra AI..."
-                  className="h-14 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/40"
+                  className="h-14 min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/40"
                 />
               </div>
               <Command.List className="max-h-96 overflow-y-auto p-3">
@@ -90,9 +90,9 @@ export function CommandPalette({ className }: { className?: string }) {
                         router.push(action.href);
                       }}
                     >
-                      <action.icon className="h-4 w-4 text-sentra-cyan" />
-                      <span>{action.label}</span>
-                      <span className="ml-auto text-xs text-white/40">{action.hint}</span>
+                      <action.icon className="h-4 w-4 shrink-0 text-sentra-cyan" />
+                      <span className="min-w-0 flex-1 truncate">{action.label}</span>
+                      <span className="ml-auto shrink-0 text-xs text-white/40">{action.hint}</span>
                     </Command.Item>
                   ))}
                 </Command.Group>

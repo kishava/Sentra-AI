@@ -74,8 +74,10 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Chat route failed", error);
+    const message =
+      error instanceof Error ? error.message : "Sentra AI could not generate a response";
     return NextResponse.json(
-      { error: "Sentra AI could not generate a response" },
+      { error: message },
       { status: 500 },
     );
   }

@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { demoAnalysis } from "@/data/mock-intelligence";
-import type { ChatMessage, IntelligenceAnalysis } from "@/types/intelligence";
+import type { ChatMessage, IntelligenceAnalysis, MonitorIntent, Severity } from "@/types/intelligence";
 
 const SYSTEM_PROMPT = `You are Sentra AI, an enterprise intelligence analyst.
 Analyze live web evidence from Bright Data and user context.
@@ -22,6 +22,9 @@ Do not reuse unrelated demo intelligence or repeat a previous answer unless the 
 Use clean markdown. For answers longer than a short paragraph, organize information with descriptive ### headings and bullet lists. Put forecasts in a distinct ### Outlook section only when requested or relevant. Never output dense unstructured paragraphs.
 Do not create a Sources section; source links are added by the application.`;
 
+const monitorCategories = ["any", "competitor", "market", "risk", "pricing", "hiring", "sentiment"] as const;
+const monitorSeverities = ["low", "medium", "high", "critical"] as const;
+
 type ChatContext = {
   history?: Pick<ChatMessage, "role" | "content">[];
   brightDataEvidence?: string;
@@ -40,6 +43,110 @@ function getFreshnessDate() {
 function getOpenAIClient() {
   if (!process.env.OPENAI_API_KEY) return null;
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
+
+function inferMonitorIntentHeuristically(input: string): MonitorIntent {
+  const lower = input.toLowerCase();
+  const category = lower.match(/price|pricing|discount|incentive|lease|cost|billing/)
+    ? "pricing"
+    : lower.match(/hire|hiring|role|jobs|recruit/)
+      ? "hiring"
+      : lower.match(/sentiment|complaint|social|negative|positive|review/)
+        ? "sentiment"
+        : lower.match(/competitor|launch|product|rival|battlecard/)
+          ? "competitor"
+          : lower.match(/risk|regulat|lawsuit|outage|security|critical/)
+            ? "risk"
+            : lower.match(/market|trend|demand|industry/)
+              ? "market"
+              : "any";
+  const minimumSeverity: Severity = lower.match(/urgent|critical|immediate|severe|crisis/)
+    ? "critical"
+    : lower.match(/important|major|high|escalate/)
+      ? "high"
+      : lower.match(/minor|low|FYI/i)
+        ? "low"
+        : "medium";
+  const keywords = Array.from(
+    new Set(
+      lower
+        .split(/[^a-z0-9]+/i)
+        .filter((token) => token.length >= 3)
+        .slice(0, 8),
+    ),
+  );
+
+  return {
+    normalizedRequirement: input.trim(),
+    category,
+    minimumSeverity,
+    keywords,
+    rationale: "Interpreted locally from keywords because AI intent analysis is not configured.",
+    confidence: 0.58,
+    provider: "heuristic",
+  };
+}
+
+function normalizeMonitorIntent(input: string, parsed: Partial<MonitorIntent>): MonitorIntent {
+  const category = monitorCategories.includes(parsed.category as (typeof monitorCategories)[number])
+    ? parsed.category!
+    : "any";
+  const minimumSeverity = monitorSeverities.includes(parsed.minimumSeverity as (typeof monitorSeverities)[number])
+    ? parsed.minimumSeverity!
+    : "medium";
+  const keywords = Array.isArray(parsed.keywords)
+    ? parsed.keywords
+        .filter((keyword) => typeof keyword === "string" && keyword.trim())
+        .map((keyword) => keyword.trim().slice(0, 48))
+        .slice(0, 8)
+    : [];
+
+  return {
+    normalizedRequirement: parsed.normalizedRequirement?.trim() || input.trim(),
+    category,
+    minimumSeverity,
+    keywords,
+    rationale: parsed.rationale?.trim() || "Sentra inferred the monitor intent from the user input.",
+    confidence:
+      typeof parsed.confidence === "number" && Number.isFinite(parsed.confidence)
+        ? Math.min(Math.max(parsed.confidence, 0), 1)
+        : 0.75,
+    provider: "openai",
+  };
+}
+
+export async function analyzeMonitorIntent(input: string): Promise<MonitorIntent> {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    throw new Error("Monitor input is required.");
+  }
+
+  const client = getOpenAIClient();
+  if (!client) {
+    return inferMonitorIntentHeuristically(trimmed);
+  }
+
+  const response = await client.chat.completions.create({
+    model: process.env.OPENAI_MONITOR_INTENT_MODEL || "gpt-4o-mini",
+    temperature: 0.1,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content:
+          "You convert a user's natural-language monitoring request into structured alert settings. Return only JSON.",
+      },
+      {
+        role: "user",
+        content: `Input: ${trimmed}\n\nReturn JSON with keys: normalizedRequirement, category, minimumSeverity, keywords, rationale, confidence.\ncategory must be one of: any, competitor, market, risk, pricing, hiring, sentiment.\nminimumSeverity must be one of: low, medium, high, critical.\nkeywords must be short tokens or phrases that should match future signals.`,
+      },
+    ],
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) return inferMonitorIntentHeuristically(trimmed);
+
+  return normalizeMonitorIntent(trimmed, JSON.parse(content) as Partial<MonitorIntent>);
 }
 
 export async function transcribeAudio(file: File, context?: string) {
@@ -124,7 +231,7 @@ export async function generateChatResponse(message: string, context?: ChatContex
 
   const freshnessDate = getFreshnessDate();
   const response = await client.responses.create({
-    model: process.env.OPENAI_CHAT_MODEL || "gpt-5.5",
+    model: process.env.OPENAI_CHAT_MODEL || "gpt-4o",
     instructions: `${CHAT_PROMPT}\nUse ${freshnessDate.date} (${freshnessDate.timeZone}) as the current date when resolving which source is latest.\nWhen Bright Data evidence is supplied, use it as primary collected evidence for the requested target and use web search to corroborate relevant claims.`,
     input: buildChatInput(message, context),
     tools: [{ type: "web_search", search_context_size: "medium" }],

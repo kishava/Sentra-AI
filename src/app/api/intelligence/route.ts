@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     const webEvidence = await collectWebIntelligence({
       query,
       targetUrl: body.targetUrl,
-      mode: body.targetUrl ? "scraper" : "serp",
+      mode: body.targetUrl ? "unlocker" : "serp",
     });
     const analysis = await generateEnterpriseAnalysis(query, webEvidence.evidence);
 
