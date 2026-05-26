@@ -140,7 +140,7 @@ function ReasoningTimeline({ report }: { report: WorldEngineReport }) {
       <div className="mt-5 grid gap-3">
         {report.reasoning.map((stage, index) => (
           <motion.div
-            key={stage.stage}
+            key={`${stage.stage}-${index}`}
             initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.08 }}
@@ -218,7 +218,7 @@ function WorldPulseMode({
             </p>
           </Card>
           {report.forecasts.slice(0, 3).map((forecast, index) => (
-            <motion.div key={forecast.title} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 + index * 0.15 }} className="glass-panel rounded-2xl p-4">
+            <motion.div key={`${forecast.horizon}-${forecast.title}-${index}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 + index * 0.15 }} className="glass-panel rounded-2xl p-4">
               <div className="flex justify-between text-xs text-cyan-100/60"><span>{forecast.horizon} FORECAST</span><span>{forecast.probability}%</span></div>
               <p className="mt-3 text-sm text-white/74">{forecast.title}</p>
             </motion.div>
@@ -237,6 +237,9 @@ export function WorldEngineStudio() {
   const [selectedSignal, setSelectedSignal] = useState<WorldMapSignal>();
   const [pulseMode, setPulseMode] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [narrationUrl, setNarrationUrl] = useState<string>();
+  const [narrationLabel, setNarrationLabel] = useState<string>();
   const [muted, setMuted] = useState(true);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [sources, setSources] = useState<CollectionSource[]>([]);
@@ -257,6 +260,18 @@ export function WorldEngineStudio() {
     activityRequestRef.current?.abort();
     audioRef.current?.pause();
   }, []);
+
+  useEffect(() => () => {
+    if (narrationUrl) URL.revokeObjectURL(narrationUrl);
+  }, [narrationUrl]);
+
+  useEffect(() => {
+    if (!narrationUrl || !audioRef.current) return;
+    void audioRef.current.play().catch(() => {
+      setSpeaking(false);
+      toast.message("Narration ready", { description: "Press play in the narrator player to begin audio." });
+    });
+  }, [narrationUrl]);
 
   function appendClientLog(
     category: ActivityCategory,
@@ -344,7 +359,8 @@ export function WorldEngineStudio() {
 
   async function narrate(mode: "quick" | "executive" | "deep") {
     if (!report) return;
-    setSpeaking(true);
+    setSynthesizing(true);
+    setSpeaking(false);
     appendClientLog("VOICE", `Requesting ${mode} intelligence narration.`, "Voice synthesis", "info", "ElevenLabs");
     updateSource({ id: "elevenlabs", name: "ElevenLabs Voice", channel: "api", status: "active", detail: "Synthesis request in flight" });
     try {
@@ -354,25 +370,26 @@ export function WorldEngineStudio() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: report.briefings[mode] }),
       });
-      if (!response.ok) throw new Error("Narrator request failed.");
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "Narrator request failed.");
+      }
       if (response.headers.get("content-type")?.includes("audio")) {
-        const audio = new Audio(URL.createObjectURL(await response.blob()));
-        audioRef.current = audio;
-        audio.onended = () => setSpeaking(false);
-        await audio.play();
+        setNarrationUrl(URL.createObjectURL(await response.blob()));
+        setNarrationLabel(`${mode === "quick" ? "30-second" : mode === "executive" ? "Executive" : "Deep analyst"} briefing`);
         updateSource({ id: "elevenlabs", name: "ElevenLabs Voice", channel: "api", status: "success", detail: "Audio stream received" });
-        appendClientLog("VOICE", "Spoken intelligence briefing playback started.", "Voice synthesis", "success", "ElevenLabs");
+        appendClientLog("VOICE", "Spoken intelligence briefing generated and ready for playback.", "Voice synthesis", "success", "ElevenLabs");
       } else {
         updateSource({ id: "elevenlabs", name: "ElevenLabs Voice", channel: "api", status: "unavailable", detail: "Demo mode: credentials not configured" });
         appendClientLog("VOICE", "Voice provider unavailable; narration script remains available.", "Voice synthesis", "warning", "ElevenLabs");
         toast.message("Narrator script ready", { description: "Configure ElevenLabs credentials for spoken playback." });
-        setSpeaking(false);
       }
     } catch (error) {
       updateSource({ id: "elevenlabs", name: "ElevenLabs Voice", channel: "api", status: "error", detail: "Synthesis request failed" });
       appendClientLog("VOICE", "Voice synthesis request failed.", "Voice synthesis", "error", "ElevenLabs");
-      setSpeaking(false);
       toast.error(error instanceof Error ? error.message : "Voice narration failed.");
+    } finally {
+      setSynthesizing(false);
     }
   }
 
@@ -426,7 +443,7 @@ export function WorldEngineStudio() {
           </div>
         </Card>
         <Card className="flex flex-col items-center justify-center p-6 text-center" glow>
-          <AiOrb speaking={loading || speaking} size="md" />
+          <AiOrb speaking={loading || speaking || synthesizing} size="md" />
           <h2 className="mt-5 text-xl font-semibold text-white">AI Intelligence Narrator</h2>
           <p className="mt-2 text-sm leading-6 text-white/52">Visual reasoning with optional ElevenLabs executive briefings.</p>
           <Button variant="ghost" className="mt-5" onClick={() => setMuted((value) => !value)}>
@@ -498,12 +515,26 @@ export function WorldEngineStudio() {
                   ["executive", "2-minute executive"],
                   ["deep", "Deep analyst mode"],
                 ].map(([mode, label]) => (
-                  <button key={mode} type="button" onClick={() => void narrate(mode as "quick" | "executive" | "deep")} className="sentra-focus rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left text-sm text-white/68 transition hover:border-cyan-200/26 hover:bg-cyan-300/[0.07] hover:text-white">
+                  <button key={mode} type="button" disabled={synthesizing} onClick={() => void narrate(mode as "quick" | "executive" | "deep")} className="sentra-focus rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left text-sm text-white/68 transition hover:border-cyan-200/26 hover:bg-cyan-300/[0.07] hover:text-white disabled:cursor-wait disabled:opacity-50">
                     <Play className="mb-3 h-4 w-4 text-sentra-cyan" />
                     {label}
                   </button>
                 ))}
               </div>
+              {narrationUrl && (
+                <div className="mt-5 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.045] p-4">
+                  <p className="mb-3 text-xs uppercase tracking-[0.2em] text-cyan-100/58">{narrationLabel} ready</p>
+                  <audio
+                    ref={audioRef}
+                    src={narrationUrl}
+                    controls
+                    className="w-full accent-cyan-300"
+                    onPlay={() => setSpeaking(true)}
+                    onPause={() => setSpeaking(false)}
+                    onEnded={() => setSpeaking(false)}
+                  />
+                </div>
+              )}
             </Card>
           </div>
           {report.visualizations.includes("scenario") && <ScenarioEngine report={report} />}
@@ -513,8 +544,8 @@ export function WorldEngineStudio() {
             </div>
             {report.sources.length ? (
               <div className="mt-4 flex flex-wrap gap-2">
-                {report.sources.map((source) => (
-                  <a key={source.url} className="sentra-focus rounded-full border border-white/10 px-3 py-2 text-xs text-cyan-100 transition hover:bg-white/[0.06]" href={source.url} target="_blank" rel="noreferrer">
+                {report.sources.map((source, index) => (
+                  <a key={`${source.url}-${index}`} className="sentra-focus rounded-full border border-white/10 px-3 py-2 text-xs text-cyan-100 transition hover:bg-white/[0.06]" href={source.url} target="_blank" rel="noreferrer">
                     {source.title}
                   </a>
                 ))}
@@ -523,8 +554,8 @@ export function WorldEngineStudio() {
               <p className="mt-4 text-sm text-white/50">No live sources are attached in demo mode. Configure data integrations before treating signals as current facts.</p>
             )}
             <div className="mt-4 grid gap-2 md:grid-cols-2">
-              {report.limitations.map((limitation) => (
-                <p key={limitation} className="flex gap-2 text-xs leading-5 text-amber-100/60"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{limitation}</p>
+              {report.limitations.map((limitation, index) => (
+                <p key={`${limitation}-${index}`} className="flex gap-2 text-xs leading-5 text-amber-100/60"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{limitation}</p>
               ))}
             </div>
           </Card>

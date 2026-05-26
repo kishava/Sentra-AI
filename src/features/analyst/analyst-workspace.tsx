@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Camera, Globe2 } from "lucide-react";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { InvestigationStudio } from "@/features/image-intelligence/investigation-studio";
 import { WorldEngineStudio } from "@/features/world-engine/world-engine-studio";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,13 @@ import { cn } from "@/lib/utils";
 type AnalystMode = "world" | "vision";
 
 export function AnalystWorkspace() {
-  const [mode, setMode] = useState<AnalystMode>("world");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const mode: AnalystMode = searchParams.get("mode") === "vision" ? "vision" : "world";
+
+  function selectMode(nextMode: AnalystMode) {
+    router.replace(nextMode === "vision" ? "/analyst?mode=vision" : "/analyst", { scroll: false });
+  }
 
   return (
     <>
@@ -23,7 +29,7 @@ export function AnalystWorkspace() {
             <button
               key={item.id}
               type="button"
-              onClick={() => setMode(item.id)}
+              onClick={() => selectMode(item.id)}
               className={cn(
                 "sentra-focus flex items-center gap-2 rounded-full px-4 py-2.5 text-sm transition",
                 mode === item.id ? "bg-cyan-300/12 text-cyan-50 shadow-glow" : "text-white/54 hover:text-white",

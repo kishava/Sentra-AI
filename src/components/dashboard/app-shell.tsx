@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   BellRing,
   Bot,
   BrainCircuit,
+  Camera,
   ScanSearch,
   LayoutDashboard,
   LineChart,
@@ -21,6 +22,7 @@ const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "AI Chat", icon: Bot },
   { href: "/analyst", label: "AI Analyst", icon: ScanSearch },
+  { href: "/analyst?mode=vision", label: "Visual Forensics", icon: Camera },
   { href: "/alerts", label: "Alerts", icon: BellRing },
   { href: "/dashboard#market", label: "Market Intel", icon: LineChart },
   { href: "/dashboard#signals", label: "Live Signals", icon: Radar },
@@ -28,6 +30,8 @@ const nav = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const analystMode = searchParams.get("mode");
 
   return (
     <main className="min-h-screen">
@@ -43,19 +47,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </Link>
         <nav className="mt-10 grid gap-2">
-          {nav.map((item) => (
+          {nav.map((item) => {
+            const active = item.href === "/analyst"
+              ? pathname === "/analyst" && analystMode !== "vision"
+              : item.href === "/analyst?mode=vision"
+                ? pathname === "/analyst" && analystMode === "vision"
+                : item.href === pathname;
+            return (
             <Link
               key={item.label}
               href={item.href}
               className={cn(
                 "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white/58 transition hover:bg-white/[0.07] hover:text-white",
-                item.href === pathname && "bg-white/[0.08] text-white",
+                active && "bg-white/[0.08] text-white",
               )}
             >
               <item.icon className="h-4 w-4 text-sentra-cyan" />
               {item.label}
             </Link>
-          ))}
+            );
+          })}
         </nav>
         <div className="absolute inset-x-5 bottom-5 rounded-3xl border border-white/10 bg-white/[0.05] p-4">
           <p className="text-sm font-medium text-white">Autonomous monitor</p>

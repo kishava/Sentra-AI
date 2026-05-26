@@ -226,8 +226,8 @@ function ThoughtStream({ thoughts, running }: { thoughts: ReasoningStage[]; runn
       </div>
       <p className="mt-3 text-[11px] leading-5 text-white/38">Operational findings and final reasoning summaries; raw chain-of-thought is not exposed.</p>
       <div className="mt-4 grid max-h-56 gap-2 overflow-auto">
-        {thoughts.length ? thoughts.map((thought) => (
-          <motion.div key={`${thought.stage}-${thought.finding}`} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-white/[0.06] bg-black/15 p-3">
+        {thoughts.length ? thoughts.map((thought, index) => (
+          <motion.div key={`${thought.stage}-${thought.finding}-${index}`} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-white/[0.06] bg-black/15 p-3">
             <div className="flex justify-between text-[10px] uppercase text-violet-100/62">
               <span>{thought.stage}</span><span>{thought.confidence}%</span>
             </div>

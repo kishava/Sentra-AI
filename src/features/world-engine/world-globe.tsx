@@ -133,10 +133,10 @@ function IntelligenceSphere({ signals, activeSignal, cinematic, onSelect }: Glob
           <meshBasicMaterial color="#6272ff" transparent opacity={0.035} />
         </mesh>
         {signals.slice(0, -1).map((signal, index) => (
-          <Arc key={`${signal.id}-arc`} from={signal} to={signals[index + 1]} />
+          <Arc key={`${signal.id}-arc-${index}`} from={signal} to={signals[index + 1]} />
         ))}
-        {signals.map((signal) => (
-          <ActivityPoint key={signal.id} signal={signal} selected={signal.id === activeSignal} onSelect={onSelect} />
+        {signals.map((signal, index) => (
+          <ActivityPoint key={`${signal.id}-${index}`} signal={signal} selected={signal.id === activeSignal} onSelect={onSelect} />
         ))}
       </group>
     </>

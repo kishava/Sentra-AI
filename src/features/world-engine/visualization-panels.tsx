@@ -48,13 +48,13 @@ function IntelligenceGraph({ report }: { report: WorldEngineReport }) {
         <GitBranch className="h-5 w-5 text-sentra-cyan" />
       </div>
       <svg viewBox="0 0 360 292" className="mt-4 h-[292px] w-full" role="img" aria-label="Entity relationship graph">
-        {report.links.map((link) => {
+        {report.links.map((link, index) => {
           const source = positions.get(link.source);
           const target = positions.get(link.target);
           if (!source || !target) return null;
           return (
             <motion.line
-              key={`${link.source}-${link.target}`}
+              key={`${link.source}-${link.target}-${index}`}
               initial={{ pathLength: 0, opacity: 0 }}
               animate={{ pathLength: 1, opacity: 0.25 + link.strength / 180 }}
               transition={{ duration: 0.7 }}
@@ -69,7 +69,7 @@ function IntelligenceGraph({ report }: { report: WorldEngineReport }) {
           );
         })}
         {points.map((node, index) => (
-          <g key={node.id}>
+          <g key={`${node.id}-${index}`}>
             <motion.circle
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -89,7 +89,7 @@ function IntelligenceGraph({ report }: { report: WorldEngineReport }) {
         ))}
       </svg>
       <div className="flex flex-wrap gap-2">
-        {nodes.slice(0, 5).map((node: IntelligenceNode) => <Badge key={node.id}>{node.kind}: {node.risk}% risk</Badge>)}
+        {nodes.slice(0, 5).map((node: IntelligenceNode, index) => <Badge key={`${node.id}-${index}`}>{node.kind}: {node.risk}% risk</Badge>)}
       </div>
     </Card>
   );
@@ -115,8 +115,8 @@ function SignalRadar({ report }: { report: WorldEngineReport }) {
         </ResponsiveContainer>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        {report.pulse.map((pulse) => (
-          <div key={pulse.domain} className="flex items-center justify-between rounded-xl bg-white/[0.04] px-3 py-2 text-xs">
+        {report.pulse.map((pulse, index) => (
+          <div key={`${pulse.domain}-${index}`} className="flex items-center justify-between rounded-xl bg-white/[0.04] px-3 py-2 text-xs">
             <span className="capitalize text-white/60">{pulse.domain}</span>
             <span className={pulse.change >= 0 ? "text-cyan-100" : "text-rose-200"}>
               {pulse.change >= 0 ? "+" : ""}{pulse.change}%
@@ -167,8 +167,8 @@ function ForecastEngine({ report }: { report: WorldEngineReport }) {
         </ResponsiveContainer>
       </div>
       <div className="grid gap-2">
-        {report.forecasts.map((forecast) => (
-          <div key={forecast.title} className="rounded-2xl border border-white/8 bg-white/[0.035] p-3">
+        {report.forecasts.map((forecast, index) => (
+          <div key={`${forecast.horizon}-${forecast.title}-${index}`} className="rounded-2xl border border-white/8 bg-white/[0.035] p-3">
             <div className="flex gap-3">
               <Badge variant={forecast.direction === "negative" ? "risk" : "cyan"}>{forecast.horizon}</Badge>
               <p className="text-sm text-white/78">{forecast.title}</p>
@@ -188,10 +188,10 @@ function SentimentSystem({ report }: { report: WorldEngineReport }) {
       <p className="text-xs uppercase tracking-[0.23em] text-white/38">Sentiment heatmap system</p>
       <h3 className="mt-2 text-xl font-semibold text-white">Regional pulse</h3>
       <div className="mt-5 grid gap-3">
-        {report.signals.map((signal) => {
+        {report.signals.map((signal, index) => {
           const favorable = signal.sentiment >= 0;
           return (
-            <div key={signal.id}>
+            <div key={`${signal.id}-${index}`}>
               <div className="mb-2 flex items-center justify-between text-xs">
                 <span className="text-white/62">{signal.region}</span>
                 <span className={favorable ? "text-emerald-200" : "text-rose-200"}>
@@ -228,7 +228,7 @@ function ScenarioEngine({ report }: { report: WorldEngineReport }) {
         <div className="absolute left-8 right-8 top-10 hidden h-px bg-gradient-to-r from-transparent via-cyan-300/30 to-transparent lg:block" />
         {report.scenario.map((impact, index) => (
           <motion.div
-            key={impact.stage}
+            key={`${impact.stage}-${index}`}
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
