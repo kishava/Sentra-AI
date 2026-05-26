@@ -8,6 +8,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
 
+  if (auth.localMode || !auth.supabase) {
+    return NextResponse.json({ messages: [] });
+  }
+
   const { id } = await context.params;
   const messages = await getThreadMessages(auth.supabase, auth.user.id, id);
   return NextResponse.json({ messages });

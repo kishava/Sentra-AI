@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { createClient } from "@/lib/supabase/client";
+import { getBrowserClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 
 type AuthShellProps = {
   mode: "sign-in" | "sign-up";
@@ -22,18 +22,33 @@ export function AuthShell({ mode }: AuthShellProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isSignUp = mode === "sign-up";
+  const supabaseEnabled = isBrowserSupabaseConfigured();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
-  const supabase = createClient();
   const nextPath = searchParams.get("next") || "/dashboard";
+
+  function enterLocalWorkspace(message: string) {
+    toast.success(message, {
+      description: "Local mode: no Supabase. Add keys in .env.local when you deploy.",
+    });
+    router.push(nextPath);
+  }
 
   async function handleEmailAuth(event: React.FormEvent) {
     event.preventDefault();
-    setLoading(true);
 
+    if (!supabaseEnabled) {
+      enterLocalWorkspace(isSignUp ? "Workspace ready (local)" : "Signed in (local)");
+      return;
+    }
+
+    const supabase = getBrowserClient();
+    if (!supabase) return;
+
+    setLoading(true);
     try {
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({
@@ -60,10 +75,18 @@ export function AuthShell({ mode }: AuthShellProps) {
   }
 
   async function handleMagicLink() {
+    if (!supabaseEnabled) {
+      enterLocalWorkspace("Local workspace");
+      return;
+    }
+
     if (!email.trim()) {
       toast.error("Enter your work email first.");
       return;
     }
+
+    const supabase = getBrowserClient();
+    if (!supabase) return;
 
     setLoading(true);
     try {
@@ -84,6 +107,14 @@ export function AuthShell({ mode }: AuthShellProps) {
   }
 
   async function handleOAuth(provider: "google" | "github") {
+    if (!supabaseEnabled) {
+      enterLocalWorkspace(`Continuing with ${provider} (local mode)`);
+      return;
+    }
+
+    const supabase = getBrowserClient();
+    if (!supabase) return;
+
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -115,12 +146,14 @@ export function AuthShell({ mode }: AuthShellProps) {
             </span>
             Sentra AI
           </Link>
-          <Badge variant="cyan">Secure enterprise access</Badge>
+          <Badge variant="cyan">{supabaseEnabled ? "Secure enterprise access" : "Local development"}</Badge>
           <h1 className="mt-5 max-w-xl text-5xl font-semibold tracking-tight text-white">
             Enter the intelligence layer for teams that never fly blind.
           </h1>
           <p className="mt-5 max-w-lg text-lg leading-8 text-white/55">
-            Sign in to save chat history, live briefings, and custom monitors powered by Bright Data.
+            {supabaseEnabled
+              ? "Sign in to save chat history, live briefings, and custom monitors powered by Bright Data."
+              : "Build with a friend on GitHub first. Supabase auth and cloud saves activate when you add keys for deploy."}
           </p>
           <AiOrb size="lg" className="mt-12" />
         </motion.div>
@@ -137,70 +170,102 @@ export function AuthShell({ mode }: AuthShellProps) {
                 {isSignUp ? "Start monitoring the live web" : "Sign in to Sentra OS"}
               </h2>
               <p className="mt-2 text-sm text-white/50">
-                Email, magic link, Google, or GitHub — your intelligence workspace syncs securely.
+                {supabaseEnabled
+                  ? "Email, magic link, Google, or GitHub — your workspace syncs to Supabase."
+                  : "No Supabase keys detected — use local mode below. Perfect for hackathon dev with a teammate."}
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+
+            {!supabaseEnabled && (
               <Button
                 type="button"
-                variant="ghost"
-                className="rounded-2xl"
-                disabled={loading}
-                onClick={() => handleOAuth("github")}
+                variant="neon"
+                size="lg"
+                className="mb-6 w-full"
+                onClick={() => enterLocalWorkspace("Entering local workspace")}
               >
-                <Code2 className="h-4 w-4" /> GitHub
+                Enter workspace (local mode)
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                className="rounded-2xl"
-                disabled={loading}
-                onClick={() => handleOAuth("google")}
-              >
-                <Mail className="h-4 w-4" /> Google
-              </Button>
-            </div>
-            <div className="my-7 flex items-center gap-4">
-              <div className="h-px flex-1 bg-white/10" />
-              <span className="text-xs uppercase tracking-[0.24em] text-white/35">or email</span>
-              <div className="h-px flex-1 bg-white/10" />
-            </div>
+            )}
+
+            {supabaseEnabled && (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="rounded-2xl"
+                    disabled={loading}
+                    onClick={() => handleOAuth("github")}
+                  >
+                    <Code2 className="h-4 w-4" /> GitHub
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="rounded-2xl"
+                    disabled={loading}
+                    onClick={() => handleOAuth("google")}
+                  >
+                    <Mail className="h-4 w-4" /> Google
+                  </Button>
+                </div>
+                <div className="my-7 flex items-center gap-4">
+                  <div className="h-px flex-1 bg-white/10" />
+                  <span className="text-xs uppercase tracking-[0.24em] text-white/35">or email</span>
+                  <div className="h-px flex-1 bg-white/10" />
+                </div>
+              </>
+            )}
+
             <form className="grid gap-4" onSubmit={handleEmailAuth}>
-              {isSignUp && (
+              {isSignUp && supabaseEnabled && (
                 <Input
                   placeholder="Company name"
                   value={companyName}
                   onChange={(event) => setCompanyName(event.target.value)}
                 />
               )}
-              <Input
-                placeholder="Work email"
-                type="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-              <Input
-                placeholder="Password"
-                type="password"
-                required={!magicLinkSent}
-                minLength={6}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-              <Button variant="neon" size="lg" className="mt-2" disabled={loading} type="submit">
-                {isSignUp ? "Create intelligence workspace" : "Enter Sentra OS"}
+              {supabaseEnabled && (
+                <>
+                  <Input
+                    placeholder="Work email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Password"
+                    type="password"
+                    required={!magicLinkSent}
+                    minLength={6}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </>
+              )}
+              <Button variant={supabaseEnabled ? "neon" : "ghost"} size="lg" className="mt-2" disabled={loading} type="submit">
+                {supabaseEnabled
+                  ? isSignUp
+                    ? "Create intelligence workspace"
+                    : "Enter Sentra OS"
+                  : "Continue without cloud auth"}
               </Button>
             </form>
-            <Button
-              type="button"
-              variant="ghost"
-              className="mt-3 w-full rounded-2xl"
-              disabled={loading}
-              onClick={handleMagicLink}
-            >
-              {magicLinkSent ? "Magic link sent — check your inbox" : "Send me a magic link instead"}
-            </Button>
+
+            {supabaseEnabled && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="mt-3 w-full rounded-2xl"
+                disabled={loading}
+                onClick={handleMagicLink}
+              >
+                {magicLinkSent ? "Magic link sent — check your inbox" : "Send me a magic link instead"}
+              </Button>
+            )}
+
             <p className="mt-7 text-center text-sm text-white/50">
               {isSignUp ? "Already have an account?" : "New to Sentra AI?"}{" "}
               <Link

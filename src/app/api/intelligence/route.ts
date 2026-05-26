@@ -38,12 +38,14 @@ export async function POST(request: Request) {
     const targetUrl = body.targetUrl?.trim();
     const result = await runIntelligence(query, targetUrl);
 
-    await saveIntelligenceRun(auth.supabase, auth.user.id, {
-      query,
-      provider: result.provider,
-      evidencePreview: result.analysis.summary,
-      analysis: result.analysis,
-    });
+    if (!auth.localMode && auth.supabase) {
+      await saveIntelligenceRun(auth.supabase, auth.user.id, {
+        query,
+        provider: result.provider,
+        evidencePreview: result.analysis.summary,
+        analysis: result.analysis,
+      });
+    }
 
     return NextResponse.json({
       provider: result.provider,
@@ -64,13 +66,15 @@ export async function GET() {
     const auth = await requireApiUser();
     if ("error" in auth) return auth.error;
 
-    const briefing = await getLatestBriefing(auth.supabase, auth.user.id);
-    if (briefing) {
-      return NextResponse.json({
-        provider: briefing.provider,
-        analysis: briefing.analysis,
-        cached: true,
-      });
+    if (!auth.localMode && auth.supabase) {
+      const briefing = await getLatestBriefing(auth.supabase, auth.user.id);
+      if (briefing) {
+        return NextResponse.json({
+          provider: briefing.provider,
+          analysis: briefing.analysis,
+          cached: true,
+        });
+      }
     }
 
     const limited = await checkRateLimit(auth.user.id, "intelligence");
@@ -81,12 +85,14 @@ export async function GET() {
     const query = "Daily enterprise intelligence briefing";
     const result = await runIntelligence(query);
 
-    await saveIntelligenceRun(auth.supabase, auth.user.id, {
-      query,
-      provider: result.provider,
-      evidencePreview: result.analysis.summary,
-      analysis: result.analysis,
-    });
+    if (!auth.localMode && auth.supabase) {
+      await saveIntelligenceRun(auth.supabase, auth.user.id, {
+        query,
+        provider: result.provider,
+        evidencePreview: result.analysis.summary,
+        analysis: result.analysis,
+      });
+    }
 
     return NextResponse.json({
       provider: result.provider,

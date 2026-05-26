@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ParticleField } from "@/components/shared/particle-field";
-import { createClient } from "@/lib/supabase/client";
+import { getBrowserClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -22,12 +22,16 @@ export default function OnboardingPage() {
   }, []);
 
   async function completeOnboarding() {
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from("profiles").update({ onboarding_completed: true }).eq("id", user.id);
+    if (isBrowserSupabaseConfigured()) {
+      const supabase = getBrowserClient();
+      if (supabase) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from("profiles").update({ onboarding_completed: true }).eq("id", user.id);
+        }
+      }
     }
     router.push("/dashboard");
     router.refresh();

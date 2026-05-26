@@ -10,6 +10,10 @@ export async function GET() {
     const auth = await requireApiUser();
     if ("error" in auth) return auth.error;
 
+    if (auth.localMode || !auth.supabase) {
+      return NextResponse.json({ signals: signalStream, source: "sample" });
+    }
+
     const signals = await getLatestSignals(auth.supabase, auth.user.id, 30);
 
     return NextResponse.json({

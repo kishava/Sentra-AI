@@ -9,6 +9,8 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   if ("error" in auth) return auth.error;
 
   const { id } = await context.params;
-  await deleteMonitor(auth.supabase, auth.user.id, id);
+  if (!auth.localMode && auth.supabase) {
+    await deleteMonitor(auth.supabase, auth.user.id, id);
+  }
   return NextResponse.json({ ok: true });
 }

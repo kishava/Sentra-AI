@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { signalStream } from "@/data/mock-intelligence";
+import { isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { IntelligenceSignal, MonitorIntent, Severity } from "@/types/intelligence";
 
@@ -61,6 +62,11 @@ function loadMonitors() {
   }
 }
 
+function saveMonitors(monitors: Monitor[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(monitors));
+}
+
 function tokenize(value: string) {
   return value
     .toLowerCase()
@@ -106,11 +112,19 @@ export function MonitorCenter() {
 
   useEffect(() => {
     async function loadData() {
+      const localOnly = !isBrowserSupabaseConfigured();
+
       try {
-        const [monitorsRes, signalsRes] = await Promise.all([
-          fetch("/api/monitors"),
-          fetch("/api/signals"),
-        ]);
+        const signalsRes = await fetch("/api/signals");
+        const signalsData = (await signalsRes.json()) as { signals?: IntelligenceSignal[] };
+        if (signalsData.signals?.length) setSignals(signalsData.signals);
+
+        if (localOnly) {
+          setMonitors(loadMonitors());
+          return;
+        }
+
+        const monitorsRes = await fetch("/api/monitors");
         const monitorsData = (await monitorsRes.json()) as {
           monitors?: Array<{
             id: string;
@@ -121,12 +135,8 @@ export function MonitorCenter() {
             active: boolean;
             last_checked_at: string | null;
           }>;
+          localMode?: boolean;
         };
-        const signalsData = (await signalsRes.json()) as {
-          signals?: IntelligenceSignal[];
-        };
-
-        if (signalsData.signals?.length) setSignals(signalsData.signals);
 
         if (monitorsData.monitors?.length) {
           setMonitors(
@@ -146,7 +156,7 @@ export function MonitorCenter() {
         }
 
         const legacy = loadMonitors();
-        if (legacy.length) {
+        if (legacy.length && !monitorsData.localMode) {
           for (const monitor of legacy) {
             await fetch("/api/monitors", {
               method: "POST",
@@ -186,6 +196,12 @@ export function MonitorCenter() {
 
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!isBrowserSupabaseConfigured() && monitors.length) {
+      saveMonitors(monitors);
+    }
+  }, [monitors]);
 
   useEffect(() => {
     const input = requirement.trim();
@@ -362,7 +378,11 @@ export function MonitorCenter() {
         alertedSignalIds: [],
       };
 
-      setMonitors((current) => [monitor, ...current]);
+      setMonitors((current) => {
+        const next = [monitor, ...current];
+        if (!isBrowserSupabaseConfigured()) saveMonitors(next);
+        return next;
+      });
       setRequirement("");
       setMonitorIntent(null);
       toast.success("Monitor saved", {
@@ -374,9 +394,23 @@ export function MonitorCenter() {
   }
 
   async function checkMonitorNow(monitorId: string) {
+    const monitor = monitors.find((item) => item.id === monitorId);
     setCheckingId(monitorId);
     try {
-      const response = await fetch(`/api/monitors/${monitorId}/check`, { method: "POST" });
+      const response = await fetch(`/api/monitors/${monitorId}/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          isBrowserSupabaseConfigured()
+            ? {}
+            : {
+                requirement: monitor?.requirement,
+                category: monitor?.category,
+                minimumSeverity: monitor?.minimumSeverity,
+                keywords: monitor?.keywords,
+              },
+        ),
+      });
       const data = (await response.json()) as {
         signals?: IntelligenceSignal[];
         provider?: string;
@@ -400,7 +434,6 @@ export function MonitorCenter() {
         });
       }
 
-      const monitor = monitors.find((item) => item.id === monitorId);
       const matched = data.signals ?? [];
       matched.forEach((signal) => {
         if (monitor) {
@@ -445,16 +478,13 @@ export function MonitorCenter() {
   }
 
   function toggleMonitor(id: string) {
-    setMonitors((current) =>
-      current.map((monitor) =>
-        monitor.id === id
-          ? {
-              ...monitor,
-              active: !monitor.active,
-            }
-          : monitor,
-      ),
-    );
+    setMonitors((current) => {
+      const next = current.map((monitor) =>
+        monitor.id === id ? { ...monitor, active: !monitor.active } : monitor,
+      );
+      if (!isBrowserSupabaseConfigured()) saveMonitors(next);
+      return next;
+    });
   }
 
   async function removeMonitor(id: string) {
@@ -463,7 +493,11 @@ export function MonitorCenter() {
     } catch {
       // Still remove locally if API fails in demo mode.
     }
-    setMonitors((current) => current.filter((monitor) => monitor.id !== id));
+    setMonitors((current) => {
+      const next = current.filter((monitor) => monitor.id !== id);
+      if (!isBrowserSupabaseConfigured()) saveMonitors(next);
+      return next;
+    });
   }
 
   return (

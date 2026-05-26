@@ -90,21 +90,23 @@ export async function POST(request: Request) {
     });
 
     let threadId = body.threadId;
-    if (!threadId) {
-      const thread = await createChatThread(auth.supabase, auth.user.id);
-      threadId = thread.id;
-    }
+    if (!auth.localMode && auth.supabase) {
+      if (!threadId) {
+        const thread = await createChatThread(auth.supabase, auth.user.id);
+        threadId = thread.id;
+      }
 
-    if (threadId) {
-      await appendChatMessage(auth.supabase, auth.user.id, threadId, {
-        role: "user",
-        content: message,
-      });
-      await appendChatMessage(auth.supabase, auth.user.id, threadId, {
-        role: "assistant",
-        content: response,
-        provider,
-      });
+      if (threadId) {
+        await appendChatMessage(auth.supabase, auth.user.id, threadId, {
+          role: "user",
+          content: message,
+        });
+        await appendChatMessage(auth.supabase, auth.user.id, threadId, {
+          role: "assistant",
+          content: response,
+          provider,
+        });
+      }
     }
 
     return NextResponse.json({

@@ -42,12 +42,27 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Local development (GitHub collab, no deploy yet)
+
+You can run Sentra **without Supabase**. Leave `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` empty in `.env.local`.
+
+1. Copy `.env.example` → `.env.local` and add **OpenAI**, **Bright Data**, and
+   **ElevenLabs** keys (see hackathon demo below).
+2. `npm run dev` → open `/sign-in` → **Enter workspace (local mode)**.
+3. Monitors are stored in **browser localStorage** per machine; chat history is
+   session-only until you add Supabase for deploy.
+
+When you deploy, create a Supabase project, run `supabase/migrations/001_initial_schema.sql`,
+add the three Supabase env vars, and real auth + cloud persistence turn on automatically.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env.local` and fill in the provider keys you want to
 enable:
 
 ```bash
+# Optional until production deploy
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=

@@ -13,6 +13,7 @@ import {
   Settings,
 } from "lucide-react";
 import { CommandPalette } from "@/components/shared/command-palette";
+import { LocalDevBanner } from "@/components/shared/local-dev-banner";
 import { ParticleField } from "@/components/shared/particle-field";
 import { UserMenu } from "@/components/dashboard/user-menu";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <section className="pb-24 lg:pb-0 lg:pl-72">
+        <LocalDevBanner />
         <header className="sticky top-0 z-30 border-b border-white/10 bg-sentra-ink/55 px-4 py-4 backdrop-blur-2xl md:px-8">
           <div className="flex min-w-0 items-center gap-3 md:gap-4">
             <CommandPalette className="min-w-0 flex-1" />

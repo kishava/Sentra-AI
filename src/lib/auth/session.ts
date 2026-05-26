@@ -1,43 +1,66 @@
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import {
+  isSupabaseConfigured,
+  LOCAL_DEV_USER_EMAIL,
+  LOCAL_DEV_USER_ID,
+} from "@/lib/supabase/config";
+import { getServerClient } from "@/lib/supabase/server";
+
+export type ApiAuthContext = {
+  user: User | { id: string; email?: string };
+  supabase: SupabaseClient | null;
+  localMode: boolean;
+};
 
 export async function getSessionUser() {
-  const supabaseConfigured =
-    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-    Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-
-  if (!supabaseConfigured) {
-    return { user: null, supabaseConfigured: false as const };
+  if (!isSupabaseConfigured()) {
+    return {
+      user: null,
+      supabaseConfigured: false as const,
+      localMode: true as const,
+      supabase: null as SupabaseClient | null,
+    };
   }
 
-  const supabase = await createClient();
+  const supabase = await getServerClient();
+  if (!supabase) {
+    return {
+      user: null,
+      supabaseConfigured: false as const,
+      localMode: true as const,
+      supabase: null as SupabaseClient | null,
+    };
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return { user, supabaseConfigured: true as const, supabase };
+  return {
+    user,
+    supabaseConfigured: true as const,
+    localMode: false as const,
+    supabase,
+  };
 }
 
-export async function requireApiUser() {
+export async function requireApiUser(): Promise<{ error: NextResponse } | ApiAuthContext> {
   const session = await getSessionUser();
 
-  if (!session.supabaseConfigured) {
+  if (!session.supabaseConfigured || session.localMode) {
     return {
-      error: NextResponse.json(
-        {
-          error:
-            "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
-        },
-        { status: 503 },
-      ),
+      user: { id: LOCAL_DEV_USER_ID, email: LOCAL_DEV_USER_EMAIL },
+      supabase: null,
+      localMode: true,
     };
   }
 
-  if (!session.user) {
+  if (!session.user || !session.supabase) {
     return {
       error: NextResponse.json({ error: "Sign in required." }, { status: 401 }),
     };
   }
 
-  return { user: session.user, supabase: session.supabase };
+  return { user: session.user, supabase: session.supabase, localMode: false };
 }
