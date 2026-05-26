@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     async start(controller) {
       const emit = (event: ActivityStreamEvent) => controller.enqueue(encoder.encode(encodeSse(event)));
       const logs = new RealtimeLogService(emit);
+      const heartbeat = setInterval(() => logs.health(), 1000);
       const brightDataConfigured = Boolean(
         process.env.BRIGHT_DATA_API_KEY &&
         process.env.BRIGHT_DATA_SERP_ENDPOINT &&
@@ -305,6 +306,7 @@ export async function POST(request: Request) {
         logs.setStatus("failed", "Failure");
         emit({ type: "error", message });
       } finally {
+        clearInterval(heartbeat);
         controller.close();
       }
     },

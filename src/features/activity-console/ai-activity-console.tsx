@@ -182,6 +182,7 @@ export function IntelligencePipelineMonitor({ health, running }: { health?: Pipe
     ["EVENTS", String(health?.events ?? 0)],
     ["SOURCES", `${health?.completedSources ?? 0}/${(health?.activeSources ?? 0) + (health?.completedSources ?? 0)}`],
     ["LATENCY", health?.apiLatencyMs !== undefined ? `${health.apiLatencyMs}ms` : "--"],
+    ["ELAPSED", health ? `${(health.elapsedMs / 1000).toFixed(1)}s` : "--"],
   ];
 
   return (
@@ -191,7 +192,7 @@ export function IntelligencePipelineMonitor({ health, running }: { health?: Pipe
       </p>
       <div className="grid grid-cols-2 gap-2">
         {cards.map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3">
+          <div key={label} className={cn("rounded-xl border border-white/[0.06] bg-white/[0.03] p-3", label === "ELAPSED" && "col-span-2")}>
             <p className="text-[9px] tracking-[0.18em] text-white/34">{label}</p>
             <p className="mt-2 font-mono text-sm text-cyan-100">{value}</p>
           </div>
