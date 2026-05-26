@@ -48,15 +48,21 @@ Copy `.env.example` to `.env.local` and fill in the provider keys you want to
 enable:
 
 ```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
 OPENAI_API_KEY=
+OPENAI_CHAT_MODEL=gpt-4o
 OPENAI_WORLD_MODEL=gpt-5.5
 OPENAI_TRANSCRIPTION_MODEL=gpt-4o-transcribe
 SENTRA_TIMEZONE=Asia/Colombo
 
 BRIGHT_DATA_API_KEY=
-BRIGHT_DATA_SERP_ENDPOINT=
+BRIGHT_DATA_CACHE_TTL_SECONDS=900
+BRIGHT_DATA_SERP_ENDPOINT=https://api.brightdata.com/request
 BRIGHT_DATA_SERP_ZONE=
-BRIGHT_DATA_WEB_UNLOCKER_ENDPOINT=
+BRIGHT_DATA_WEB_UNLOCKER_ENDPOINT=https://api.brightdata.com/request
 BRIGHT_DATA_WEB_UNLOCKER_ZONE=
 BRIGHT_DATA_SCRAPER_ENDPOINT=
 
@@ -70,9 +76,11 @@ remain functional.
 ## Routes
 
 - `/` - cinematic landing page
-- `/sign-in` - animated sign-in
-- `/sign-up` - animated sign-up
-- `/dashboard` - intelligence operating system
+- `/sign-in` - Supabase auth (email, magic link, Google, GitHub)
+- `/sign-up` - create workspace
+- `/onboarding` - first-run setup checklist
+- `/settings` - integration status (Bright Data zones, OpenAI, ElevenLabs)
+- `/dashboard` - intelligence operating system with live briefing refresh
 - `/chat` - AI analyst chat with microphone transcription and voice playback
 - `/analyst` - AI World Engine and visual-forensics investigation workspaces
 - `/alerts` - enterprise alert center
@@ -92,8 +100,27 @@ remain functional.
   returning the completed World Engine model
 - `POST /api/image-analysis` - analyzes uploaded visual evidence after an
   investigator submits a prompt
-- `POST /api/bright-data` - reusable Bright Data collection endpoint
+- `POST /api/bright-data` - reusable Bright Data collection endpoint (auth required)
 - `POST /api/voice` - ElevenLabs text-to-speech with demo fallback
+- `GET /api/signals` - latest signals for the signed-in user
+- `GET|POST /api/monitors` - CRUD custom monitors
+- `POST /api/monitors/[id]/check` - Bright Data + OpenAI monitor check (manual, credit-safe)
+- `GET /api/health/integrations` - integration readiness for settings/onboarding
+
+## Supabase setup
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Run the SQL in `supabase/migrations/001_initial_schema.sql` in the SQL editor.
+3. Enable Email, Magic Link, Google, and GitHub providers in Authentication.
+4. Set redirect URL: `http://localhost:3000/auth/callback` (and your production URL).
+
+## Hackathon demo script (Bright Data)
+
+1. **Dashboard** → **Refresh briefing** (SERP via Bright Data when zones are set).
+2. **Chat** → `Track competitor pricing changes` or paste a competitor `https://` URL (Unlocker).
+3. **Alerts** → create a monitor → **Check now** (SERP/Unlocker + structured signals).
+
+Promo code for credits: `unlocked` on [brightdata.com](https://brightdata.com).
 
 ## Production Notes
 

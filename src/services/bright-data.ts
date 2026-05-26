@@ -1,5 +1,7 @@
 import axios from "axios";
+import { createHash } from "crypto";
 import { signalStream } from "@/data/mock-intelligence";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { BrightDataRequest } from "@/types/intelligence";
 
 type BrightDataEvidence = {
@@ -7,6 +9,7 @@ type BrightDataEvidence = {
   query: string;
   evidence: string;
   raw?: unknown;
+  cacheHit?: boolean;
 };
 
 const endpointByMode = {
@@ -24,6 +27,55 @@ const zoneByMode = {
 type BrightDataZone = { name: string; type: string };
 
 let resolvedZones: { serp?: string; unlocker?: string } | null = null;
+
+function getCacheTtlSeconds() {
+  const raw = Number(process.env.BRIGHT_DATA_CACHE_TTL_SECONDS ?? 900);
+  return Number.isFinite(raw) && raw > 0 ? raw : 900;
+}
+
+function buildCacheKey(mode: string, zone: string, query: string, targetUrl?: string) {
+  const payload = `${mode}|${zone}|${query}|${targetUrl ?? ""}`;
+  return createHash("sha256").update(payload).digest("hex");
+}
+
+async function readCache(cacheKey: string): Promise<BrightDataEvidence | null> {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return null;
+
+  try {
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("bd_cache")
+      .select("payload, expires_at")
+      .eq("cache_key", cacheKey)
+      .maybeSingle();
+
+    if (!data || new Date(data.expires_at) < new Date()) {
+      if (data) await admin.from("bd_cache").delete().eq("cache_key", cacheKey);
+      return null;
+    }
+
+    const cached = data.payload as BrightDataEvidence;
+    return { ...cached, cacheHit: true };
+  } catch {
+    return null;
+  }
+}
+
+async function writeCache(cacheKey: string, value: BrightDataEvidence) {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return;
+
+  try {
+    const admin = createAdminClient();
+    const expiresAt = new Date(Date.now() + getCacheTtlSeconds() * 1000).toISOString();
+    await admin.from("bd_cache").upsert({
+      cache_key: cacheKey,
+      payload: value,
+      expires_at: expiresAt,
+    });
+  } catch (error) {
+    console.error("Bright Data cache write failed", error);
+  }
+}
 
 async function resolveBrightDataZones(apiKey: string) {
   if (resolvedZones) return resolvedZones;
@@ -72,18 +124,20 @@ export async function collectWebIntelligence({
   targetUrl,
   mode = "serp",
 }: BrightDataRequest): Promise<BrightDataEvidence> {
-  const endpointKey = endpointByMode[mode];
+  const effectiveMode = mode === "scraper" && targetUrl ? "unlocker" : mode;
+  const endpointKey = endpointByMode[effectiveMode];
   const endpoint = process.env[endpointKey];
   const apiKey = process.env.BRIGHT_DATA_API_KEY;
-  const zoneKey = mode === "serp" || mode === "unlocker" ? zoneByMode[mode] : null;
+  const zoneKey =
+    effectiveMode === "serp" || effectiveMode === "unlocker" ? zoneByMode[effectiveMode] : null;
   let zone = zoneKey ? process.env[zoneKey]?.trim() : null;
 
   if (apiKey && zoneKey && !zone) {
     const zones = await resolveBrightDataZones(apiKey);
-    zone = mode === "serp" ? zones.serp : zones.unlocker;
+    zone = effectiveMode === "serp" ? zones.serp : zones.unlocker;
   }
 
-  if (!apiKey || !endpoint || (zoneKey && !zone) || (mode === "unlocker" && !targetUrl)) {
+  if (!apiKey || !endpoint || (zoneKey && !zone) || (effectiveMode === "unlocker" && !targetUrl)) {
     if (apiKey && zoneKey && !zone) {
       console.warn(
         "Bright Data zone not configured. Create a SERP or Web Unlocker zone in the Bright Data control panel.",
@@ -92,9 +146,16 @@ export async function collectWebIntelligence({
     return getDemoEvidence(query);
   }
 
+  const cacheKey = buildCacheKey(effectiveMode, zone!, query, targetUrl);
+  const cached = await readCache(cacheKey);
+  if (cached) {
+    console.info("Bright Data cache hit", { mode: effectiveMode, cacheKey: cacheKey.slice(0, 12) });
+    return cached;
+  }
+
   try {
     const payload =
-      mode === "serp"
+      effectiveMode === "serp"
         ? {
             zone,
             url: `https://www.google.com/search?q=${encodeURIComponent(query)}&brd_json=1&gl=us&hl=en`,
@@ -102,7 +163,7 @@ export async function collectWebIntelligence({
             method: "GET",
             country: "us",
           }
-        : mode === "unlocker"
+        : effectiveMode === "unlocker"
           ? {
               zone,
               url: targetUrl,
@@ -118,24 +179,25 @@ export async function collectWebIntelligence({
               country: "us",
             };
 
-    const response = await axios.post(
-      endpoint,
-      payload,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 30000,
+    const response = await axios.post(endpoint, payload, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
       },
-    );
+      timeout: 30000,
+    });
 
-    return {
+    const result: BrightDataEvidence = {
       provider: "bright-data",
       query,
       evidence: JSON.stringify(response.data).slice(0, 8000),
       raw: response.data,
+      cacheHit: false,
     };
+
+    console.info("Bright Data collection success", { mode: effectiveMode, provider: "bright-data" });
+    await writeCache(cacheKey, result);
+    return result;
   } catch (error) {
     console.error("Bright Data lookup failed; using demo evidence", error);
     return getDemoEvidence(query);
@@ -146,6 +208,6 @@ export async function monitorCompetitor(targetUrl: string) {
   return collectWebIntelligence({
     query: `Monitor competitor website changes, pricing, product launches, and hiring signals for ${targetUrl}`,
     targetUrl,
-    mode: "scraper",
+    mode: "unlocker",
   });
 }

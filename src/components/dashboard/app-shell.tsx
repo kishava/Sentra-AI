@@ -12,9 +12,9 @@ import {
   Radar,
   Settings,
 } from "lucide-react";
-import { toast } from "sonner";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { ParticleField } from "@/components/shared/particle-field";
+import { UserMenu } from "@/components/dashboard/user-menu";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -22,6 +22,7 @@ const nav = [
   { href: "/chat", label: "AI Chat", icon: Bot },
   { href: "/analyst", label: "AI Analyst", icon: ScanSearch },
   { href: "/alerts", label: "Alerts", icon: BellRing },
+  { href: "/settings", label: "Settings", icon: Settings },
   { href: "/dashboard#market", label: "Market Intel", icon: LineChart },
   { href: "/dashboard#signals", label: "Live Signals", icon: Radar },
 ];
@@ -59,9 +60,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="absolute inset-x-5 bottom-5 rounded-3xl border border-white/10 bg-white/[0.05] p-4">
-          <p className="text-sm font-medium text-white">Autonomous monitor</p>
+          <p className="text-sm font-medium text-white">Bright Data pipeline</p>
           <p className="mt-1 text-xs leading-5 text-white/45">
-            8,248 sources scanned with Bright Data in the demo stream.
+            SERP + Web Unlocker feed live briefings, chat, and monitor checks.
           </p>
         </div>
       </aside>
@@ -76,17 +77,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <BellRing className="h-5 w-5" />
             </Link>
-            <button
+            <Link
+              href="/settings"
               className="hidden rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-white/60 transition hover:text-white md:block"
               aria-label="Open settings"
-              onClick={() =>
-                toast.message("Workspace settings", {
-                  description: "Demo mode: integrations are configured through .env.local.",
-                })
-              }
             >
               <Settings className="h-5 w-5" />
-            </button>
+            </Link>
+            <UserMenu />
           </div>
         </header>
         <div className="px-4 py-8 md:px-8">{children}</div>

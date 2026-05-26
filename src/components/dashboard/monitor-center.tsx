@@ -80,30 +80,16 @@ function matchesRequirement(monitor: Monitor, signal: IntelligenceSignal) {
   return requirementTokens.some((token) => haystack.includes(token));
 }
 
-function getMatches(monitor: Monitor) {
-  return signalStream.filter((signal) => matchesRequirement(monitor, signal));
-}
-
-function sendBrowserNotification(monitor: Monitor, signal: IntelligenceSignal, onOpenReport: () => void) {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
-
-  const notification = new Notification("Sentra monitor alert", {
-    body: `${monitor.requirement}: ${signal.title}`,
-    tag: `${monitor.id}-${signal.id}`,
-  });
-
-  notification.onclick = () => {
-    window.focus();
-    notification.close();
-    onOpenReport();
-  };
+function getMatches(monitor: Monitor, signals: IntelligenceSignal[]) {
+  return signals.filter((signal) => matchesRequirement(monitor, signal));
 }
 
 export function MonitorCenter() {
   const aiAbortRef = useRef<AbortController | null>(null);
   const intentAbortRef = useRef<AbortController | null>(null);
-  const [monitors, setMonitors] = useState<Monitor[]>(loadMonitors);
+  const [monitors, setMonitors] = useState<Monitor[]>([]);
+  const [signals, setSignals] = useState<IntelligenceSignal[]>(signalStream);
+  const [checkingId, setCheckingId] = useState<string | null>(null);
   const [requirement, setRequirement] = useState("");
   const [category, setCategory] = useState<"any" | SignalCategory>("any");
   const [minimumSeverity, setMinimumSeverity] = useState<Severity>("medium");
@@ -119,8 +105,87 @@ export function MonitorCenter() {
   );
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(monitors));
-  }, [monitors]);
+    async function loadData() {
+      try {
+        const [monitorsRes, signalsRes] = await Promise.all([
+          fetch("/api/monitors"),
+          fetch("/api/signals"),
+        ]);
+        const monitorsData = (await monitorsRes.json()) as {
+          monitors?: Array<{
+            id: string;
+            requirement: string;
+            category: string;
+            minimum_severity: Severity;
+            keywords: string[];
+            active: boolean;
+            last_checked_at: string | null;
+          }>;
+        };
+        const signalsData = (await signalsRes.json()) as {
+          signals?: IntelligenceSignal[];
+        };
+
+        if (signalsData.signals?.length) setSignals(signalsData.signals);
+
+        if (monitorsData.monitors?.length) {
+          setMonitors(
+            monitorsData.monitors.map((monitor) => ({
+              id: monitor.id,
+              requirement: monitor.requirement,
+              category: monitor.category as Monitor["category"],
+              minimumSeverity: monitor.minimum_severity,
+              keywords: monitor.keywords,
+              active: monitor.active,
+              createdAt: monitor.last_checked_at ?? new Date().toISOString(),
+              lastCheckedAt: monitor.last_checked_at ?? undefined,
+              alertedSignalIds: [],
+            })),
+          );
+          return;
+        }
+
+        const legacy = loadMonitors();
+        if (legacy.length) {
+          for (const monitor of legacy) {
+            await fetch("/api/monitors", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                requirement: monitor.requirement,
+                category: monitor.category,
+                minimumSeverity: monitor.minimumSeverity,
+                keywords: monitor.keywords,
+                active: monitor.active,
+              }),
+            });
+          }
+          window.localStorage.removeItem(STORAGE_KEY);
+          const refreshed = await fetch("/api/monitors");
+          const refreshedData = (await refreshed.json()) as typeof monitorsData;
+          if (refreshedData.monitors?.length) {
+            setMonitors(
+              refreshedData.monitors.map((monitor) => ({
+                id: monitor.id,
+                requirement: monitor.requirement,
+                category: monitor.category as Monitor["category"],
+                minimumSeverity: monitor.minimum_severity,
+                keywords: monitor.keywords,
+                active: monitor.active,
+                createdAt: monitor.last_checked_at ?? new Date().toISOString(),
+                lastCheckedAt: monitor.last_checked_at ?? undefined,
+                alertedSignalIds: [],
+              })),
+            );
+          }
+        }
+      } catch {
+        setMonitors(loadMonitors());
+      }
+    }
+
+    loadData();
+  }, []);
 
   useEffect(() => {
     const input = requirement.trim();
@@ -174,49 +239,13 @@ export function MonitorCenter() {
     };
   }, [requirement]);
 
-  useEffect(() => {
-    const checkMonitors = () => {
-      setMonitors((current) =>
-        current.map((monitor) => {
-          if (!monitor.active) return monitor;
-
-          const matches = getMatches(monitor);
-          const newMatches = matches.filter((signal) => !monitor.alertedSignalIds.includes(signal.id));
-
-          newMatches.forEach((signal) => {
-            toast.success("Monitor alert triggered", {
-              description: `${monitor.requirement}: ${signal.title}`,
-              action: {
-                label: "Open report",
-                onClick: () => openReport(monitor, signal),
-              },
-            });
-            sendBrowserNotification(monitor, signal, () => openReport(monitor, signal));
-          });
-
-          return {
-            ...monitor,
-            lastCheckedAt: new Date().toISOString(),
-            alertedSignalIds: Array.from(
-              new Set([...monitor.alertedSignalIds, ...newMatches.map((signal) => signal.id)]),
-            ),
-          };
-        }),
-      );
-    };
-
-    checkMonitors();
-    const interval = window.setInterval(checkMonitors, 15000);
-    return () => window.clearInterval(interval);
-  }, []);
-
   const monitorSummaries = useMemo(
     () =>
       monitors.map((monitor) => ({
         monitor,
-        matches: getMatches(monitor),
+        matches: getMatches(monitor, signals),
       })),
-    [monitors],
+    [monitors, signals],
   );
   const activeMonitorCount = monitors.filter((monitor) => monitor.active).length;
 
@@ -286,7 +315,7 @@ export function MonitorCenter() {
     setAiLoading(false);
   }
 
-  function createMonitor() {
+  async function createMonitor() {
     const trimmed = requirement.trim();
     if (!trimmed) {
       toast.error("Describe the signal you want Sentra to monitor.");
@@ -294,26 +323,111 @@ export function MonitorCenter() {
     }
     const interpretedRequirement = monitorIntent?.normalizedRequirement?.trim() || trimmed;
 
-    const monitor: Monitor = {
-      id: crypto.randomUUID(),
-      requirement: interpretedRequirement,
-      category,
-      minimumSeverity,
-      active: true,
-      createdAt: new Date().toISOString(),
-      keywords: monitorIntent?.keywords,
-      alertedSignalIds: [],
-    };
+    try {
+      const response = await fetch("/api/monitors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requirement: interpretedRequirement,
+          category,
+          minimumSeverity,
+          keywords: monitorIntent?.keywords ?? [],
+          active: true,
+        }),
+      });
+      const data = (await response.json()) as {
+        monitor?: {
+          id: string;
+          requirement: string;
+          category: string;
+          minimum_severity: Severity;
+          keywords: string[];
+          active: boolean;
+        };
+        error?: string;
+      };
 
-    setMonitors((current) => [monitor, ...current]);
-    setRequirement("");
-    setMonitorIntent(null);
-    toast.success("Monitor activated", {
-      description:
-        monitorIntent?.provider === "openai"
-          ? "AI interpreted your requirement and configured the monitor."
-          : "Sentra will alert you when matching signals appear.",
-    });
+      if (!response.ok || !data.monitor) {
+        throw new Error(data.error || "Could not save monitor.");
+      }
+
+      const monitor: Monitor = {
+        id: data.monitor.id,
+        requirement: data.monitor.requirement,
+        category: data.monitor.category as Monitor["category"],
+        minimumSeverity: data.monitor.minimum_severity,
+        keywords: data.monitor.keywords,
+        active: data.monitor.active,
+        createdAt: new Date().toISOString(),
+        alertedSignalIds: [],
+      };
+
+      setMonitors((current) => [monitor, ...current]);
+      setRequirement("");
+      setMonitorIntent(null);
+      toast.success("Monitor saved", {
+        description: "Run Check now to collect live Bright Data evidence.",
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create monitor.");
+    }
+  }
+
+  async function checkMonitorNow(monitorId: string) {
+    setCheckingId(monitorId);
+    try {
+      const response = await fetch(`/api/monitors/${monitorId}/check`, { method: "POST" });
+      const data = (await response.json()) as {
+        signals?: IntelligenceSignal[];
+        provider?: string;
+        matchedCount?: number;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Check failed.");
+      }
+
+      if (data.signals?.length) {
+        setSignals((current) => {
+          const merged = [...data.signals!, ...current];
+          const seen = new Set<string>();
+          return merged.filter((signal) => {
+            if (seen.has(signal.id)) return false;
+            seen.add(signal.id);
+            return true;
+          });
+        });
+      }
+
+      const monitor = monitors.find((item) => item.id === monitorId);
+      const matched = data.signals ?? [];
+      matched.forEach((signal) => {
+        if (monitor) {
+          toast.success("Monitor match", {
+            description: signal.title,
+            action: { label: "Report", onClick: () => openReport(monitor, signal) },
+          });
+        }
+      });
+
+      toast.message("Check complete", {
+        description:
+          data.provider === "bright-data"
+            ? `${data.matchedCount ?? 0} matches from live Bright Data evidence.`
+            : `${data.matchedCount ?? 0} matches (sample evidence — configure Bright Data zones).`,
+      });
+
+      setMonitors((current) =>
+        current.map((item) =>
+          item.id === monitorId ? { ...item, lastCheckedAt: new Date().toISOString() } : item,
+        ),
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Check failed.");
+    } finally {
+      setCheckingId(null);
+    }
   }
 
   async function enableBrowserNotifications() {
@@ -343,7 +457,12 @@ export function MonitorCenter() {
     );
   }
 
-  function removeMonitor(id: string) {
+  async function removeMonitor(id: string) {
+    try {
+      await fetch(`/api/monitors/${id}`, { method: "DELETE" });
+    } catch {
+      // Still remove locally if API fails in demo mode.
+    }
     setMonitors((current) => current.filter((monitor) => monitor.id !== id));
   }
 
@@ -528,7 +647,15 @@ export function MonitorCenter() {
                       </p>
                     )}
                   </div>
-                  <div className="flex shrink-0 gap-2">
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button
+                      variant="ghost"
+                      disabled={checkingId === monitor.id}
+                      onClick={() => checkMonitorNow(monitor.id)}
+                    >
+                      <Radar className="h-4 w-4" />
+                      {checkingId === monitor.id ? "Checking…" : "Check now"}
+                    </Button>
                     {matches[0] && (
                       <Button variant="neon" onClick={() => openReport(monitor, matches[0])}>
                         <Bot className="h-4 w-4" />

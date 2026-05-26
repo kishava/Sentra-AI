@@ -190,7 +190,7 @@ export async function generateEnterpriseAnalysis(
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Query: ${query}\n\nBright Data evidence:\n${webEvidence}\n\nReturn JSON with keys: summary, risks, opportunities, recommendations, confidenceScore.`,
+        content: `Query: ${query}\n\nBright Data evidence:\n${webEvidence}\n\nReturn JSON with keys: summary, risks, opportunities, recommendations, confidenceScore, signals.\nsignals must be an array of objects with keys: title, source, summary, category (competitor|market|risk|pricing|hiring|sentiment), severity (low|medium|high|critical), confidence (0-1), timestamp (short human string). Include 2-6 signals derived from the evidence only.`,
       },
     ],
   });
@@ -198,10 +198,31 @@ export async function generateEnterpriseAnalysis(
   const content = response.choices[0]?.message?.content;
   if (!content) return demoAnalysis;
 
-  const parsed = JSON.parse(content) as Omit<IntelligenceAnalysis, "signals">;
+  const parsed = JSON.parse(content) as Partial<IntelligenceAnalysis> & {
+    signals?: IntelligenceAnalysis["signals"];
+  };
+
+  const signals =
+    Array.isArray(parsed.signals) && parsed.signals.length
+      ? parsed.signals.map((signal, index) => ({
+          id: `sig-${Date.now()}-${index}`,
+          title: signal.title ?? "Intelligence signal",
+          source: signal.source ?? "Bright Data",
+          summary: signal.summary ?? "",
+          category: signal.category ?? "market",
+          severity: signal.severity ?? "medium",
+          confidence: signal.confidence ?? 0.8,
+          timestamp: signal.timestamp ?? "just now",
+        }))
+      : demoAnalysis.signals;
+
   return {
-    ...parsed,
-    signals: demoAnalysis.signals,
+    summary: parsed.summary ?? demoAnalysis.summary,
+    risks: parsed.risks ?? demoAnalysis.risks,
+    opportunities: parsed.opportunities ?? demoAnalysis.opportunities,
+    recommendations: parsed.recommendations ?? demoAnalysis.recommendations,
+    confidenceScore: parsed.confidenceScore ?? demoAnalysis.confidenceScore,
+    signals,
   };
 }
 
