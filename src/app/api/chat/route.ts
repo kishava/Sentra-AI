@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { requireApiUser } from "@/lib/auth/session";
+import { appendChatMessage, createChatThread } from "@/lib/db/chat";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { collectWebIntelligence } from "@/services/bright-data";
 import { generateChatResponse } from "@/services/openai";
 import type { BrightDataRequest, ChatMessage, ChatProvider } from "@/types/intelligence";
@@ -7,6 +10,8 @@ export const runtime = "nodejs";
 
 const collectionIntent =
   /\b(monitor|monitoring|track|tracking|watch|scrape|extract|crawl|competitor|competitive|pricing|price changes?|website changes?|product launches?|hiring signals?|compare (?:plans|prices|pricing))\b/i;
+
+const MAX_MESSAGE_LENGTH = 4000;
 
 function getTargetUrl(message: string) {
   const match = message.match(/https?:\/\/[^\s<>()\]]+/i)?.[0]?.replace(/[.,;!?]+$/, "");
@@ -44,11 +49,27 @@ function getHistory(value: unknown): Pick<ChatMessage, "role" | "content">[] {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { message?: string; history?: unknown };
+    const auth = await requireApiUser();
+    if ("error" in auth) return auth.error;
+
+    const limited = await checkRateLimit(auth.user.id, "chat");
+    if (!limited.allowed) {
+      return NextResponse.json({ error: limited.message }, { status: 429 });
+    }
+
+    const body = (await request.json()) as {
+      message?: string;
+      history?: unknown;
+      threadId?: string;
+    };
     const message = body.message?.trim();
 
     if (!message) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
+    }
+
+    if (message.length > MAX_MESSAGE_LENGTH) {
+      return NextResponse.json({ error: "Message is too long." }, { status: 400 });
     }
 
     let provider: ChatProvider = "openai-web-search";
@@ -68,17 +89,35 @@ export async function POST(request: Request) {
       brightDataEvidence,
     });
 
+    let threadId = body.threadId;
+    if (!auth.localMode && auth.supabase) {
+      if (!threadId) {
+        const thread = await createChatThread(auth.supabase, auth.user.id);
+        threadId = thread.id;
+      }
+
+      if (threadId) {
+        await appendChatMessage(auth.supabase, auth.user.id, threadId, {
+          role: "user",
+          content: message,
+        });
+        await appendChatMessage(auth.supabase, auth.user.id, threadId, {
+          role: "assistant",
+          content: response,
+          provider,
+        });
+      }
+    }
+
     return NextResponse.json({
       message: response,
       provider,
+      threadId: threadId ?? undefined,
     });
   } catch (error) {
     console.error("Chat route failed", error);
     const message =
       error instanceof Error ? error.message : "Sentra AI could not generate a response";
-    return NextResponse.json(
-      { error: message },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

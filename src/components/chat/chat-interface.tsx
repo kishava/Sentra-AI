@@ -80,6 +80,7 @@ function AssistantMessage({ content, animated }: { content: string; animated?: b
 export function ChatInterface() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [threadId, setThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -126,6 +127,17 @@ export function ChatInterface() {
     }
     setVoiceStatus("idle");
   }
+
+  useEffect(() => {
+    fetch("/api/chat/threads", { method: "POST" })
+      .then((response) => response.json())
+      .then((data: { thread?: { id: string } }) => {
+        if (data.thread?.id) setThreadId(data.thread.id);
+      })
+      .catch(() => {
+        // Thread creation requires Supabase auth.
+      });
+  }, []);
 
   useEffect(() => {
     const prompt = searchParams.get("prompt");
@@ -192,13 +204,16 @@ export function ChatInterface() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed, history: messages }),
+        body: JSON.stringify({ message: trimmed, history: messages, threadId }),
       });
       const data = (await response.json()) as {
         message?: string;
         provider?: ChatProvider;
+        threadId?: string;
         error?: string;
       };
+
+      if (data.threadId) setThreadId(data.threadId);
 
       if (!response.ok || typeof data.message !== "string" || !data.message.trim()) {
         throw new Error(data.error || "Sentra returned an empty response.");
@@ -563,6 +578,9 @@ export function ChatInterface() {
                 </Button>
               </div>
             </div>
+            <p className="mt-2 text-xs text-white/40">
+              Tip: include a URL or words like monitor, competitor, or pricing to collect evidence with Bright Data first.
+            </p>
           </div>
         </Card>
 
