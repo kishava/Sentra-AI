@@ -1,7 +1,6 @@
 "use client";
 
 import { Activity, BellRing, Building2, Radar, Sparkles, TrendingUp } from "lucide-react";
-import { AppShell } from "@/components/dashboard/app-shell";
 import { IntelligenceCharts } from "@/components/dashboard/intelligence-charts";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { RiskHeatmap } from "@/components/dashboard/risk-heatmap";
@@ -20,7 +19,7 @@ const metrics = [
 
 export default function DashboardPage() {
   return (
-    <AppShell>
+    <>
       <section className="mb-8 grid gap-5 xl:grid-cols-[1fr_360px]">
         <Card className="overflow-hidden p-8" glow>
           <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
@@ -76,6 +75,6 @@ export default function DashboardPage() {
           </Card>
         </div>
       </section>
-    </AppShell>
+    </>
   );
 }

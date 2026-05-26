@@ -7,7 +7,6 @@ import type { Components } from "react-markdown";
 import { motion } from "framer-motion";
 import { Bot, Mic2, MicOff, Send, Sparkles, Volume2 } from "lucide-react";
 import { toast } from "sonner";
-import { AppShell } from "@/components/dashboard/app-shell";
 import { AiOrb } from "@/components/shared/ai-orb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -243,7 +242,7 @@ export function ChatInterface() {
   }
 
   return (
-    <AppShell>
+    <>
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <Card className="flex min-h-[calc(100vh-9rem)] flex-col overflow-hidden" glow>
           <div className="border-b border-white/10 p-6">
@@ -385,6 +384,6 @@ export function ChatInterface() {
           </Card>
         </aside>
       </div>
-    </AppShell>
+    </>
   );
 }

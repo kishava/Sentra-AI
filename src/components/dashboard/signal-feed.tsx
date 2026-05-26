@@ -25,7 +25,7 @@ const categoryIcon: Record<IntelligenceSignal["category"], typeof AlertTriangle>
 
 export function SignalFeed({ signals = signalStream }: { signals?: IntelligenceSignal[] }) {
   return (
-    <Card id="signals" className="p-6" glow>
+    <Card id="signals" className="scroll-mt-28 p-6" glow>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.24em] text-white/35">Live signals</p>
