@@ -35,3 +35,15 @@ export type BrightDataRequest = {
   targetUrl?: string;
   mode?: "serp" | "unlocker" | "scraper" | "browser";
 };
+
+export type MonitorCategory = IntelligenceSignal["category"];
+
+export type MonitorIntent = {
+  normalizedRequirement: string;
+  category: "any" | MonitorCategory;
+  minimumSeverity: Severity;
+  keywords: string[];
+  rationale: string;
+  confidence: number;
+  provider: "openai" | "heuristic";
+};

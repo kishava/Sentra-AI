@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import { motion } from "framer-motion";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useTypewriter } from "@/hooks/use-typewriter";
+import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatProvider } from "@/types/intelligence";
 
 const prompts = [
@@ -77,21 +78,54 @@ function AssistantMessage({ content, animated }: { content: string; animated?: b
 }
 
 export function ChatInterface() {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<"idle" | "loading" | "playing">("idle");
+  const [activeVoiceText, setActiveVoiceText] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const handledPromptRef = useRef<string | null>(null);
+  const autoGreetingStartedRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const voiceAbortRef = useRef<AbortController | null>(null);
+  const voiceRunIdRef = useRef(0);
+  const currentVoiceTextRef = useRef<string | null>(null);
+  const speakingTimeoutRef = useRef<number | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const lastAssistantId = useMemo(
     () => [...messages].reverse().find((message) => message.role === "assistant")?.id,
     [messages],
   );
+  const speaking = voiceStatus !== "idle";
+
+  function resetVoicePlayback() {
+    voiceRunIdRef.current += 1;
+    voiceAbortRef.current?.abort();
+    voiceAbortRef.current = null;
+    currentVoiceTextRef.current = null;
+    setActiveVoiceText(null);
+    if (speakingTimeoutRef.current) {
+      window.clearTimeout(speakingTimeoutRef.current);
+      speakingTimeoutRef.current = null;
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    setVoiceStatus("idle");
+  }
 
   useEffect(() => {
     const prompt = searchParams.get("prompt");
@@ -102,7 +136,11 @@ export function ChatInterface() {
   }, [searchParams]);
 
   useEffect(() => {
+    window.addEventListener("pagehide", resetVoicePlayback);
+
     return () => {
+      window.removeEventListener("pagehide", resetVoicePlayback);
+      resetVoicePlayback();
       if (mediaRecorderRef.current?.state === "recording") {
         mediaRecorderRef.current.onstop = null;
         mediaRecorderRef.current.stop();
@@ -110,6 +148,30 @@ export function ChatInterface() {
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
+
+  useEffect(() => {
+    if (pathname !== "/chat") {
+      const timeout = window.setTimeout(resetVoicePlayback, 0);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    if (autoGreetingStartedRef.current) return;
+
+    autoGreetingStartedRef.current = true;
+    const timeout = window.setTimeout(() => {
+      void playVoice(initialMessages[0].content, { automatic: true });
+    }, 700);
+
+    return () => window.clearTimeout(timeout);
+    // The greeting should run once per chat mount, using the initial voice handler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, loading]);
 
   async function sendMessage(nextInput = input) {
     const trimmed = nextInput.trim();
@@ -162,14 +224,29 @@ export function ChatInterface() {
     }
   }
 
-  async function playVoice(content: string) {
-    setSpeaking(true);
+  async function playVoice(content: string, options?: { automatic?: boolean }) {
+    if (speaking && currentVoiceTextRef.current === content) {
+      resetVoicePlayback();
+      return;
+    }
+
+    resetVoicePlayback();
+    const runId = voiceRunIdRef.current + 1;
+    const abortController = new AbortController();
+    voiceRunIdRef.current = runId;
+    voiceAbortRef.current = abortController;
+    currentVoiceTextRef.current = content;
+    setActiveVoiceText(content);
+    setVoiceStatus("loading");
+
     try {
       const response = await fetch("/api/voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: content }),
+        signal: abortController.signal,
       });
+      if (abortController.signal.aborted || voiceRunIdRef.current !== runId) return;
 
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -178,17 +255,40 @@ export function ChatInterface() {
 
       if (response.headers.get("content-type")?.includes("audio")) {
         const blob = await response.blob();
-        const audio = new Audio(URL.createObjectURL(blob));
-        audio.onended = () => setSpeaking(false);
+        if (abortController.signal.aborted || voiceRunIdRef.current !== runId) return;
+
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+        audioRef.current = audio;
+        audioUrlRef.current = audioUrl;
+        audio.onended = resetVoicePlayback;
+        audio.onerror = resetVoicePlayback;
+        audio.onpause = () => {
+          if (audio.ended) resetVoicePlayback();
+        };
+        setVoiceStatus("playing");
         await audio.play();
       } else {
         toast.message("Voice is still in demo mode", {
           description: "Restart the dev server so Next.js reloads your ElevenLabs key.",
         });
-        window.setTimeout(() => setSpeaking(false), 1800);
+        speakingTimeoutRef.current = window.setTimeout(resetVoicePlayback, 1800);
       }
     } catch (error) {
-      setSpeaking(false);
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      resetVoicePlayback();
+      const blockedAutoplay =
+        options?.automatic &&
+        error instanceof DOMException &&
+        (error.name === "NotAllowedError" || error.name === "AbortError");
+
+      if (blockedAutoplay) {
+        toast.message("Voice greeting is ready", {
+          description: "Click Voice controls if your browser blocked autoplay.",
+        });
+        return;
+      }
+
       toast.error("Voice playback failed.", {
         description: error instanceof Error ? error.message : "Please try again.",
       });
@@ -324,9 +424,9 @@ export function ChatInterface() {
 
   return (
     <>
-      <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-        <Card className="flex min-h-[calc(100vh-9rem)] flex-col overflow-hidden" glow>
-          <div className="border-b border-white/10 p-6">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="flex min-h-[calc(100svh-11rem)] min-w-0 flex-col overflow-hidden md:min-h-[calc(100vh-9rem)]" glow>
+          <div className="border-b border-white/10 p-5 md:p-6">
             <Badge variant="cyan">Streaming enterprise AI</Badge>
             <h1 className="mt-3 text-3xl font-semibold text-white md:text-5xl">Sentra analyst chat</h1>
             <p className="mt-3 text-white/55">
@@ -334,13 +434,16 @@ export function ChatInterface() {
             </p>
           </div>
 
-          <div className="flex-1 space-y-5 overflow-y-auto p-5 md:p-6">
+          <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 md:p-6">
             {messages.map((message) => (
               <motion.div
                 key={message.id}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={message.role === "user" ? "ml-auto max-w-3xl" : "mr-auto max-w-4xl"}
+                className={cn(
+                  "min-w-0",
+                  message.role === "user" ? "ml-auto max-w-3xl" : "mr-auto max-w-4xl",
+                )}
               >
                 <div
                   className={
@@ -357,25 +460,38 @@ export function ChatInterface() {
                         </span>
                         <span className="text-sm font-medium text-white">Sentra AI</span>
                         {message.provider && (
-                          <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/45">
+                          <span className="hidden rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/45 sm:inline-flex">
                             {message.provider === "bright-data-openai"
                               ? "Bright Data + AI"
                               : "Live web search"}
                           </span>
                         )}
                         <button
-                          className="ml-auto rounded-full border border-white/10 p-2 text-white/50 transition hover:text-white"
+                          className={cn(
+                            "ml-auto rounded-full border border-white/10 p-2 text-white/50 transition hover:text-white",
+                            speaking &&
+                              activeVoiceText === message.content &&
+                              "border-cyan-200/40 bg-cyan-300/10 text-cyan-100",
+                          )}
                           onClick={() => playVoice(message.content)}
-                          aria-label="Play voice response"
+                          aria-label={
+                            speaking && activeVoiceText === message.content
+                              ? "Stop voice response"
+                              : "Play voice response"
+                          }
                         >
-                          <Volume2 className="h-4 w-4" />
+                          {voiceStatus === "loading" && activeVoiceText === message.content ? (
+                            <Sparkles className="h-4 w-4 animate-pulse" />
+                          ) : (
+                            <Volume2 className="h-4 w-4" />
+                          )}
                         </button>
                       </div>
                     )}
                     {message.role === "assistant" ? (
                       <AssistantMessage content={message.content} animated={message.id === lastAssistantId} />
                     ) : (
-                      <p className="text-sm leading-6 text-white/80">{message.content}</p>
+                      <p className="break-words text-sm leading-6 text-white/80">{message.content}</p>
                     )}
                   </div>
                 </div>
@@ -389,9 +505,10 @@ export function ChatInterface() {
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t border-white/10 p-5">
+          <div className="border-t border-white/10 p-4 md:p-5">
             <div className="mb-4 flex flex-wrap gap-2">
               {prompts.map((prompt) => (
                 <button
@@ -403,7 +520,7 @@ export function ChatInterface() {
                 </button>
               ))}
             </div>
-            <div className="flex gap-3">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_4rem_4rem]">
               <Textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
@@ -414,39 +531,51 @@ export function ChatInterface() {
                   }
                 }}
                 placeholder="Ask Sentra to analyze competitors, monitor a market, or brief leadership..."
-                className="min-h-16"
+                className="min-h-24 sm:min-h-16"
               />
-              <Button
-                type="button"
-                variant={listening ? "neon" : "ghost"}
-                size="icon"
-                className="h-16 w-16 shrink-0"
-                onClick={toggleSpeechInput}
-                disabled={transcribing}
-                aria-label={listening ? "Stop voice recording" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
-              >
-                {transcribing ? (
-                  <Sparkles className="h-5 w-5 animate-pulse" />
-                ) : listening ? (
-                  <MicOff className="h-5 w-5" />
-                ) : (
-                  <Mic2 className="h-5 w-5" />
-                )}
-              </Button>
-              <Button variant="neon" size="icon" className="h-16 w-16 shrink-0" onClick={() => sendMessage()}>
-                <Send className="h-5 w-5" />
-              </Button>
+              <div className="grid grid-cols-2 gap-3 sm:contents">
+                <Button
+                  type="button"
+                  variant={listening ? "neon" : "ghost"}
+                  size="icon"
+                  className="h-14 w-full shrink-0 sm:h-16 sm:w-16"
+                  onClick={toggleSpeechInput}
+                  disabled={transcribing}
+                  aria-label={listening ? "Stop voice recording" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
+                >
+                  {transcribing ? (
+                    <Sparkles className="h-5 w-5 animate-pulse" />
+                  ) : listening ? (
+                    <MicOff className="h-5 w-5" />
+                  ) : (
+                    <Mic2 className="h-5 w-5" />
+                  )}
+                </Button>
+                <Button
+                  variant="neon"
+                  size="icon"
+                  className="h-14 w-full shrink-0 sm:h-16 sm:w-16"
+                  onClick={() => sendMessage()}
+                  disabled={loading || !input.trim()}
+                  aria-label="Send message"
+                >
+                  <Send className="h-5 w-5" />
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
 
-        <aside className="grid content-start gap-5">
+        <aside className="grid min-w-0 content-start gap-5">
           <Card className="p-6 text-center" glow>
             <AiOrb speaking={speaking} size="md" className="mx-auto" />
             <h3 className="mt-6 text-xl font-semibold text-white">Voice analyst</h3>
             <p className="mt-2 text-sm leading-6 text-white/55">
-              Use the microphone beside the prompt box to speak your request, or click the voice
-              button on an AI response to hear the ElevenLabs analyst voice.
+              {voiceStatus === "loading"
+                ? "Generating voice audio..."
+                : voiceStatus === "playing"
+                  ? "Speaking now. Click the active voice button to stop."
+                  : "Use the microphone beside the prompt box to speak your request, or click a response voice button."}
             </p>
             <Button
               variant="ghost"
@@ -464,7 +593,12 @@ export function ChatInterface() {
                 playVoice(latestAssistant.content);
               }}
             >
-              <Mic2 className="h-4 w-4" /> Voice controls
+              {voiceStatus === "loading" ? (
+                <Sparkles className="h-4 w-4 animate-pulse" />
+              ) : (
+                <Mic2 className="h-4 w-4" />
+              )}
+              {speaking ? "Stop voice" : "Voice controls"}
             </Button>
           </Card>
           <Card className="p-6" glow>

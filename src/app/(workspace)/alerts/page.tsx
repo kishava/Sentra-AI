@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Filter, ShieldAlert } from "lucide-react";
+import { MonitorCenter } from "@/components/dashboard/monitor-center";
 import { toast } from "sonner";
 import { SignalFeed } from "@/components/dashboard/signal-feed";
 import { Badge } from "@/components/ui/badge";
@@ -40,11 +41,11 @@ export default function AlertsPage() {
   return (
     <>
       <section className="mb-8">
-        <Card className="p-8" glow>
+        <Card className="p-5 md:p-8" glow>
           <Badge variant="risk">Realtime enterprise alerts</Badge>
           <div className="mt-5 flex flex-col justify-between gap-6 md:flex-row md:items-end">
-            <div>
-              <h1 className="text-4xl font-semibold tracking-tight text-white md:text-6xl">
+            <div className="min-w-0">
+              <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-6xl">
                 Alert center
               </h1>
               <p className="mt-4 max-w-2xl text-white/55">
@@ -88,6 +89,8 @@ export default function AlertsPage() {
           )}
         </Card>
       </section>
+
+      <MonitorCenter />
 
       <section className="mb-8 grid gap-5 md:grid-cols-3">
         {filteredSignals.slice(0, 3).map((signal) => (

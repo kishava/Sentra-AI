@@ -21,11 +21,11 @@ export default function DashboardPage() {
   return (
     <>
       <section className="mb-8 grid gap-5 xl:grid-cols-[1fr_360px]">
-        <Card className="overflow-hidden p-8" glow>
+        <Card className="overflow-hidden p-5 md:p-8" glow>
           <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
-            <div>
+            <div className="min-w-0">
               <Badge variant="cyan">Autonomous intelligence active</Badge>
-              <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-6xl">
+              <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-6xl">
                 Live enterprise signals, analyzed before they become obvious.
               </h1>
               <p className="mt-5 max-w-2xl text-white/55">
@@ -33,7 +33,7 @@ export default function DashboardPage() {
                 strategic risk across the live web.
               </p>
             </div>
-            <AiOrb speaking size="md" />
+            <AiOrb speaking size="md" className="shrink-0 self-center" />
           </div>
         </Card>
         <Card className="p-6" glow>
@@ -61,7 +61,7 @@ export default function DashboardPage() {
         <IntelligenceCharts />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_420px]">
+      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <SignalFeed />
         <div className="grid gap-5">
           <RiskHeatmap />

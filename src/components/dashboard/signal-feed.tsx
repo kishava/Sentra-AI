@@ -25,13 +25,13 @@ const categoryIcon: Record<IntelligenceSignal["category"], typeof AlertTriangle>
 
 export function SignalFeed({ signals = signalStream }: { signals?: IntelligenceSignal[] }) {
   return (
-    <Card id="signals" className="scroll-mt-28 p-6" glow>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
+    <Card id="signals" className="scroll-mt-28 p-5 md:p-6" glow>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="min-w-0">
           <p className="text-sm uppercase tracking-[0.24em] text-white/35">Live signals</p>
           <h3 className="mt-2 text-2xl font-semibold text-white">Autonomous activity feed</h3>
         </div>
-        <span className="relative flex h-3 w-3">
+        <span className="relative flex h-3 w-3 shrink-0">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sentra-cyan opacity-75" />
           <span className="relative inline-flex h-3 w-3 rounded-full bg-sentra-cyan" />
         </span>
@@ -59,8 +59,8 @@ export function SignalFeed({ signals = signalStream }: { signals?: IntelligenceS
                     </span>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-white/55">{signal.summary}</p>
-                  <p className="mt-3 text-xs text-white/35">
-                    {signal.source} · confidence {Math.round(signal.confidence * 100)}% · {signal.timestamp}
+                  <p className="mt-3 break-words text-xs text-white/35">
+                    {signal.source} - confidence {Math.round(signal.confidence * 100)}% - {signal.timestamp}
                   </p>
                 </div>
               </div>

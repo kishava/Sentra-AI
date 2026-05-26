@@ -26,6 +26,7 @@ const nav = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isActive = (href: string) => pathname === href.split("#")[0];
 
   return (
     <main className="min-h-screen">
@@ -47,7 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               href={item.href}
               className={cn(
                 "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white/58 transition hover:bg-white/[0.07] hover:text-white",
-                item.href === pathname && "bg-white/[0.08] text-white",
+                isActive(item.href) && "bg-white/[0.08] text-white",
               )}
             >
               <item.icon className="h-4 w-4 text-sentra-cyan" />
@@ -62,10 +63,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </p>
         </div>
       </aside>
-      <section className="lg:pl-72">
+      <section className="pb-24 lg:pb-0 lg:pl-72">
         <header className="sticky top-0 z-30 border-b border-white/10 bg-sentra-ink/55 px-4 py-4 backdrop-blur-2xl md:px-8">
-          <div className="flex items-center gap-4">
-            <CommandPalette />
+          <div className="flex min-w-0 items-center gap-3 md:gap-4">
+            <CommandPalette className="min-w-0 flex-1" />
             <Link
               href="/alerts"
               className="hidden rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-white/60 transition hover:text-white md:block"
@@ -88,6 +89,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <div className="px-4 py-8 md:px-8">{children}</div>
       </section>
+      <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-3 gap-2 rounded-3xl border border-white/10 bg-sentra-ink/85 p-2 shadow-2xl shadow-black/40 backdrop-blur-2xl lg:hidden">
+        {nav.slice(0, 3).map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className={cn(
+              "sentra-focus flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2.5 text-[11px] font-medium text-white/55 transition hover:bg-white/[0.07] hover:text-white",
+              isActive(item.href) && "bg-white/[0.08] text-white",
+            )}
+          >
+            <item.icon className="h-4 w-4 text-sentra-cyan" />
+            <span className="max-w-full truncate">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
     </main>
   );
 }
