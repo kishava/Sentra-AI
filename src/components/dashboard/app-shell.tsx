@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   BellRing,
   Bot,
@@ -13,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { ParticleField } from "@/components/shared/particle-field";
+import { cn } from "@/lib/utils";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -23,6 +25,8 @@ const nav = [
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
   return (
     <main className="min-h-screen">
       <ParticleField />
@@ -41,7 +45,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={item.label}
               href={item.href}
-              className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white/58 transition hover:bg-white/[0.07] hover:text-white"
+              className={cn(
+                "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white/58 transition hover:bg-white/[0.07] hover:text-white",
+                item.href === pathname && "bg-white/[0.08] text-white",
+              )}
             >
               <item.icon className="h-4 w-4 text-sentra-cyan" />
               {item.label}

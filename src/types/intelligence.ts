@@ -20,11 +20,14 @@ export type IntelligenceAnalysis = {
   signals: IntelligenceSignal[];
 };
 
+export type ChatProvider = "openai-web-search" | "bright-data-openai";
+
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  provider?: ChatProvider;
 };
 
 export type BrightDataRequest = {

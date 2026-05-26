@@ -27,7 +27,7 @@ export function IntelligenceCharts() {
   }, []);
 
   return (
-    <div id="market" className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+    <div id="market" className="scroll-mt-28 grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
       <Card className="p-6" glow>
         <div className="mb-6 flex items-center justify-between">
           <div>

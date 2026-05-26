@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { Filter, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
-import { AppShell } from "@/components/dashboard/app-shell";
 import { SignalFeed } from "@/components/dashboard/signal-feed";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,7 +38,7 @@ export default function AlertsPage() {
   }
 
   return (
-    <AppShell>
+    <>
       <section className="mb-8">
         <Card className="p-8" glow>
           <Badge variant="risk">Realtime enterprise alerts</Badge>
@@ -102,6 +101,6 @@ export default function AlertsPage() {
       </section>
 
       <SignalFeed signals={filteredSignals} />
-    </AppShell>
+    </>
   );
 }

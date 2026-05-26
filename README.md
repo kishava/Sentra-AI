@@ -17,7 +17,8 @@ routes.
   sentiment/risk analysis, company tracking, trend visualization, and AI
   recommendations.
 - AI chat interface with markdown responses, typing animation, prompt shortcuts,
-  thinking state, chat history, and voice playback controls.
+  thinking state, contextual follow-up questions, retrieval labels, and voice
+  playback controls.
 - Backend API routes for Bright Data intelligence collection, OpenAI analysis,
   and ElevenLabs speech synthesis.
 - Demo-safe fallbacks when provider keys are absent, so the project runs
@@ -39,6 +40,7 @@ enable:
 
 ```bash
 OPENAI_API_KEY=
+OPENAI_TRANSCRIPTION_MODEL=gpt-4o-transcribe
 SENTRA_TIMEZONE=Asia/Colombo
 
 BRIGHT_DATA_API_KEY=
@@ -61,12 +63,15 @@ remain functional.
 - `/sign-in` - animated sign-in
 - `/sign-up` - animated sign-up
 - `/dashboard` - intelligence operating system
-- `/chat` - AI analyst chat with voice playback
+- `/chat` - AI analyst chat with microphone transcription and voice playback
 - `/alerts` - enterprise alert center
 
 ## API Routes
 
-- `POST /api/chat` - answers chat questions using OpenAI live web search with citations
+- `POST /api/chat` - answers general chat questions using OpenAI live web search;
+  monitoring, competitor, pricing, extraction, and URL prompts use Bright Data
+  collection first when configured, then OpenAI analysis with citations
+- `POST /api/transcribe` - transcribes microphone recordings with OpenAI speech-to-text
 - `GET|POST /api/intelligence` - returns risks, opportunities, recommendations,
   confidence score, and live signals
 - `POST /api/bright-data` - reusable Bright Data collection endpoint
@@ -76,5 +81,7 @@ remain functional.
 
 - Deploys cleanly on Vercel.
 - Provider calls run in Node.js API routes and keep secrets server-side.
+- Chat uses Bright Data only when configured and a collection-oriented prompt
+  is detected; otherwise it remains on OpenAI live web search.
 - Demo fallbacks are intentionally typed and isolated in `src/data` and
   `src/services` so they can be swapped for real data pipelines.

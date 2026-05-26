@@ -7,14 +7,13 @@ import type { Components } from "react-markdown";
 import { motion } from "framer-motion";
 import { Bot, Mic2, MicOff, Send, Sparkles, Volume2 } from "lucide-react";
 import { toast } from "sonner";
-import { AppShell } from "@/components/dashboard/app-shell";
 import { AiOrb } from "@/components/shared/ai-orb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useTypewriter } from "@/hooks/use-typewriter";
-import type { ChatMessage } from "@/types/intelligence";
+import type { ChatMessage, ChatProvider } from "@/types/intelligence";
 
 const prompts = [
   "Analyze Tesla competitors",
@@ -84,9 +83,11 @@ export function ChatInterface() {
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [listening, setListening] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const handledPromptRef = useRef<string | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const speechBaseInputRef = useRef("");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const lastAssistantId = useMemo(
     () => [...messages].reverse().find((message) => message.role === "assistant")?.id,
     [messages],
@@ -102,7 +103,11 @@ export function ChatInterface() {
 
   useEffect(() => {
     return () => {
-      recognitionRef.current?.stop();
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.onstop = null;
+        mediaRecorderRef.current.stop();
+      }
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
 
@@ -127,7 +132,11 @@ export function ChatInterface() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: trimmed, history: messages }),
       });
-      const data = (await response.json()) as { message?: string; error?: string };
+      const data = (await response.json()) as {
+        message?: string;
+        provider?: ChatProvider;
+        error?: string;
+      };
 
       if (!response.ok || typeof data.message !== "string" || !data.message.trim()) {
         throw new Error(data.error || "Sentra returned an empty response.");
@@ -141,6 +150,7 @@ export function ChatInterface() {
           role: "assistant",
           content: reply,
           createdAt: new Date().toISOString(),
+          provider: data.provider,
         },
       ]);
     } catch (error) {
@@ -185,65 +195,135 @@ export function ChatInterface() {
     }
   }
 
-  function toggleSpeechInput() {
-    if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
+  function stopSpeechInput() {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+    setListening(false);
+  }
+
+  async function transcribeRecording(blob: Blob) {
+    if (!blob.size) {
+      toast.error("No microphone audio was recorded.");
       return;
     }
 
-    const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!Recognition) {
-      toast.error("Speech input is not supported in this browser.", {
-        description: "Try Chrome or Edge and allow microphone permission.",
-      });
-      return;
-    }
-
-    const recognition = new Recognition();
-    recognitionRef.current = recognition;
-    speechBaseInputRef.current = input.trim();
-    recognition.lang = "en-US";
-    recognition.continuous = false;
-    recognition.interimResults = true;
-
-    recognition.onresult = (event) => {
-      let transcript = "";
-      for (let index = 0; index < event.results.length; index += 1) {
-        transcript += event.results[index][0]?.transcript ?? "";
+    setTranscribing(true);
+    try {
+      const extension = blob.type.includes("mp4") ? "mp4" : "webm";
+      const formData = new FormData();
+      formData.append("audio", new File([blob], `speech.${extension}`, { type: blob.type }));
+      if (input.trim()) {
+        formData.append("context", input.trim());
       }
 
-      const separator = speechBaseInputRef.current && transcript.trim() ? " " : "";
-      setInput(`${speechBaseInputRef.current}${separator}${transcript}`.trimStart());
-    };
-
-    recognition.onerror = (event) => {
-      setListening(false);
-      toast.error("Could not capture speech.", {
-        description: event.message || `Speech recognition error: ${event.error}`,
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: formData,
       });
-    };
+      const data = (await response.json()) as { text?: string; error?: string };
+      if (!response.ok || !data.text?.trim()) {
+        throw new Error(data.error || "No speech was detected.");
+      }
 
-    recognition.onend = () => {
-      setListening(false);
-    };
-
-    try {
-      setListening(true);
-      recognition.start();
-      toast.message("Listening...", {
-        description: "Speak your intelligence request, then press send.",
+      setInput((current) => `${current.trim()}${current.trim() ? " " : ""}${data.text!.trim()}`);
+      toast.success("Voice prompt ready", {
+        description: "Review the transcript, then send your message.",
       });
     } catch (error) {
-      setListening(false);
-      toast.error("Could not start speech input.", {
-        description: error instanceof Error ? error.message : "Please check microphone access.",
+      toast.error("Voice transcription failed.", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  async function toggleSpeechInput() {
+    if (listening) {
+      stopSpeechInput();
+      return;
+    }
+
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      toast.error("Microphone access needs a secure page.", {
+        description: "Open the app on localhost or an HTTPS address, then allow microphone access.",
+      });
+      return;
+    }
+
+    if (!window.MediaRecorder) {
+      toast.error("Audio recording is not supported in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
+      mediaStreamRef.current = stream;
+      const supportedType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) =>
+        MediaRecorder.isTypeSupported(type),
+      );
+      if (!supportedType) {
+        stream.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        toast.error("Your browser does not provide a supported audio recording format.");
+        return;
+      }
+
+      const recorder = new MediaRecorder(stream, { mimeType: supportedType });
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) audioChunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        recorder.onstop = null;
+        stopSpeechInput();
+        toast.error("Could not record microphone audio.");
+      };
+      recorder.onstop = () => {
+        const recording = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || supportedType || "audio/webm",
+        });
+        audioChunksRef.current = [];
+        mediaRecorderRef.current = null;
+        void transcribeRecording(recording);
+      };
+
+      recorder.start();
+      setListening(true);
+      toast.message("Recording voice prompt", {
+        description: "Speak now, then click the microphone again to transcribe.",
+      });
+    } catch (error) {
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
+      const denied =
+        error instanceof DOMException &&
+        (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
+      toast.error("Microphone could not start.", {
+        description: denied
+          ? "Microphone permission was denied. Allow access in browser site settings and try again."
+          : error instanceof Error
+            ? error.message
+            : "Please check your microphone access.",
       });
     }
   }
 
   return (
-    <AppShell>
+    <>
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <Card className="flex min-h-[calc(100vh-9rem)] flex-col overflow-hidden" glow>
           <div className="border-b border-white/10 p-6">
@@ -276,6 +356,13 @@ export function ChatInterface() {
                           <Bot className="h-4 w-4" />
                         </span>
                         <span className="text-sm font-medium text-white">Sentra AI</span>
+                        {message.provider && (
+                          <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/45">
+                            {message.provider === "bright-data-openai"
+                              ? "Bright Data + AI"
+                              : "Live web search"}
+                          </span>
+                        )}
                         <button
                           className="ml-auto rounded-full border border-white/10 p-2 text-white/50 transition hover:text-white"
                           onClick={() => playVoice(message.content)}
@@ -298,7 +385,7 @@ export function ChatInterface() {
               <div className="mr-auto max-w-3xl rounded-3xl border border-white/10 bg-white/[0.055] p-5">
                 <div className="flex items-center gap-3 text-white/70">
                   <Sparkles className="h-4 w-4 animate-pulse text-sentra-cyan" />
-                  Sentra is querying live web context and reasoning through recommendations...
+                  Sentra is collecting live evidence and reasoning through recommendations...
                 </div>
               </div>
             )}
@@ -335,9 +422,16 @@ export function ChatInterface() {
                 size="icon"
                 className="h-16 w-16 shrink-0"
                 onClick={toggleSpeechInput}
-                aria-label={listening ? "Stop voice input" : "Speak prompt"}
+                disabled={transcribing}
+                aria-label={listening ? "Stop voice recording" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
               >
-                {listening ? <MicOff className="h-5 w-5" /> : <Mic2 className="h-5 w-5" />}
+                {transcribing ? (
+                  <Sparkles className="h-5 w-5 animate-pulse" />
+                ) : listening ? (
+                  <MicOff className="h-5 w-5" />
+                ) : (
+                  <Mic2 className="h-5 w-5" />
+                )}
               </Button>
               <Button variant="neon" size="icon" className="h-16 w-16 shrink-0" onClick={() => sendMessage()}>
                 <Send className="h-5 w-5" />
@@ -385,6 +479,6 @@ export function ChatInterface() {
           </Card>
         </aside>
       </div>
-    </AppShell>
+    </>
   );
 }
