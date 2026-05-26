@@ -6,6 +6,7 @@ import {
   BellRing,
   Bot,
   BrainCircuit,
+  ScanSearch,
   LayoutDashboard,
   LineChart,
   Radar,
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "AI Chat", icon: Bot },
+  { href: "/analyst", label: "AI Analyst", icon: ScanSearch },
   { href: "/alerts", label: "Alerts", icon: BellRing },
   { href: "/dashboard#market", label: "Market Intel", icon: LineChart },
   { href: "/dashboard#signals", label: "Live Signals", icon: Radar },

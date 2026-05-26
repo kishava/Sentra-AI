@@ -2,7 +2,8 @@
 
 Sentra AI is a production-style enterprise AI intelligence platform built with
 Next.js 15, TypeScript, Tailwind CSS, ShadCN-style UI primitives, Framer Motion,
-GSAP, OpenAI, Bright Data, ElevenLabs, Lucide icons, and Recharts.
+GSAP, Three.js / React Three Fiber, OpenAI, Bright Data, ElevenLabs, Lucide
+icons, and Recharts.
 
 The app presents a futuristic operating system for autonomous business
 intelligence: landing page, authentication screens, AI dashboard, live alert
@@ -19,6 +20,14 @@ routes.
 - AI chat interface with markdown responses, typing animation, prompt shortcuts,
   thinking state, contextual follow-up questions, retrieval labels, and voice
   playback controls.
+- AI World Engine with a WebGL intelligence globe, adaptive visualizations,
+  relationship graph, predictive timelines, scenario simulations, narrated
+  briefings, and cinematic World Pulse presentation mode.
+- Real-time AI Activity Console backed by server-sent events, with measured
+  collection/API lifecycle logs, virtualized terminal output, live source
+  tracking, system health telemetry, and safe summarized thought-stream cards.
+- Visual-forensics analyst workspace for prompt-directed image investigations,
+  comparison review, verdict scoring, report history, and PDF export.
 - Backend API routes for Bright Data intelligence collection, OpenAI analysis,
   and ElevenLabs speech synthesis.
 - Demo-safe fallbacks when provider keys are absent, so the project runs
@@ -40,6 +49,7 @@ enable:
 
 ```bash
 OPENAI_API_KEY=
+OPENAI_WORLD_MODEL=gpt-5.5
 OPENAI_TRANSCRIPTION_MODEL=gpt-4o-transcribe
 SENTRA_TIMEZONE=Asia/Colombo
 
@@ -64,6 +74,7 @@ remain functional.
 - `/sign-up` - animated sign-up
 - `/dashboard` - intelligence operating system
 - `/chat` - AI analyst chat with microphone transcription and voice playback
+- `/analyst` - AI World Engine and visual-forensics investigation workspaces
 - `/alerts` - enterprise alert center
 
 ## API Routes
@@ -74,6 +85,13 @@ remain functional.
 - `POST /api/transcribe` - transcribes microphone recordings with OpenAI speech-to-text
 - `GET|POST /api/intelligence` - returns risks, opportunities, recommendations,
   confidence score, and live signals
+- `POST /api/world-engine` - creates visualization-ready global intelligence
+  models with live-search verification and Bright Data evidence when configured
+- `POST /api/world-engine/stream` - streams real collection, web-search,
+  synthesis, visualization, and completion activity events over SSE while
+  returning the completed World Engine model
+- `POST /api/image-analysis` - analyzes uploaded visual evidence after an
+  investigator submits a prompt
 - `POST /api/bright-data` - reusable Bright Data collection endpoint
 - `POST /api/voice` - ElevenLabs text-to-speech with demo fallback
 

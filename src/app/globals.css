@@ -70,4 +70,67 @@ body {
   .sentra-focus {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sentra-cyan/80 focus-visible:ring-offset-2 focus-visible:ring-offset-sentra-ink;
   }
+
+  .terminal-panel {
+    background:
+      linear-gradient(180deg, rgba(3, 13, 23, 0.94), rgba(5, 7, 18, 0.96)),
+      radial-gradient(circle at 15% 10%, rgba(83, 244, 255, 0.08), transparent 38%);
+    box-shadow: inset 0 0 60px rgba(83, 244, 255, 0.025), 0 0 50px rgba(83, 244, 255, 0.08);
+  }
+
+  .terminal-scanline {
+    background-image: repeating-linear-gradient(
+      180deg,
+      transparent 0,
+      transparent 3px,
+      rgba(83, 244, 255, 0.022) 4px
+    );
+    opacity: 0.8;
+  }
+
+  .terminal-cursor {
+    @apply ml-0.5 inline-block text-sentra-cyan;
+    animation: terminalBlink 1s steps(2, start) infinite;
+  }
+}
+
+@keyframes terminalBlink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #101827;
+  }
+
+  aside,
+  header,
+  button,
+  [aria-label="Analysis loading"],
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  main section {
+    padding: 0 !important;
+  }
+
+  .glass-panel {
+    break-inside: avoid;
+    border: 1px solid #d8deea;
+    background: #fff;
+    box-shadow: none;
+    color: #101827;
+  }
+
+  .glass-panel p,
+  .glass-panel h2,
+  .glass-panel h3,
+  .glass-panel strong,
+  .glass-panel span {
+    color: #101827 !important;
+  }
 }
