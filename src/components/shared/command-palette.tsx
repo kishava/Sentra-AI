@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
-import { Bot, LineChart, Radar, Search, ShieldAlert, Sparkles } from "lucide-react";
+import { Bot, Camera, Globe2, LineChart, Radar, Search, ShieldAlert, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const actions = [
@@ -22,6 +22,8 @@ const actions = [
   },
   { icon: ShieldAlert, label: "Open critical risk alerts", hint: "Alerts", href: "/alerts?filter=Critical" },
   { icon: LineChart, label: "Summarize current market trends", hint: "Briefing", href: "/dashboard#market" },
+  { icon: Globe2, label: "What is happening in the world?", hint: "World Engine", href: "/analyst" },
+  { icon: Camera, label: "Run visual forensics investigation", hint: "Forensics", href: "/analyst?mode=vision" },
   {
     icon: Sparkles,
     label: "Generate daily intelligence briefing",

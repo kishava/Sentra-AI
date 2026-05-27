@@ -63,6 +63,7 @@ const config: Config = {
         sans: [
           "-apple-system",
           "BlinkMacSystemFont",
+          "\"SF Pro Display\"",
           "\"SF Pro Text\"",
           "var(--font-inter)",
           "Inter",
@@ -72,6 +73,7 @@ const config: Config = {
           "-apple-system",
           "BlinkMacSystemFont",
           "\"SF Pro Display\"",
+          "\"SF Pro Text\"",
           "var(--font-inter)",
           "Inter",
           "sans-serif",

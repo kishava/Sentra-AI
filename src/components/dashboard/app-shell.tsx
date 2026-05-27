@@ -131,20 +131,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <div className="px-4 py-8 md:px-8">{children}</div>
       </section>
-      <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-3 gap-2 rounded-3xl border border-white/10 bg-sentra-ink/95 p-2 shadow-2xl shadow-black/40 lg:hidden">
-        {nav.slice(0, 3).map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className={cn(
-              "sentra-focus flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2.5 text-[11px] font-medium text-white/55 transition hover:bg-white/[0.07] hover:text-white",
-              isActive(item.href) && "bg-white/[0.08] text-white",
-            )}
-          >
-            <item.icon className="h-4 w-4 text-sentra-cyan" />
-            <span className="max-w-full truncate">{item.label}</span>
-          </Link>
-        ))}
+      <nav className="fixed inset-x-3 bottom-3 z-40 rounded-3xl border border-white/10 bg-sentra-ink/95 p-2 shadow-2xl shadow-black/40 lg:hidden">
+        <div className="flex gap-1 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {nav.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              className={cn(
+                "sentra-focus flex min-w-[4.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl px-2.5 py-2.5 text-[10px] font-medium text-white/55 transition hover:bg-white/[0.07] hover:text-white",
+                isActive(item.href) && "bg-white/[0.08] text-white",
+              )}
+            >
+              <item.icon className="h-4 w-4 text-sentra-cyan" />
+              <span className="max-w-full truncate">{item.label}</span>
+            </Link>
+          ))}
+        </div>
       </nav>
       <NewUserGuideModal />
     </main>

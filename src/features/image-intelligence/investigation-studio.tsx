@@ -25,8 +25,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { LiveAgentLogs } from "@/features/activity-console/ai-activity-console";
 import { investigationPrompts, investigationTimeline } from "@/features/image-intelligence/constants";
 import { InvestigationResults } from "@/features/image-intelligence/investigation-results";
+import { usePipelineLogs } from "@/hooks/use-pipeline-logs";
+import { visionPipelineScript } from "@/lib/pipeline-log-scripts";
 import { cn } from "@/lib/utils";
 import type { ImageInvestigationReport } from "@/types/image-intelligence";
 
@@ -145,6 +148,7 @@ export function InvestigationStudio() {
   const [zoom, setZoom] = useState(1);
   const primaryInput = useRef<HTMLInputElement>(null);
   const comparisonInput = useRef<HTMLInputElement>(null);
+  const pipeline = usePipelineLogs(visionPipelineScript);
 
   useEffect(() => {
     try {
@@ -206,6 +210,7 @@ export function InvestigationStudio() {
     setLoading(true);
     setReport(null);
     setActiveStep(1);
+    pipeline.start();
     const timer = window.setInterval(() => {
       setActiveStep((current) => Math.min(current + 1, investigationTimeline.length - 2));
     }, 700);
@@ -231,6 +236,7 @@ export function InvestigationStudio() {
         description: error instanceof Error ? error.message : "Please retry.",
       });
     } finally {
+      pipeline.complete();
       window.clearInterval(timer);
       setLoading(false);
     }
@@ -273,7 +279,7 @@ export function InvestigationStudio() {
       <header className="mb-7 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div>
           <Badge variant="cyan">Multimodal intelligence / visual forensics</Badge>
-          <h1 className="mt-4 premium-gradient-text text-4xl font-semibold tracking-tight md:text-6xl">AI Analyst</h1>
+          <h1 className="mt-4 premium-gradient-text text-4xl font-bold tracking-tight md:text-6xl">AI Analyst</h1>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/56 md:text-base">
             Securely stage visual evidence, direct the investigation, and generate a defensible AI-assisted authenticity assessment.
           </p>
@@ -310,7 +316,7 @@ export function InvestigationStudio() {
                 </span>
                 <h2 className="mt-8 text-2xl font-semibold text-white">Drop evidence to open a case</h2>
                 <p className="mt-3 max-w-md text-sm leading-6 text-white/48">Drag and drop an image or select a file. PNG, JPEG, or WEBP up to 20 MB.</p>
-                <Badge variant="violet" className="mt-7">No automatic analysis on upload</Badge>
+                <Badge variant="violet" className="mt-7">Preview appears instantly after upload</Badge>
               </motion.button>
             ) : (
               <div className="grid gap-5">
@@ -423,6 +429,27 @@ export function InvestigationStudio() {
           </Card>
         </aside>
       </div>
+
+      {(loading || pipeline.logs.length > 0) && (
+        <Card className="forensics-terminal mt-7 w-full overflow-hidden rounded-[30px] p-0" glow>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[0.018] px-5 py-4 md:px-7">
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-cyan-100/48">Forensics terminal</p>
+              <p className="mt-1 text-sm text-white/48">Live evidence-processing activity stream</p>
+            </div>
+            <Badge variant={pipeline.running ? "cyan" : "success"}>
+              {pipeline.running ? "Analysis running" : "Run complete"}
+            </Badge>
+          </div>
+          <div className="terminal-panel border-t border-cyan-300/[0.04] px-2 py-3 md:px-5 md:py-4">
+            <LiveAgentLogs
+              logs={pipeline.logs}
+              running={pipeline.running}
+              className="h-[clamp(420px,55vh,640px)] rounded-2xl border border-cyan-300/[0.08] bg-black/10"
+            />
+          </div>
+        </Card>
+      )}
 
       {loading ? <ReportSkeleton /> : report && <InvestigationResults report={report} onShare={shareReport} onExport={exportPdf} />}
 

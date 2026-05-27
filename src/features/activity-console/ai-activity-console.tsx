@@ -38,6 +38,10 @@ const categoryColors: Record<ActivityCategory, string> = {
   INTAKE: "text-cyan-200",
   ROUTER: "text-violet-200",
   SERP: "text-blue-200",
+  UNLOCKER: "text-sky-200",
+  SOCIAL: "text-indigo-200",
+  ANALYSIS: "text-fuchsia-200",
+  VISION: "text-cyan-100",
   SOURCE: "text-emerald-200",
   AI: "text-cyan-100",
   SIGNAL: "text-amber-200",
@@ -79,17 +83,17 @@ function statusTone(status: CollectionSource["status"]) {
   return "bg-white/20";
 }
 
-export function LiveAgentLogs({ logs, running }: { logs: ActivityLog[]; running: boolean }) {
+export function LiveAgentLogs({ logs, running, className }: { logs: ActivityLog[]; running: boolean; className?: string }) {
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (logs.length && viewportRef.current) {
-      viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+      viewportRef.current.scrollTo({ top: viewportRef.current.scrollHeight, behavior: "smooth" });
     }
-  }, [logs.length]);
+  }, [logs]);
 
   return (
-    <div ref={viewportRef} className="h-[368px] overflow-auto font-mono text-[12px]" role="log" aria-live="polite" aria-label="Live AI processing events">
+    <div ref={viewportRef} className={cn("h-[368px] overflow-auto font-mono text-[12px]", className)} role="log" aria-live="polite" aria-label="Live AI processing events">
       {!logs.length && (
         <div className="grid h-full place-items-center text-white/34">
           <p>&gt; Waiting for an intelligence directive<span className="terminal-cursor">_</span></p>

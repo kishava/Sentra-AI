@@ -12,7 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { LiveAgentLogs } from "@/features/activity-console/ai-activity-console";
+import { usePipelineLogs } from "@/hooks/use-pipeline-logs";
 import { useTypewriter } from "@/hooks/use-typewriter";
+import { chatPipelineScript } from "@/lib/pipeline-log-scripts";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatProvider } from "@/types/intelligence";
 
@@ -105,6 +108,7 @@ export function ChatInterface() {
     [messages],
   );
   const speaking = voiceStatus !== "idle";
+  const pipeline = usePipelineLogs(chatPipelineScript);
 
   function resetVoicePlayback() {
     voiceRunIdRef.current += 1;
@@ -191,6 +195,7 @@ export function ChatInterface() {
     setMessages((current) => [...current, userMessage]);
     setInput("");
     setLoading(true);
+    pipeline.start();
 
     try {
       const response = await fetch("/api/chat", {
@@ -227,6 +232,7 @@ export function ChatInterface() {
         description: error instanceof Error ? error.message : "Please try again.",
       });
     } finally {
+      pipeline.complete();
       setLoading(false);
     }
   }
@@ -620,6 +626,17 @@ export function ChatInterface() {
               {speaking ? "Stop voice" : "Voice controls"}
             </Button>
           </Card>
+          {(loading || pipeline.logs.length > 0) && (
+            <Card className="overflow-hidden p-0" glow>
+              <div className="border-b border-white/10 px-5 py-4">
+                <p className="text-sm font-semibold text-white">Live intelligence terminal</p>
+                <p className="mt-1 text-xs text-white/42">Bright Data + AI pipeline telemetry</p>
+              </div>
+              <div className="terminal-panel">
+                <LiveAgentLogs logs={pipeline.logs} running={pipeline.running} />
+              </div>
+            </Card>
+          )}
           <Card className="p-6" glow>
             <p className="text-sm uppercase tracking-[0.24em] text-white/35">Intelligence modes</p>
             <div className="mt-5 grid gap-3">

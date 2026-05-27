@@ -7,7 +7,7 @@ export function Navbar() {
     { label: "Platform", href: "#platform" },
     { label: "Our Services", href: "/services" },
     { label: "Intelligence", href: "#intelligence" },
-    { label: "Alerts", href: "/services" },
+    { label: "Alerts", href: "/sign-up?next=%2Falerts" },
     { label: "Voice AI", href: "#voice-ai" },
   ];
 

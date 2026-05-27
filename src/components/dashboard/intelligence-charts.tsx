@@ -41,11 +41,11 @@ export function IntelligenceCharts() {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trendData}>
               <defs>
-                <linearGradient id="market" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="marketTrendFill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#53f4ff" stopOpacity={0.45} />
                   <stop offset="95%" stopColor="#53f4ff" stopOpacity={0} />
                 </linearGradient>
-                <linearGradient id="risk" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="riskTrendFill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#ff4fd8" stopOpacity={0.35} />
                   <stop offset="95%" stopColor="#ff4fd8" stopOpacity={0} />
                 </linearGradient>
@@ -61,8 +61,8 @@ export function IntelligenceCharts() {
                   color: "white",
                 }}
               />
-              <Area type="monotone" dataKey="market" stroke="#53f4ff" fill="url(#market)" strokeWidth={3} />
-              <Area type="monotone" dataKey="risk" stroke="#ff4fd8" fill="url(#risk)" strokeWidth={3} />
+              <Area type="monotone" dataKey="market" stroke="#53f4ff" fill="url(#marketTrendFill)" strokeWidth={3} />
+              <Area type="monotone" dataKey="risk" stroke="#ff4fd8" fill="url(#riskTrendFill)" strokeWidth={3} />
               </AreaChart>
             </ResponsiveContainer>
           ) : (

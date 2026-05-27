@@ -47,11 +47,11 @@ export default function SettingsPage() {
           <StatusRow label="Supabase workspace schema" ok={status?.supabaseSchema} />
           <StatusRow label="OpenAI" ok={status?.openai} />
           <StatusRow label="ElevenLabs" ok={status?.elevenlabs} />
-          <StatusRow label="Bright Data API key" ok={status?.brightData.apiKey} />
-          <StatusRow label="Bright Data SERP zone" ok={status?.brightData.serpZone} />
-          <StatusRow label="Bright Data Unlocker zone" ok={status?.brightData.unlockerZone} />
+          <StatusRow label="Bright Data API key" ok={status?.brightData?.apiKey} />
+          <StatusRow label="Bright Data SERP zone" ok={status?.brightData?.serpZone} />
+          <StatusRow label="Bright Data Unlocker zone" ok={status?.brightData?.unlockerZone} />
         </ul>
-        {status?.brightData.message && (
+        {status?.brightData?.message && (
           <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/60">
             {status.brightData.message}
           </p>

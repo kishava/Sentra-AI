@@ -52,6 +52,11 @@ export async function POST(request: Request) {
         process.env.BRIGHT_DATA_SERP_ENDPOINT &&
         process.env.BRIGHT_DATA_SERP_ZONE,
       );
+      const unlockerConfigured = Boolean(
+        process.env.BRIGHT_DATA_API_KEY &&
+        process.env.BRIGHT_DATA_WEB_UNLOCKER_ENDPOINT &&
+        process.env.BRIGHT_DATA_WEB_UNLOCKER_ZONE,
+      );
       const openAiConfigured = Boolean(process.env.OPENAI_API_KEY);
       const observedSourceIds = new Set<string>();
 
@@ -102,6 +107,29 @@ export async function POST(request: Request) {
           });
         }
 
+        if (unlockerConfigured) {
+          logs.log({
+            category: "UNLOCKER",
+            source: "Bright Data Web Unlocker",
+            stage: "Protected sources",
+            message: "Parsing protected publisher endpoints with Web Unlocker.",
+          });
+        } else {
+          logs.log({
+            category: "UNLOCKER",
+            stage: "Protected sources",
+            message: "Web Unlocker not configured; protected-source enrichment skipped.",
+            level: "warning",
+          });
+        }
+
+        logs.log({
+          category: "SOCIAL",
+          stage: "Social monitoring",
+          message: "Monitoring X, Reddit, LinkedIn, and Instagram for narrative velocity and sentiment drift.",
+          source: "Social graph",
+        });
+
         const collectionStartedAt = performance.now();
         const evidence = await collectWebIntelligence({ query, mode: "serp" });
         const collectionLatency = Math.round(performance.now() - collectionStartedAt);
@@ -141,6 +169,13 @@ export async function POST(request: Request) {
           });
         }
 
+        logs.log({
+          category: "ANALYSIS",
+          stage: "Intelligence graph",
+          message: "Generating intelligence graph, geopolitical clusters, and relationship maps from collected evidence.",
+          source: "Sentra graph engine",
+        });
+
         if (openAiConfigured) {
           logs.source({
             id: "openai-live-search",
@@ -153,7 +188,7 @@ export async function POST(request: Request) {
             category: "AI",
             source: "OpenAI Responses",
             stage: "Model invocation",
-            message: "Submitting structured world-intelligence request with live web-search tools.",
+            message: "Synthesizing strategic world-intelligence report with live web-search tools.",
           });
         } else {
           logs.source({

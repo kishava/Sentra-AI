@@ -20,8 +20,9 @@
   --border: 222 17% 23%;
   --input: 222 17% 23%;
   --ring: 211 100% 63%;
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
-  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter), Inter, "Helvetica Neue", sans-serif;
+  --font-apple: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", var(--font-inter), Inter, sans-serif;
+  --font-display: var(--font-apple);
+  --font-body: var(--font-apple);
 }
 
 * {
@@ -37,11 +38,12 @@ body {
   overflow-x: hidden;
   font-family: var(--font-body);
   font-weight: 400;
-  letter-spacing: -0.011em;
-  line-height: 1.5;
+  letter-spacing: 0.006em;
+  line-height: 1.55;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   background:
     radial-gradient(circle at 18% 6%, rgba(73, 137, 216, 0.14), transparent 32rem),
     radial-gradient(circle at 85% 5%, rgba(113, 107, 255, 0.12), transparent 28rem),
@@ -57,8 +59,22 @@ h5,
 h6 {
   font-family: var(--font-display);
   font-weight: 600;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
   text-wrap: balance;
+}
+
+h1 {
+  font-weight: 750;
+  letter-spacing: -0.055em;
+}
+
+h1[class] {
+  font-weight: 750;
+}
+
+p {
+  line-height: 1.62;
 }
 
 button,
@@ -93,15 +109,25 @@ select {
 
 @layer components {
   .glass-panel {
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.105);
     background:
-      linear-gradient(135deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035)),
-      rgba(16, 19, 30, 0.56);
+      linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.026) 42%, rgba(91, 121, 255, 0.032)),
+      rgba(12, 15, 26, 0.58);
     box-shadow:
-      0 22px 58px rgba(0, 0, 0, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.07);
-    backdrop-filter: blur(12px) saturate(120%);
-    -webkit-backdrop-filter: blur(12px) saturate(120%);
+      0 24px 64px rgba(0, 0, 0, 0.26),
+      0 0 48px rgba(57, 119, 255, 0.032),
+      inset 0 1px 0 rgba(255, 255, 255, 0.095);
+    backdrop-filter: blur(22px) saturate(145%);
+    -webkit-backdrop-filter: blur(22px) saturate(145%);
+    transition: border-color 280ms ease, background-color 280ms ease, box-shadow 280ms ease, transform 280ms ease;
+  }
+
+  .glass-panel:hover {
+    border-color: rgba(255, 255, 255, 0.145);
+    box-shadow:
+      0 28px 70px rgba(0, 0, 0, 0.3),
+      0 0 58px rgba(71, 130, 255, 0.065),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
 
   .premium-gradient-text {
@@ -115,12 +141,19 @@ select {
 
   .terminal-panel {
     background:
-      linear-gradient(180deg, rgba(3, 13, 23, 0.94), rgba(5, 7, 18, 0.96)),
-      radial-gradient(circle at 15% 10%, rgba(65, 145, 255, 0.07), transparent 38%);
+      radial-gradient(circle at 18% 0%, rgba(83, 244, 255, 0.065), transparent 42%),
+      linear-gradient(180deg, rgba(3, 11, 22, 0.95), rgba(4, 7, 16, 0.985));
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.055),
-      inset 0 0 60px rgba(65, 145, 255, 0.024),
-      0 18px 52px rgba(0, 0, 0, 0.24);
+      inset 0 0 86px rgba(65, 145, 255, 0.04),
+      0 20px 60px rgba(0, 0, 0, 0.3);
+  }
+
+  .forensics-terminal {
+    box-shadow:
+      0 28px 76px rgba(0, 0, 0, 0.32),
+      0 0 70px rgba(83, 244, 255, 0.045),
+      inset 0 1px 0 rgba(255, 255, 255, 0.095);
   }
 
   .terminal-scanline {
