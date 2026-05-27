@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, Code2, KeyRound, Mail, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Code2, KeyRound, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { AiOrb } from "@/components/shared/ai-orb";
+import { BrandLogo } from "@/components/shared/brand-mark";
 import { ParticleField } from "@/components/shared/particle-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -253,11 +254,8 @@ export function AuthShell({ mode }: AuthShellProps) {
           transition={{ duration: 0.7 }}
           className="hidden lg:block"
         >
-          <Link href="/" className="mb-12 inline-flex items-center gap-3 text-white">
-            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-sentra-cyan to-sentra-violet shadow-glow">
-              <ShieldCheck className="h-5 w-5" />
-            </span>
-            Sentra AI
+          <Link href="/" className="group mb-12 inline-flex text-white" aria-label="Santra home">
+            <BrandLogo className="h-[220px] w-[330px]" />
           </Link>
           <Badge variant="cyan">{supabaseEnabled ? "Secure enterprise access" : "Local auth"}</Badge>
           <h1 className="mt-5 max-w-xl text-5xl font-semibold tracking-tight text-white">

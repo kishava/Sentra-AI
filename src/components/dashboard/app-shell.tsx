@@ -7,7 +7,6 @@ import {
   BellRing,
   BookOpen,
   Bot,
-  BrainCircuit,
   Camera,
   ScanSearch,
   LayoutDashboard,
@@ -16,6 +15,7 @@ import {
   Settings,
 } from "lucide-react";
 import { CommandPalette } from "@/components/shared/command-palette";
+import { BrandLogo } from "@/components/shared/brand-mark";
 import { LocalDevBanner } from "@/components/shared/local-dev-banner";
 import { ParticleField } from "@/components/shared/particle-field";
 import { NewUserGuideModal } from "@/components/dashboard/new-user-guide-modal";
@@ -82,14 +82,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <main className="min-h-screen">
       <ParticleField lite />
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-white/10 bg-sentra-ink/92 p-5 lg:flex">
-        <Link href="/" className="flex shrink-0 items-center gap-3 px-2 py-3 text-white">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-sentra-cyan to-sentra-violet shadow-glow">
-            <BrainCircuit className="h-5 w-5" />
-          </span>
-          <span>
-            <span className="block font-semibold">Sentra AI</span>
-            <span className="text-xs text-white/40">Enterprise OS</span>
-          </span>
+        <Link href="/" className="group flex shrink-0 justify-center px-2 pb-5 pt-2 text-white" aria-label="Santra home">
+          <BrandLogo className="h-[112px] w-[168px]" />
         </Link>
         <nav className="mt-8 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto overscroll-contain pr-1">
           {nav.map((item) => (
