@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DASHBOARD_SIGNALS_UPDATED_EVENT } from "@/hooks/use-dashboard-signals";
 import type { IntelligenceAnalysis } from "@/types/intelligence";
 
 type BriefingState = {
@@ -59,6 +60,15 @@ export function DashboardBriefing() {
       }
 
       setBriefing({ provider: data.provider, analysis: data.analysis, source: "live" });
+      window.dispatchEvent(
+        new CustomEvent(DASHBOARD_SIGNALS_UPDATED_EVENT, {
+          detail: {
+            signals: data.analysis?.signals ?? [],
+            source: data.provider === "bright-data" ? "live" : "sample",
+            generatedAt: new Date().toISOString(),
+          },
+        }),
+      );
       toast.success("Briefing updated", {
         description:
           data.provider === "bright-data"

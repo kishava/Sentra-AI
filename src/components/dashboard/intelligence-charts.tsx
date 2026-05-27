@@ -34,7 +34,7 @@ export function IntelligenceCharts() {
             <p className="text-sm uppercase tracking-[0.24em] text-white/35">Market intelligence</p>
             <h3 className="mt-2 text-2xl font-semibold text-white">Trend velocity</h3>
           </div>
-          <span className="rounded-full bg-cyan-300/10 px-3 py-1 text-xs text-cyan-100">Live</span>
+          <span className="rounded-full bg-white/[0.055] px-3 py-1 text-xs text-white/60">Illustrative trend</span>
         </div>
         <div className="h-80">
           {mounted ? (

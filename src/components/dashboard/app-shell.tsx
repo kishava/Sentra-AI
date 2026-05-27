@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/services", label: "Our Services", icon: BookOpen },
+  { href: "/workspace/services", label: "Our Services", icon: BookOpen },
   { href: "/chat", label: "AI Chat", icon: Bot },
   { href: "/analyst", label: "AI Analyst", icon: ScanSearch },
   { href: "/analyst?mode=vision", label: "Visual Forensics", icon: Camera },

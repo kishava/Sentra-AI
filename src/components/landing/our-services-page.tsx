@@ -14,7 +14,7 @@ function signUpUrl(next: string) {
   return `/sign-up?next=${encodeURIComponent(next)}`;
 }
 
-export function OurServicesPage() {
+export function OurServicesPage({ basePath = "/services" }: { basePath?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { ready, signedIn } = useWorkspaceSession();
@@ -36,16 +36,16 @@ export function OurServicesPage() {
 
   function openGuide(service: SentraService) {
     if (!signedIn) {
-      requireRegistration(`/services?guide=${service.id}`);
+      requireRegistration(`${basePath}?guide=${service.id}`);
       return;
     }
     setSelectedService(service);
-    router.replace(`/services?guide=${service.id}`, { scroll: false });
+    router.replace(`${basePath}?guide=${service.id}`, { scroll: false });
   }
 
   function closeGuide() {
     setSelectedService(null);
-    router.replace("/services", { scroll: false });
+    router.replace(basePath, { scroll: false });
   }
 
   function openWorkspace(service: SentraService) {
