@@ -12,7 +12,7 @@ export async function GET() {
 
     if (auth.localMode || !auth.supabase) {
       return NextResponse.json(
-        { signals: signalStream, source: "sample" },
+        { signals: signalStream, source: "sample", generatedAt: new Date().toISOString() },
         { headers: { "Cache-Control": "no-store" } },
       );
     }
@@ -20,7 +20,7 @@ export async function GET() {
     const briefing = await getLatestBriefing(auth.supabase, auth.user.id);
     if (!briefing) {
       return NextResponse.json(
-        { signals: signalStream, source: "sample" },
+        { signals: signalStream, source: "sample", generatedAt: new Date().toISOString() },
         { headers: { "Cache-Control": "no-store" } },
       );
     }
@@ -39,7 +39,7 @@ export async function GET() {
   } catch (error) {
     console.error("Signals route failed", error);
     return NextResponse.json(
-      { signals: signalStream, source: "sample" },
+      { signals: signalStream, source: "sample", generatedAt: new Date().toISOString() },
       { headers: { "Cache-Control": "no-store" } },
     );
   }

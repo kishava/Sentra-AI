@@ -36,13 +36,27 @@ function readSessionSnapshot() {
   }
 }
 
-export function useDashboardSignals(refreshInterval = 15000) {
-  const [snapshot, setSnapshot] = useState<DashboardSignalSnapshot>({
-    signals: [],
-    source: "sample",
-    loading: true,
-    lastUpdated: null,
-  });
+function initialSnapshot(): DashboardSignalSnapshot {
+  if (typeof window === "undefined") {
+    return {
+      signals: [],
+      source: "sample",
+      loading: true,
+      lastUpdated: null,
+    };
+  }
+
+  const cached = readSessionSnapshot();
+  return {
+    signals: cached?.signals ?? [],
+    source: cached?.source ?? "sample",
+    loading: !cached?.signals?.length,
+    lastUpdated: cached?.generatedAt ? resolvedDate(cached.generatedAt) : null,
+  };
+}
+
+export function useDashboardSignals(refreshInterval = 60000) {
+  const [snapshot, setSnapshot] = useState<DashboardSignalSnapshot>(initialSnapshot);
 
   const refresh = useCallback(async () => {
     try {

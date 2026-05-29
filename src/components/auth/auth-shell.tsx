@@ -258,7 +258,7 @@ export function AuthShell({ mode }: AuthShellProps) {
             <BrandLogo className="h-[220px] w-[330px]" />
           </Link>
           <Badge variant="cyan">{supabaseEnabled ? "Secure enterprise access" : "Local auth"}</Badge>
-          <h1 className="mt-5 max-w-xl text-5xl font-semibold tracking-tight text-white">
+          <h1 className="type-display-lg mt-5 max-w-2xl text-white">
             Enter the intelligence layer for teams that never fly blind.
           </h1>
           <p className="mt-5 max-w-lg text-lg leading-8 text-white/55">

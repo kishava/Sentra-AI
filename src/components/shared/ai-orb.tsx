@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 
 type AiOrbProps = {
@@ -48,16 +48,38 @@ function StaticOrb({ size, className, speaking }: { size: keyof typeof sizes; cl
 
 export function AiOrb({ speaking = false, size = "md", className, static: useStatic = false }: AiOrbProps) {
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, getReducedMotion, () => true);
+  const orbRef = useRef<HTMLDivElement | null>(null);
+
+  function handleMouseMove(event: React.MouseEvent<HTMLDivElement>) {
+    const element = orbRef.current;
+    if (!element || reducedMotion || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    const rect = element.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width - 0.5) * 14;
+    const y = ((event.clientY - rect.top) / rect.height - 0.5) * 14;
+    element.style.setProperty("--orb-x", `${x}px`);
+    element.style.setProperty("--orb-y", `${y}px`);
+  }
+
+  function handleMouseLeave() {
+    const element = orbRef.current;
+    if (!element) return;
+    element.style.setProperty("--orb-x", "0px");
+    element.style.setProperty("--orb-y", "0px");
+  }
 
   if (useStatic || reducedMotion) {
-    return <StaticOrb size={size} className={className} speaking={speaking} />;
+    return <StaticOrb size={size} className={cn("premium-ai-orb", className)} speaking={speaking} />;
   }
 
   return (
     <motion.div
-      className={cn("relative grid place-items-center", sizes[size], className)}
+      ref={orbRef}
+      className={cn("premium-ai-orb relative grid place-items-center", sizes[size], className)}
       animate={{ scale: speaking ? [1, 1.05, 1] : [1, 1.02, 1] }}
+      whileHover={{ scale: speaking ? 1.08 : 1.045 }}
       transition={{ repeat: Infinity, duration: speaking ? 1.1 : 4.5, ease: "easeInOut" }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
     >
       <div className="absolute inset-0 rounded-full bg-gradient-to-br from-sentra-cyan via-sentra-blue to-sentra-violet opacity-70 blur-xl" />
       <div className="absolute inset-[9%] rounded-full border border-white/20 bg-white/10" />

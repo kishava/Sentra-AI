@@ -63,7 +63,7 @@ export function OurServicesPage({ basePath = "/services" }: { basePath?: string 
           <Badge variant="cyan">Our services</Badge>
           <div className="mt-4 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-end">
             <div className="min-w-0">
-              <h1 className="text-4xl font-semibold tracking-tight text-white md:text-6xl">
+              <h1 className="type-display-lg text-white">
                 Enterprise intelligence, end to end
               </h1>
               <p className="mt-4 max-w-3xl text-sm leading-7 text-white/58 md:text-base">

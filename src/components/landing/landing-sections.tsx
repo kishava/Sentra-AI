@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import {
+  ArrowRight,
   BellRing,
   Bot,
   Building2,
@@ -16,6 +17,7 @@ import { MotionSection } from "@/components/shared/motion-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { sentraServices } from "@/data/our-services";
 
 const workflowSteps = [
   { icon: Radar, label: "Collect live web evidence" },
@@ -63,7 +65,7 @@ export function LandingSections() {
         <div className="mb-10 flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
             <Badge variant="violet">Enterprise intelligence OS</Badge>
-            <h2 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-6xl">
+            <h2 className="type-display-lg mt-4 max-w-4xl text-white">
               A command center for the signals your market tries to hide.
             </h2>
           </div>
@@ -95,7 +97,7 @@ export function LandingSections() {
           <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr]">
             <div>
               <Badge variant="cyan">Autonomous workflow</Badge>
-              <h2 className="mt-4 text-4xl font-semibold tracking-tight text-white md:text-5xl">
+              <h2 className="type-heading-lg mt-4 text-white">
                 From live web evidence to boardroom-ready recommendations.
               </h2>
               <p className="mt-5 text-white/55">
@@ -117,6 +119,35 @@ export function LandingSections() {
         </Card>
       </MotionSection>
 
+      <MotionSection id="services-preview" className="container py-20">
+        <div className="mb-10 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+          <div>
+            <Badge variant="cyan">Our services</Badge>
+            <h2 className="type-heading-lg mt-4 max-w-3xl text-white">
+              Professional intelligence services built into one workspace.
+            </h2>
+          </div>
+          <Button asChild variant="ghost">
+            <a href="/services">
+              View all services
+              <ArrowRight className="h-4 w-4" />
+            </a>
+          </Button>
+        </div>
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {sentraServices.slice(0, 4).map((service) => (
+            <Card key={service.id} className="p-6" glow>
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-300/10 text-sentra-cyan">
+                <service.icon className="h-6 w-6" />
+              </span>
+              <p className="mt-6 text-xs uppercase tracking-[0.22em] text-white/35">{service.tagline}</p>
+              <h3 className="mt-2 text-xl font-semibold text-white">{service.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-white/55">{service.summary}</p>
+            </Card>
+          ))}
+        </div>
+      </MotionSection>
+
       <MotionSection className="container py-20">
         <div className="grid gap-5 md:grid-cols-4">
           {stats.map(([value, label]) => (
@@ -132,7 +163,7 @@ export function LandingSections() {
         <div className="grid gap-5 lg:grid-cols-3">
           <Card className="lg:col-span-2 p-8 md:p-10" glow>
             <Building2 className="h-9 w-9 text-sentra-cyan" />
-            <h2 className="mt-8 text-4xl font-semibold tracking-tight text-white md:text-5xl">
+            <h2 className="type-heading-lg mt-8 text-white">
               Trusted by teams that move before the market does.
             </h2>
             <p className="mt-5 text-lg leading-8 text-white/55">
@@ -159,7 +190,7 @@ export function LandingSections() {
           <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/10 via-violet-500/10 to-pink-400/10" />
           <div className="relative">
             <Badge variant="success">Hackathon ready</Badge>
-            <h2 className="mx-auto mt-5 max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-6xl">
+            <h2 className="type-display-lg mx-auto mt-5 max-w-4xl text-white">
               Build the enterprise intelligence muscle your competitors cannot see.
             </h2>
             <Button asChild size="lg" variant="neon" className="mt-9">

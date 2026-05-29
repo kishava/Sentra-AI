@@ -39,12 +39,16 @@ export async function POST(request: Request) {
     const result = await runIntelligence(query, targetUrl);
 
     if (!auth.localMode && auth.supabase) {
-      await saveIntelligenceRun(auth.supabase, auth.user.id, {
-        query,
-        provider: result.provider,
-        evidencePreview: result.analysis.summary,
-        analysis: result.analysis,
-      });
+      try {
+        await saveIntelligenceRun(auth.supabase, auth.user.id, {
+          query,
+          provider: result.provider,
+          evidencePreview: result.analysis.summary,
+          analysis: result.analysis,
+        });
+      } catch (error) {
+        console.warn("Intelligence persistence skipped", error);
+      }
     }
 
     return NextResponse.json({

@@ -80,6 +80,19 @@ create table public.monitor_events (
   unique (monitor_id, signal_id)
 );
 
+create table public.intelligence_reports (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  monitor_id uuid references public.monitors (id) on delete set null,
+  title text not null,
+  risk_score integer not null default 0,
+  confidence integer not null default 0,
+  hallucination_risk text not null default 'medium',
+  provider text not null check (provider in ('bright-data', 'demo')),
+  report jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 -- Bright Data cache
 create table public.bd_cache (
   cache_key text primary key,
@@ -105,6 +118,8 @@ create index idx_signals_user on public.signals (user_id, created_at desc);
 create index idx_signals_run on public.signals (run_id);
 create index idx_monitors_user on public.monitors (user_id);
 create index idx_monitor_events_user on public.monitor_events (user_id, seen_at desc);
+create index idx_intelligence_reports_user on public.intelligence_reports (user_id, created_at desc);
+create index idx_intelligence_reports_monitor on public.intelligence_reports (monitor_id, created_at desc);
 create index idx_bd_cache_expires on public.bd_cache (expires_at);
 
 -- Auto-create profile on signup
@@ -136,6 +151,7 @@ alter table public.intelligence_runs enable row level security;
 alter table public.signals enable row level security;
 alter table public.monitors enable row level security;
 alter table public.monitor_events enable row level security;
+alter table public.intelligence_reports enable row level security;
 alter table public.bd_cache enable row level security;
 alter table public.api_usage enable row level security;
 
@@ -150,6 +166,7 @@ create policy signals_all on public.signals for all using (auth.uid() = user_id)
 
 create policy monitors_all on public.monitors for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy monitor_events_all on public.monitor_events for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy intelligence_reports_all on public.intelligence_reports for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- bd_cache: service role only (no user policies)
 create policy api_usage_all on public.api_usage for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

@@ -1,0 +1,18 @@
+
+> sentra-ai@0.1.0 dev
+> next dev --port 3001
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3001
+   - Network:      http://10.0.236.10:3001
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · optimizePackageImports
+
+ ✓ Starting...
+ ✓ Ready in 2.9s
+ ✓ Compiled /middleware in 311ms (170 modules)
+ ○ Compiling /sign-in ...
+ ✓ Compiled /sign-in in 3.9s (1434 modules)
+ GET /sign-in?next=%2Freports 200 in 4595ms
+ ✓ Compiled in 880ms (654 modules)

@@ -513,7 +513,7 @@ export function WorldEngineStudio() {
         <Card className="relative overflow-hidden p-6 md:p-8" glow>
           <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-violet-400/10 blur-3xl" />
           <Badge variant="cyan">AI World Engine / autonomous visualization</Badge>
-          <h1 className="relative mt-4 premium-gradient-text text-4xl font-semibold tracking-tight md:text-6xl">
+          <h1 className="type-display-lg relative mt-4 premium-gradient-text">
             Understand the world as a living system.
           </h1>
           <p className="relative mt-4 max-w-3xl text-sm leading-7 text-white/57 md:text-base">

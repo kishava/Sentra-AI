@@ -45,7 +45,7 @@ function AlertsPageContent() {
           <Badge variant="risk">Realtime enterprise alerts</Badge>
           <div className="mt-5 flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div className="min-w-0">
-              <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-6xl">
+              <h1 className="type-display-lg text-white">
                 Alert center
               </h1>
               <p className="mt-4 max-w-2xl text-white/55">

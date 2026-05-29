@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, BellRing, Bot, CheckCircle2, Pause, Play, Radar, Sparkles, Trash2, X } from "lucide-react";
+import { AlertTriangle, BellRing, Bot, CheckCircle2, FileCheck2, Pause, Play, Radar, Send, ShieldCheck, Sparkles, TimerReset, Trash2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { signalStream } from "@/data/mock-intelligence";
 import { isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { IntelligenceSignal, MonitorIntent, Severity } from "@/types/intelligence";
+import type { ExecutiveIntelligenceReport, IntelligenceSignal, MonitorIntent, Severity } from "@/types/intelligence";
 
 type SignalCategory = IntelligenceSignal["category"];
 
@@ -31,10 +31,13 @@ type Monitor = {
 
 type SelectedReport = {
   monitor: Monitor;
-  signal: IntelligenceSignal;
+  signal?: IntelligenceSignal;
+  report?: ExecutiveIntelligenceReport;
 };
 
 const STORAGE_KEY = "sentra-monitors";
+const WEBHOOK_STORAGE_KEY = "sentra-alert-webhook";
+const REPORTS_STORAGE_KEY = "sentra-intelligence-reports";
 const severityRank: Record<Severity, number> = {
   low: 1,
   medium: 2,
@@ -68,6 +71,17 @@ function saveMonitors(monitors: Monitor[]) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(monitors));
 }
 
+function saveLocalReport(report: ExecutiveIntelligenceReport) {
+  if (typeof window === "undefined") return;
+  try {
+    const current = JSON.parse(window.localStorage.getItem(REPORTS_STORAGE_KEY) || "[]") as ExecutiveIntelligenceReport[];
+    const next = [report, ...current.filter((item) => item.id !== report.id)].slice(0, 50);
+    window.localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    window.localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify([report]));
+  }
+}
+
 function tokenize(value: string) {
   return value
     .toLowerCase()
@@ -95,6 +109,7 @@ export function MonitorCenter() {
   const searchParams = useSearchParams();
   const aiAbortRef = useRef<AbortController | null>(null);
   const intentAbortRef = useRef<AbortController | null>(null);
+  const checkMonitorNowRef = useRef<((monitorId: string, options?: { automated?: boolean }) => Promise<void>) | null>(null);
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [signals, setSignals] = useState<IntelligenceSignal[]>(signalStream);
   const [checkingId, setCheckingId] = useState<string | null>(null);
@@ -105,9 +120,15 @@ export function MonitorCenter() {
   const [intentLoading, setIntentLoading] = useState(false);
   const [intentError, setIntentError] = useState("");
   const [selectedReport, setSelectedReport] = useState<SelectedReport | null>(null);
+  const [reportsByMonitor, setReportsByMonitor] = useState<Record<string, ExecutiveIntelligenceReport>>({});
   const [aiSummary, setAiSummary] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
+  const [demoAutopilot, setDemoAutopilot] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState(() =>
+    typeof window !== "undefined" ? window.localStorage.getItem(WEBHOOK_STORAGE_KEY) ?? "" : "",
+  );
+  const [webhookSending, setWebhookSending] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(() =>
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
   );
@@ -117,7 +138,10 @@ export function MonitorCenter() {
       const localOnly = !isBrowserSupabaseConfigured();
 
       try {
-        const signalsRes = await fetch("/api/signals");
+        const [signalsRes, monitorsRes] = await Promise.all([
+          fetch("/api/signals"),
+          localOnly ? Promise.resolve(null) : fetch("/api/monitors"),
+        ]);
         const signalsData = (await signalsRes.json()) as { signals?: IntelligenceSignal[] };
         if (signalsData.signals?.length) setSignals(signalsData.signals);
 
@@ -126,7 +150,7 @@ export function MonitorCenter() {
           return;
         }
 
-        const monitorsRes = await fetch("/api/monitors");
+        if (!monitorsRes) return;
         const monitorsData = (await monitorsRes.json()) as {
           monitors?: Array<{
             id: string;
@@ -198,6 +222,10 @@ export function MonitorCenter() {
 
     loadData();
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(WEBHOOK_STORAGE_KEY, webhookUrl.trim());
+  }, [webhookUrl]);
 
   useEffect(() => {
     const guidePrompt = searchParams.get("guidePrompt");
@@ -276,8 +304,24 @@ export function MonitorCenter() {
   );
   const activeMonitorCount = monitors.filter((monitor) => monitor.active).length;
 
-  async function openReport(monitor: Monitor, signal: IntelligenceSignal) {
+  async function openReport(monitor: Monitor, signal?: IntelligenceSignal, report?: ExecutiveIntelligenceReport) {
     aiAbortRef.current?.abort();
+    if (report) {
+      setSelectedReport({ monitor, signal, report });
+      setAiSummary("");
+      setAiError("");
+      setAiLoading(false);
+      return;
+    }
+
+    if (!signal) {
+      const cachedReport = reportsByMonitor[monitor.id];
+      if (cachedReport) {
+        setSelectedReport({ monitor, report: cachedReport });
+      }
+      return;
+    }
+
     const abortController = new AbortController();
     aiAbortRef.current = abortController;
     setSelectedReport({ monitor, signal });
@@ -404,8 +448,34 @@ export function MonitorCenter() {
     }
   }
 
-  async function checkMonitorNow(monitorId: string) {
+  async function sendWebhookAlert(report: ExecutiveIntelligenceReport) {
+    const trimmed = webhookUrl.trim();
+    if (!trimmed) return;
+
+    setWebhookSending(true);
+    try {
+      const response = await fetch("/api/alerts/webhook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ webhookUrl: trimmed, report }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Webhook delivery failed.");
+      toast.success("Webhook alert delivered.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Webhook delivery failed.");
+    } finally {
+      setWebhookSending(false);
+    }
+  }
+
+  async function checkMonitorNow(monitorId: string, options?: { automated?: boolean }) {
     const monitor = monitors.find((item) => item.id === monitorId);
+    if (!monitor) {
+      toast.error("Monitor not found.");
+      return;
+    }
+
     setCheckingId(monitorId);
     try {
       const response = await fetch(`/api/monitors/${monitorId}/check`, {
@@ -415,10 +485,10 @@ export function MonitorCenter() {
           isBrowserSupabaseConfigured()
             ? {}
             : {
-                requirement: monitor?.requirement,
-                category: monitor?.category,
-                minimumSeverity: monitor?.minimumSeverity,
-                keywords: monitor?.keywords,
+                requirement: monitor.requirement,
+                category: monitor.category,
+                minimumSeverity: monitor.minimumSeverity,
+                keywords: monitor.keywords,
               },
         ),
       });
@@ -426,6 +496,7 @@ export function MonitorCenter() {
         signals?: IntelligenceSignal[];
         provider?: string;
         matchedCount?: number;
+        report?: ExecutiveIntelligenceReport;
         error?: string;
       };
 
@@ -446,21 +517,43 @@ export function MonitorCenter() {
       }
 
       const matched = data.signals ?? [];
+      if (data.report) {
+        setReportsByMonitor((current) => ({ ...current, [monitorId]: data.report! }));
+        saveLocalReport(data.report);
+        toast.success("Verified report ready", {
+          description: data.report.verdict,
+          action: { label: "Open", onClick: () => openReport(monitor, matched[0], data.report) },
+        });
+      }
       matched.forEach((signal) => {
-        if (monitor) {
-          toast.success("Monitor match", {
-            description: signal.title,
-            action: { label: "Report", onClick: () => openReport(monitor, signal) },
+        toast.success("Monitor match", {
+          description: signal.title,
+          action: { label: "Report", onClick: () => openReport(monitor, signal, data.report) },
+        });
+      });
+
+      if (data.report && matched.length) {
+        if (notificationPermission === "granted") {
+          new Notification("Sentra monitor match", {
+            body: `${data.report.verdict} - risk ${data.report.riskScore}%`,
           });
         }
-      });
+        void sendWebhookAlert(data.report);
+      }
 
       toast.message("Check complete", {
         description:
           data.provider === "bright-data"
             ? `${data.matchedCount ?? 0} matches from live Bright Data evidence.`
-            : `${data.matchedCount ?? 0} matches (sample evidence — configure Bright Data zones).`,
+            : `${data.matchedCount ?? 0} matches (illustrative evidence - configure Bright Data zones).`,
       });
+
+      if (options?.automated && data.report && monitor) {
+        toast.message("Autopilot run complete", {
+          description: data.report.verdict,
+          action: { label: "Open report", onClick: () => openReport(monitor, matched[0], data.report) },
+        });
+      }
 
       setMonitors((current) =>
         current.map((item) =>
@@ -473,6 +566,21 @@ export function MonitorCenter() {
       setCheckingId(null);
     }
   }
+  useEffect(() => {
+    checkMonitorNowRef.current = checkMonitorNow;
+  });
+
+  useEffect(() => {
+    if (!demoAutopilot || checkingId) return;
+    const active = monitors.find((monitor) => monitor.active);
+    if (!active) return;
+
+    const interval = window.setInterval(() => {
+      if (!document.hidden) void checkMonitorNowRef.current?.(active.id, { automated: true });
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, [demoAutopilot, monitors, checkingId]);
 
   async function enableBrowserNotifications() {
     if (!("Notification" in window)) {
@@ -531,6 +639,33 @@ export function MonitorCenter() {
             <BellRing className="h-4 w-4" />
             {notificationPermission === "granted" ? "Alerts enabled" : "Enable browser alerts"}
           </Button>
+        </div>
+
+        <div className="mt-5 grid gap-3 rounded-3xl border border-white/10 bg-white/[0.035] p-4 lg:grid-cols-[1fr_auto_auto] lg:items-center">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-medium text-white">
+              <Send className="h-4 w-4 text-sentra-cyan" />
+              Alert delivery
+            </div>
+            <Input
+              value={webhookUrl}
+              onChange={(event) => setWebhookUrl(event.target.value)}
+              placeholder="Optional Slack, Discord, or automation webhook URL"
+              className="mt-3 h-10"
+              aria-label="Alert webhook URL"
+            />
+          </div>
+          <Button
+            variant={demoAutopilot ? "neon" : "ghost"}
+            onClick={() => setDemoAutopilot((current) => !current)}
+            disabled={!activeMonitorCount}
+          >
+            <TimerReset className="h-4 w-4" />
+            {demoAutopilot ? "Autopilot on" : "Autopilot"}
+          </Button>
+          <Badge variant={webhookSending ? "cyan" : webhookUrl.trim() ? "success" : "default"}>
+            {webhookSending ? "Sending" : webhookUrl.trim() ? "Webhook armed" : "Webhook optional"}
+          </Badge>
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
@@ -677,12 +812,17 @@ export function MonitorCenter() {
                         {monitor.active ? "Monitoring" : "Paused"}
                       </Badge>
                       <Badge variant="default">{matches.length} matches</Badge>
+                      {reportsByMonitor[monitor.id] && (
+                        <Badge variant={reportsByMonitor[monitor.id].hallucinationRisk === "low" ? "success" : "risk"}>
+                          {reportsByMonitor[monitor.id].hallucinationRisk} AI risk
+                        </Badge>
+                      )}
                     </div>
                     <h4 className="mt-3 break-words font-medium text-white">{monitor.requirement}</h4>
                     {matches[0] ? (
                       <button
                         className="sentra-focus mt-2 block text-left text-sm leading-6 text-white/55 transition hover:text-white"
-                        onClick={() => openReport(monitor, matches[0])}
+                        onClick={() => openReport(monitor, matches[0], reportsByMonitor[monitor.id])}
                       >
                         Latest match: <span className="text-white/80">{matches[0].title}</span>
                       </button>
@@ -701,10 +841,10 @@ export function MonitorCenter() {
                       <Radar className="h-4 w-4" />
                       {checkingId === monitor.id ? "Checking…" : "Check now"}
                     </Button>
-                    {matches[0] && (
-                      <Button variant="neon" onClick={() => openReport(monitor, matches[0])}>
-                        <Bot className="h-4 w-4" />
-                        Report
+                    {(matches[0] || reportsByMonitor[monitor.id]) && (
+                      <Button variant="neon" onClick={() => openReport(monitor, matches[0], reportsByMonitor[monitor.id])}>
+                        <FileCheck2 className="h-4 w-4" />
+                        Verified report
                       </Button>
                     )}
                     <Button variant="ghost" size="icon" onClick={() => toggleMonitor(monitor.id)}>
@@ -733,12 +873,23 @@ export function MonitorCenter() {
             <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5 md:p-6">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="risk">{selectedReport.signal.severity}</Badge>
-                  <Badge variant="cyan">{selectedReport.signal.category}</Badge>
-                  <Badge variant="default">{Math.round(selectedReport.signal.confidence * 100)}% confidence</Badge>
+                  <Badge variant="risk">
+                    {selectedReport.report ? `${selectedReport.report.riskScore}% risk` : selectedReport.signal?.severity}
+                  </Badge>
+                  <Badge variant="cyan">
+                    {selectedReport.report ? selectedReport.report.provider : selectedReport.signal?.category}
+                  </Badge>
+                  <Badge variant="default">
+                    {selectedReport.report ? `${selectedReport.report.confidence}% confidence` : `${Math.round((selectedReport.signal?.confidence ?? 0) * 100)}% confidence`}
+                  </Badge>
+                  {selectedReport.report && (
+                    <Badge variant={selectedReport.report.hallucinationRisk === "low" ? "success" : "risk"}>
+                      {selectedReport.report.hallucinationRisk} hallucination risk
+                    </Badge>
+                  )}
                 </div>
                 <h3 className="mt-4 text-2xl font-semibold text-white md:text-3xl">
-                  {selectedReport.signal.title}
+                  {selectedReport.report?.verdict ?? selectedReport.signal?.title}
                 </h3>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-white/55">
                   Monitor requirement: {selectedReport.monitor.requirement}
@@ -751,39 +902,129 @@ export function MonitorCenter() {
 
             <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
               <div className="border-b border-white/10 p-5 md:p-6 lg:border-b-0 lg:border-r">
-                <p className="text-sm uppercase tracking-[0.24em] text-white/35">Signal details</p>
-                <div className="mt-5 grid gap-4">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/35">Situation</p>
-                    <p className="mt-2 text-sm leading-6 text-white/68">{selectedReport.signal.summary}</p>
+                <p className="text-sm uppercase tracking-[0.24em] text-white/35">
+                  {selectedReport.report ? "Verified evidence" : "Signal details"}
+                </p>
+                {selectedReport.report ? (
+                  <div className="mt-5 grid gap-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                        <p className="text-xs uppercase tracking-[0.18em] text-white/35">Risk score</p>
+                        <p className="mt-2 text-3xl font-semibold text-rose-100">{selectedReport.report.riskScore}%</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                        <p className="text-xs uppercase tracking-[0.18em] text-white/35">Confidence</p>
+                        <p className="mt-2 text-3xl font-semibold text-cyan-100">{selectedReport.report.confidence}%</p>
+                      </div>
+                    </div>
+                    {selectedReport.report.evidenceSources.map((source) => (
+                      <div key={source.id} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs uppercase tracking-[0.18em] text-white/35">{source.publisher}</p>
+                            {source.url ? (
+                              <a href={source.url} target="_blank" rel="noreferrer" className="mt-2 block break-words text-sm font-medium text-cyan-100 hover:text-white">
+                                {source.title}
+                              </a>
+                            ) : (
+                              <p className="mt-2 break-words text-sm font-medium text-white/72">{source.title}</p>
+                            )}
+                            <p className="mt-2 text-xs leading-5 text-white/45">{source.claimSupported}</p>
+                          </div>
+                          <Badge variant={source.reliability >= 80 ? "success" : "default"}>{source.reliability}%</Badge>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/35">Source</p>
-                    <p className="mt-2 text-sm leading-6 text-white/68">{selectedReport.signal.source}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/35">Response posture</p>
-                    <div className="mt-3 flex items-start gap-3 text-sm leading-6 text-white/65">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-200" />
-                      Review the evidence, assign an owner, and keep the monitor active until the signal is resolved.
+                ) : (
+                  <div className="mt-5 grid gap-4">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                      <p className="text-xs uppercase tracking-[0.18em] text-white/35">Situation</p>
+                      <p className="mt-2 text-sm leading-6 text-white/68">{selectedReport.signal?.summary}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                      <p className="text-xs uppercase tracking-[0.18em] text-white/35">Source</p>
+                      <p className="mt-2 text-sm leading-6 text-white/68">{selectedReport.signal?.source}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                      <p className="text-xs uppercase tracking-[0.18em] text-white/35">Response posture</p>
+                      <div className="mt-3 flex items-start gap-3 text-sm leading-6 text-white/65">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-200" />
+                        Review the evidence, assign an owner, and keep the monitor active until the signal is resolved.
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="p-5 md:p-6">
                 <div className="flex items-center gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-2xl bg-cyan-300/10 text-sentra-cyan">
-                    <Bot className="h-5 w-5" />
+                    {selectedReport.report ? <ShieldCheck className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
                   </span>
                   <div>
-                    <p className="font-semibold text-white">AI assistant analysis</p>
-                    <p className="text-xs text-white/42">Situation summary and recommended next moves</p>
+                    <p className="font-semibold text-white">
+                      {selectedReport.report ? "Executive intelligence report" : "AI assistant analysis"}
+                    </p>
+                    <p className="text-xs text-white/42">
+                      {selectedReport.report ? "Facts, forecasts, actions, and verification status" : "Situation summary and recommended next moves"}
+                    </p>
                   </div>
                 </div>
 
                 <div className="mt-5 min-h-80 rounded-3xl border border-white/10 bg-white/[0.045] p-5">
-                  {aiLoading ? (
+                  {selectedReport.report ? (
+                    <div className="grid gap-5">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/35">Situation</p>
+                        <p className="mt-2 text-sm leading-7 text-white/68">{selectedReport.report.situation}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/35">Business impact</p>
+                        <p className="mt-2 text-sm leading-7 text-white/68">{selectedReport.report.impact}</p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-white/35">Action plan</p>
+                          <ul className="mt-3 grid gap-2">
+                            {selectedReport.report.actionPlan.map((item) => (
+                              <li key={item} className="flex gap-2 text-sm leading-6 text-white/68">
+                                <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-200" />
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-white/35">Watch items</p>
+                          <ul className="mt-3 grid gap-2">
+                            {selectedReport.report.watchItems.map((item) => (
+                              <li key={item} className="flex gap-2 text-sm leading-6 text-white/68">
+                                <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-amber-200" />
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/35">Claim verification</p>
+                        <div className="mt-3 grid gap-2">
+                          {selectedReport.report.verifiedClaims.map((claim) => (
+                            <div key={claim.id} className="rounded-2xl border border-white/10 bg-black/10 p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <Badge variant={claim.status === "verified" ? "success" : claim.status === "partial" ? "default" : "risk"}>
+                                  {claim.status}
+                                </Badge>
+                                <span className="text-xs text-cyan-100/58">{claim.confidence}%</span>
+                              </div>
+                              <p className="mt-2 text-sm leading-6 text-white/64">{claim.claim}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : aiLoading ? (
                     <div className="flex h-64 items-center justify-center gap-3 text-sm text-white/60">
                       <Sparkles className="h-4 w-4 animate-pulse text-sentra-cyan" />
                       Sentra is analysing the alert...

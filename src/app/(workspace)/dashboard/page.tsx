@@ -67,7 +67,7 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">
               <Badge variant="cyan">Enterprise intelligence OS</Badge>
-              <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-6xl">
+              <h1 className="type-display-lg mt-4 max-w-4xl text-white">
                 Live enterprise signals, analyzed before they become obvious.
               </h1>
               <p className="mt-5 max-w-2xl text-white/55">

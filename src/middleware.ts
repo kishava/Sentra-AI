@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const workspacePrefixes = ["/dashboard", "/chat", "/alerts", "/analyst", "/settings", "/workspace"];
+const workspacePrefixes = ["/dashboard", "/chat", "/alerts", "/reports", "/analyst", "/settings", "/workspace"];
 const protectedPrefixes = [...workspacePrefixes, "/onboarding"];
 const authPaths = ["/sign-in", "/sign-up"];
 
@@ -44,6 +44,7 @@ export const config = {
     "/dashboard/:path*",
     "/chat/:path*",
     "/alerts/:path*",
+    "/reports/:path*",
     "/analyst/:path*",
     "/settings/:path*",
     "/workspace/:path*",

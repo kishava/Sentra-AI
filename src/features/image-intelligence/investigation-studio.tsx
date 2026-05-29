@@ -279,7 +279,7 @@ export function InvestigationStudio() {
       <header className="mb-7 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div>
           <Badge variant="cyan">Multimodal intelligence / visual forensics</Badge>
-          <h1 className="mt-4 premium-gradient-text text-4xl font-bold tracking-tight md:text-6xl">AI Analyst</h1>
+          <h1 className="type-display-lg mt-4 premium-gradient-text">AI Analyst</h1>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/56 md:text-base">
             Securely stage visual evidence, direct the investigation, and generate a defensible AI-assisted authenticity assessment.
           </p>

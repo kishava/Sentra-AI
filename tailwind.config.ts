@@ -78,6 +78,23 @@ const config: Config = {
           "Inter",
           "sans-serif",
         ],
+        ui: [
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "\"SF Pro Display\"",
+          "\"SF Pro Text\"",
+          "var(--font-inter)",
+          "Inter",
+          "sans-serif",
+        ],
+        mono: [
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "Monaco",
+          "Consolas",
+          "monospace",
+        ],
       },
       boxShadow: {
         glow: "0 14px 38px rgba(37, 111, 235, 0.18), 0 1px 1px rgba(255, 255, 255, 0.08) inset",

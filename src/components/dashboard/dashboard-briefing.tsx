@@ -72,8 +72,8 @@ export function DashboardBriefing() {
       toast.success("Briefing updated", {
         description:
           data.provider === "bright-data"
-            ? "Live web evidence collected with Bright Data."
-            : "Using sample evidence — configure Bright Data zones for live data.",
+            ? "Live web evidence collected."
+            : "Using illustrative evidence. Configure Bright Data zones for live collection.",
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Briefing failed.";
@@ -94,13 +94,13 @@ export function DashboardBriefing() {
             <Sparkles className="h-5 w-5 text-sentra-cyan" />
             <p className="font-semibold text-white">AI daily briefing</p>
             {briefing?.provider === "bright-data" ? (
-              <Badge variant="cyan">Live · Bright Data</Badge>
+              <Badge variant="cyan">Live web evidence</Badge>
             ) : briefing ? (
-              <Badge variant="violet">Sample evidence</Badge>
+              <Badge variant="violet">Illustrative evidence</Badge>
             ) : null}
           </div>
           <p className="mt-2 text-sm text-white/50">
-            Refresh pulls SERP results via Bright Data, then synthesizes risks and opportunities.
+            Refresh collects current web evidence when integrations are configured, then synthesizes risks and opportunities.
           </p>
         </div>
         <Button variant="neon" className="shrink-0" onClick={refreshBriefing} disabled={loading}>
@@ -121,7 +121,7 @@ export function DashboardBriefing() {
       <div className="mt-5 grid gap-3">
         {loading && !analysis && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/55">
-            Collecting live web evidence and generating your briefing…
+            Collecting evidence and generating your briefing...
           </div>
         )}
         {analysis ? (
@@ -149,7 +149,7 @@ export function DashboardBriefing() {
         ) : (
           !loading && (
             <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.03] p-4 text-sm text-white/45">
-              No briefing yet. Tap Refresh to generate your first live intelligence summary.
+              No briefing yet. Tap Refresh to generate your first intelligence summary.
             </div>
           )
         )}
