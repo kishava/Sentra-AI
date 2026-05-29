@@ -50,7 +50,16 @@ In **Authentication → URL configuration**:
 
 For production, add your Vercel domain the same way.
 
+### Registration without email confirmation
+
+Sentra signs users in immediately after sign-up (no inbox step). In Supabase:
+
+1. **Authentication → Providers → Email** — turn **off** “Confirm email” (recommended), or leave it on; Sentra auto-confirms accounts on create so login still works.
+2. **Authentication → Rate Limits** — raise or disable email rate limits if you hit “too many requests” when testing profile verification.
+
 Enable providers under **Authentication → Providers** (Email, Google, GitHub as needed).
+
+Email verification is **optional** from the profile menu (top-right avatar) when a user wants it later.
 
 ## 4. Verify in Sentra
 

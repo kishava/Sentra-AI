@@ -8,6 +8,8 @@ import {
   Check,
   ChevronDown,
   LogOut,
+  Mail,
+  MailCheck,
   Pencil,
   Settings,
   User,
@@ -42,6 +44,9 @@ export function UserMenu() {
 
   const [editName, setEditName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
+  const [sendingVerify, setSendingVerify] = useState(false);
+  const supabaseEnabled = isBrowserSupabaseConfigured();
 
   const initials = (profile.displayName || label || "?")
     .split(" ")
@@ -71,8 +76,10 @@ export function UserMenu() {
       if (!supabase) return;
 
       void supabase.auth.getUser().then((result: UserResponse) => {
-        const email = result.data.user?.email ?? result.data.user?.id ?? "Account";
+        const user = result.data.user;
+        const email = user?.email ?? user?.id ?? "Account";
         setLabel(email);
+        setEmailVerified(Boolean(user?.email_confirmed_at));
       });
     }, 0);
 
@@ -92,6 +99,12 @@ export function UserMenu() {
     }
     if (open) {
       document.addEventListener("mousedown", handleClickOutside);
+      if (supabaseEnabled) {
+        const supabase = getBrowserClient();
+        void supabase?.auth.getUser().then((result: UserResponse) => {
+          setEmailVerified(Boolean(result.data.user?.email_confirmed_at));
+        });
+      }
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
@@ -132,6 +145,29 @@ export function UserMenu() {
     } finally {
       await new Promise((r) => setTimeout(r, 300));
       setSaving(false);
+    }
+  }
+
+  async function sendVerificationEmail() {
+    setSendingVerify(true);
+    try {
+      const response = await fetch("/api/auth/verify-email", { method: "POST" });
+      const data = (await response.json()) as { error?: string; alreadyVerified?: boolean; sent?: boolean };
+      if (!response.ok) {
+        throw new Error(data.error || "Could not send verification email.");
+      }
+      if (data.alreadyVerified) {
+        setEmailVerified(true);
+        toast.success("Your email is already verified.");
+        return;
+      }
+      toast.success("Verification email sent", {
+        description: "Open the link in your inbox when you're ready — you can keep using Sentra without it.",
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not send verification email.");
+    } finally {
+      setSendingVerify(false);
     }
   }
 
@@ -272,6 +308,33 @@ export function UserMenu() {
                   <User className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{label}</span>
                 </div>
+                {supabaseEnabled && emailVerified !== null && (
+                  <div className="mt-2">
+                    {emailVerified ? (
+                      <p className="flex items-center gap-1.5 text-xs text-emerald-300/90">
+                        <MailCheck className="h-3.5 w-3.5" />
+                        Email verified
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs text-white/45">
+                          Optional — verify your email for account recovery and security alerts.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-full rounded-xl text-xs"
+                          disabled={sendingVerify}
+                          onClick={() => void sendVerificationEmail()}
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                          {sendingVerify ? "Sending…" : "Send verification email"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

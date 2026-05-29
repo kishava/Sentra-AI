@@ -122,17 +122,23 @@ export function AuthShell({ mode }: AuthShellProps) {
     setLoading(true);
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { company_name: companyName },
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
-          },
+        const response = await fetch("/api/auth/sign-up", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, companyName }),
         });
-        if (error) throw error;
+        const payload = (await response.json()) as { error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error || "Could not create account.");
+        }
+
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) throw signInError;
+
         markNewUserGuidePending();
-        toast.success("Check your email to confirm your account.");
+        toast.success("Workspace created — welcome to Sentra.");
+        router.push(nextPath);
+        router.refresh();
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -378,7 +384,7 @@ export function AuthShell({ mode }: AuthShellProps) {
               </Button>
             </form>
 
-            {supabaseEnabled && capabilities?.providers.email !== false && !workspaceUnavailable && (
+            {supabaseEnabled && capabilities?.providers.email !== false && !workspaceUnavailable && !isSignUp && (
               <Button
                 type="button"
                 variant="ghost"
