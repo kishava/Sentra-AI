@@ -18,11 +18,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   getLocalSession,
   getUserProfile,
+  repairLocalStorageQuota,
   saveUserProfile,
   signOutLocalAccount,
   updateLocalSession,
   type UserProfile,
 } from "@/lib/local-auth";
+import { compressAvatarFile } from "@/lib/user-avatar";
+import { toast } from "sonner";
 import { getBrowserClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,17 +70,36 @@ export function UserMenu() {
   const avatarSrc = profile.avatarUrl;
 
   useEffect(() => {
+<<<<<<< HEAD
     if (!isBrowserSupabaseConfigured()) {
       return;
     }
+=======
+    const timeout = window.setTimeout(() => {
+      repairLocalStorageQuota();
+      const stored = getUserProfile();
+      setProfile(stored);
 
-    const supabase = getBrowserClient();
-    if (!supabase) return;
+      if (!isBrowserSupabaseConfigured()) {
+        const session = getLocalSession();
+        setLabel(session?.email ?? null);
+        if (session?.displayName && !stored.displayName) {
+          setProfile((p) => ({ ...p, displayName: session.displayName }));
+        }
+        return;
+      }
+>>>>>>> 7144c619b3557fc165a587b42b50db5cbe4e3c7b
 
-    void supabase.auth.getUser().then((result: UserResponse) => {
-      const email = result.data.user?.email ?? result.data.user?.id ?? "Account";
-      setLabel(email);
-    });
+      const supabase = getBrowserClient();
+      if (!supabase) return;
+
+      void supabase.auth.getUser().then((result: UserResponse) => {
+        const email = result.data.user?.email ?? result.data.user?.id ?? "Account";
+        setLabel(email);
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, []);
 
   useEffect(() => {
@@ -96,43 +118,52 @@ export function UserMenu() {
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
+<<<<<<< HEAD
 
   function toggleMenu() {
     if (!open) setEditName(profile.displayName || "");
     setOpen((current) => !current);
   }
+=======
+>>>>>>> 7144c619b3557fc165a587b42b50db5cbe4e3c7b
 
-  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
+
+    try {
+      const dataUrl = await compressAvatarFile(file);
       const updated = { ...profile, avatarUrl: dataUrl };
       setProfile(updated);
       saveUserProfile(updated);
-      updateLocalSession({ avatarUrl: dataUrl });
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save profile picture.");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
   }
 
   function removeAvatar() {
     const updated = { ...profile, avatarUrl: undefined };
     setProfile(updated);
     saveUserProfile(updated);
-    updateLocalSession({ avatarUrl: undefined });
     if (fileRef.current) fileRef.current.value = "";
   }
 
   async function saveProfile() {
     setSaving(true);
-    const updated = { ...profile, displayName: editName.trim() || undefined };
-    setProfile(updated);
-    saveUserProfile(updated);
-    updateLocalSession({ displayName: updated.displayName });
-    await new Promise((r) => setTimeout(r, 300));
-    setSaving(false);
-    setOpen(false);
+    try {
+      const updated = { ...profile, displayName: editName.trim() || undefined };
+      setProfile(updated);
+      saveUserProfile(updated);
+      updateLocalSession({ displayName: updated.displayName });
+      setOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save profile.");
+    } finally {
+      await new Promise((r) => setTimeout(r, 300));
+      setSaving(false);
+    }
   }
 
   async function signOut() {
@@ -155,7 +186,14 @@ export function UserMenu() {
     <div className="relative hidden md:block">
       <button
         ref={triggerRef}
+<<<<<<< HEAD
         onClick={toggleMenu}
+=======
+        onClick={() => {
+          if (!open) setEditName(profile.displayName || "");
+          setOpen(!open);
+        }}
+>>>>>>> 7144c619b3557fc165a587b42b50db5cbe4e3c7b
         className="flex max-w-[200px] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white/60 transition hover:bg-white/[0.09]"
       >
         {avatarSrc ? (

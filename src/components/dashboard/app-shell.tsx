@@ -19,7 +19,7 @@ import { LocalDevBanner } from "@/components/shared/local-dev-banner";
 import { ParticleField } from "@/components/shared/particle-field";
 import { NewUserGuideModal } from "@/components/dashboard/new-user-guide-modal";
 import { UserMenu } from "@/components/dashboard/user-menu";
-import { getLocalSession } from "@/lib/local-auth";
+import { getLocalSession, repairLocalStorageQuota } from "@/lib/local-auth";
 import { isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +39,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const analystMode = searchParams.get("mode");
   const [locationHash, setLocationHash] = useState("");
+
+  useEffect(() => {
+    repairLocalStorageQuota();
+  }, []);
 
   useEffect(() => {
     const syncHash = () => setLocationHash(window.location.hash);
