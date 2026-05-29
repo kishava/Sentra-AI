@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { getIntegrationStatus } from "@/lib/integrations";
+import { getIntegrationStatusWithDiscovery } from "@/lib/integrations";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  const status = getIntegrationStatus();
+  const status = await getIntegrationStatusWithDiscovery();
   let supabaseSchema = false;
 
   if (status.supabase) {

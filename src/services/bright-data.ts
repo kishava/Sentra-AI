@@ -77,16 +77,7 @@ async function writeCache(cacheKey: string, value: BrightDataEvidence) {
   }
 }
 
-async function resolveBrightDataZones(apiKey: string) {
-  if (resolvedZones) return resolvedZones;
-
-  const envSerp = process.env.BRIGHT_DATA_SERP_ZONE?.trim();
-  const envUnlocker = process.env.BRIGHT_DATA_WEB_UNLOCKER_ZONE?.trim();
-  if (envSerp || envUnlocker) {
-    resolvedZones = { serp: envSerp, unlocker: envUnlocker };
-    return resolvedZones;
-  }
-
+export async function discoverBrightDataZones(apiKey: string) {
   try {
     const response = await axios.get<BrightDataZone[]>("https://api.brightdata.com/zone/get_active_zones", {
       headers: {
@@ -97,15 +88,27 @@ async function resolveBrightDataZones(apiKey: string) {
     });
 
     const zones = response.data ?? [];
-    resolvedZones = {
+    return {
       serp: zones.find((zone) => zone.type === "serp")?.name,
       unlocker: zones.find((zone) => zone.type === "unblocker" || zone.type === "unlocker")?.name,
     };
   } catch (error) {
-    console.error("Unable to resolve Bright Data zones", error);
-    resolvedZones = {};
+    console.error("Unable to discover Bright Data zones", error);
+    return {};
+  }
+}
+
+async function resolveBrightDataZones(apiKey: string) {
+  if (resolvedZones) return resolvedZones;
+
+  const envSerp = process.env.BRIGHT_DATA_SERP_ZONE?.trim();
+  const envUnlocker = process.env.BRIGHT_DATA_WEB_UNLOCKER_ZONE?.trim();
+  if (envSerp || envUnlocker) {
+    resolvedZones = { serp: envSerp, unlocker: envUnlocker };
+    return resolvedZones;
   }
 
+  resolvedZones = await discoverBrightDataZones(apiKey);
   return resolvedZones;
 }
 
