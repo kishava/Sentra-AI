@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BellRing,
@@ -39,10 +39,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const analystMode = searchParams.get("mode");
   const [locationHash, setLocationHash] = useState("");
+  const prefetchedRoutesRef = useRef(new Set<string>());
+
+  const prefetchRoute = useCallback(
+    (href: string) => {
+      if (href.includes("#") || prefetchedRoutesRef.current.has(href)) return;
+      prefetchedRoutesRef.current.add(href);
+      router.prefetch(href);
+    },
+    [router],
+  );
 
   useEffect(() => {
     repairLocalStorageQuota();
   }, []);
+
+  useEffect(() => {
+    const preloadWorkspaceRoutes = () => nav.forEach((item) => prefetchRoute(item.href));
+    const idleCallback =
+      "requestIdleCallback" in window
+        ? window.requestIdleCallback(preloadWorkspaceRoutes, { timeout: 1200 })
+        : window.setTimeout(preloadWorkspaceRoutes, 250);
+
+    return () => {
+      if ("cancelIdleCallback" in window && typeof idleCallback === "number") {
+        window.cancelIdleCallback(idleCallback);
+      } else {
+        window.clearTimeout(idleCallback);
+      }
+    };
+  }, [prefetchRoute]);
 
   useEffect(() => {
     const syncHash = () => setLocationHash(window.location.hash);
@@ -81,7 +107,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={item.label}
               href={item.href}
-              prefetch={false}
+              prefetch
+              onFocus={() => prefetchRoute(item.href)}
+              onPointerEnter={() => prefetchRoute(item.href)}
+              onTouchStart={() => prefetchRoute(item.href)}
               className={cn(
                 "nav-glow-link flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white/58 transition",
                 isActive(item.href) && "bg-white/[0.08] text-white",
@@ -125,7 +154,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={item.label}
               href={item.href}
-              prefetch={false}
+              prefetch
+              onFocus={() => prefetchRoute(item.href)}
+              onPointerEnter={() => prefetchRoute(item.href)}
+              onTouchStart={() => prefetchRoute(item.href)}
               className={cn(
                 "sentra-focus nav-glow-link flex min-w-[4.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl px-2.5 py-2.5 text-[10px] font-medium text-white/55 transition",
                 isActive(item.href) && "bg-white/[0.08] text-white",

@@ -407,6 +407,20 @@ select:focus {
     0 12px 28px rgba(0, 0, 0, 0.16);
 }
 
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #111827;
+  color: #f8fafc;
+}
+
+select option:checked {
+  background-color: #164e63;
+  color: #ffffff;
+}
+
 [data-float] {
   animation: enterprise-float 8s ease-in-out infinite;
 }

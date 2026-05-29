@@ -33,10 +33,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
+function getInitialProfile() {
+  const stored = getUserProfile();
+  if (isBrowserSupabaseConfigured()) return stored;
+
+  const session = getLocalSession();
+  return {
+    ...stored,
+    displayName: stored.displayName ?? session?.displayName,
+  };
+}
+
+function getInitialLabel() {
+  if (isBrowserSupabaseConfigured()) return null;
+  return getLocalSession()?.email ?? null;
+}
+
 export function UserMenu() {
   const router = useRouter();
-  const [label, setLabel] = useState<string | null>(null);
-  const [profile, setProfile] = useState<UserProfile>({});
+  const [label, setLabel] = useState<string | null>(() => getInitialLabel());
+  const [profile, setProfile] = useState<UserProfile>(() => getInitialProfile());
   const [open, setOpen] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -108,6 +124,11 @@ export function UserMenu() {
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
+
+  function toggleMenu() {
+    if (!open) setEditName(profile.displayName || "");
+    setOpen((current) => !current);
+  }
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -191,10 +212,7 @@ export function UserMenu() {
     <div className="relative hidden md:block">
       <button
         ref={triggerRef}
-        onClick={() => {
-          if (!open) setEditName(profile.displayName || "");
-          setOpen(!open);
-        }}
+        onClick={toggleMenu}
         className="flex max-w-[200px] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white/60 transition hover:bg-white/[0.09]"
       >
         {avatarSrc ? (
