@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
 import { appendChatMessage, createChatThread } from "@/lib/db/chat";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { isLlmConfigured } from "@/lib/llm/client";
 import { collectWebIntelligence } from "@/services/bright-data";
 import { generateChatResponse } from "@/services/openai";
 import type { BrightDataRequest, ChatMessage, ChatProvider } from "@/types/intelligence";
@@ -75,6 +76,16 @@ export async function POST(request: Request) {
 
     if (message.length > MAX_MESSAGE_LENGTH) {
       return NextResponse.json({ error: "Message is too long." }, { status: 400 });
+    }
+
+    if (!isLlmConfigured()) {
+      return NextResponse.json(
+        {
+          error:
+            "Live chat requires AIML_API_KEY in .env.local (from aimlapi.com). Restart npm run dev after saving.",
+        },
+        { status: 503 },
+      );
     }
 
     let provider: ChatProvider = "aiml-search";

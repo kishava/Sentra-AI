@@ -92,6 +92,7 @@ export function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [liveChatReady, setLiveChatReady] = useState<boolean | null>(null);
   const [voiceStatus, setVoiceStatus] = useState<"idle" | "loading" | "playing">("idle");
   const [activeVoiceText, setActiveVoiceText] = useState<string | null>(null);
   const handledPromptRef = useRef<string | null>(null);
@@ -147,6 +148,15 @@ export function ChatInterface() {
     abortVoiceController(controller);
     finishVoicePlayback();
   }
+
+  useEffect(() => {
+    fetch("/api/health/integrations")
+      .then((response) => response.json())
+      .then((data: { aiml?: boolean; llm?: { ready?: boolean } }) => {
+        setLiveChatReady(Boolean(data?.aiml ?? data?.llm?.ready));
+      })
+      .catch(() => setLiveChatReady(false));
+  }, []);
 
   useEffect(() => {
     fetch("/api/chat/threads", { method: "POST" })
@@ -345,6 +355,16 @@ export function ChatInterface() {
             <p className="mt-3 text-white/55">
               Ask for live web intelligence, competitor monitoring, risk scoring, or market recommendations.
             </p>
+            {liveChatReady === false && (
+              <p className="mt-4 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                Live chat needs <code className="font-mono text-xs">AIML_API_KEY</code> from{" "}
+                <a href="https://aimlapi.com" target="_blank" rel="noreferrer" className="underline">
+                  aimlapi.com
+                </a>{" "}
+                in <code className="font-mono text-xs">.env.local</code>, then restart{" "}
+                <code className="font-mono text-xs">npm run dev</code>.
+              </p>
+            )}
           </div>
 
           <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 md:p-6">

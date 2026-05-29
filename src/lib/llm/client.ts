@@ -38,6 +38,33 @@ export function getSearchModel() {
   return process.env.AIML_MODEL_SEARCH?.trim() || "gpt-4o-search-preview";
 }
 
+export function getSearchFallbackModel() {
+  return process.env.AIML_MODEL_SEARCH_MINI?.trim() || "gpt-4o-mini-search-preview";
+}
+
+/** AIML live-web search tuning for gpt-4o-search-preview (and mini variant). */
+export function getLiveSearchWebOptions(): {
+  search_context_size: "low" | "medium" | "high";
+  user_location: {
+    type: "approximate";
+    approximate: { country: string };
+  };
+} {
+  const raw = process.env.AIML_SEARCH_CONTEXT_SIZE?.trim().toLowerCase();
+  const search_context_size: "low" | "medium" | "high" =
+    raw === "low" || raw === "high" ? raw : "medium";
+  const timezone = process.env.SENTRA_TIMEZONE?.trim() || "Asia/Colombo";
+  const country = timezone.includes("Colombo") ? "LK" : timezone.startsWith("America/") ? "US" : "US";
+
+  return {
+    search_context_size,
+    user_location: {
+      type: "approximate" as const,
+      approximate: { country },
+    },
+  };
+}
+
 export function getIntentModel() {
   return process.env.AIML_MODEL_INTENT?.trim() || "gpt-4o-mini";
 }
@@ -79,6 +106,30 @@ export function isIncompatibleModelParamError(error: unknown) {
 }
 
 type ChatCompletionBody = OpenAI.Chat.ChatCompletionCreateParamsNonStreaming;
+
+type LiveSearchChatBody = ChatCompletionBody & {
+  web_search_options?: ReturnType<typeof getLiveSearchWebOptions>;
+};
+
+export async function createLiveSearchChatCompletion(
+  client: OpenAI,
+  params: Omit<ChatCompletionBody, "temperature">,
+) {
+  const body: LiveSearchChatBody = {
+    ...params,
+    web_search_options: getLiveSearchWebOptions(),
+  };
+
+  try {
+    return await client.chat.completions.create(body as ChatCompletionBody);
+  } catch (error) {
+    if (isIncompatibleModelParamError(error) && "web_search_options" in body) {
+      const retryBody = { ...params };
+      return await client.chat.completions.create(retryBody as ChatCompletionBody);
+    }
+    throw error;
+  }
+}
 
 export async function createChatCompletion(client: OpenAI, params: ChatCompletionBody) {
   const sampling = getModelSamplingOptions(params.model, params.temperature ?? 0.35);

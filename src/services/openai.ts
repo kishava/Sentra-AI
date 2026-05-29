@@ -1,11 +1,13 @@
 import { demoAnalysis } from "@/data/mock-intelligence";
 import {
   createChatCompletion,
+  createLiveSearchChatCompletion,
   getAnalysisModel,
   getChatModel,
   getIntentModel,
   getLlmClient,
   getLlmProviderLabel,
+  getSearchFallbackModel,
   getSearchModel,
   getTranscribeModel,
   isLlmConfigured,
@@ -298,30 +300,31 @@ async function generateChatWithEvidence(client: ReturnType<typeof getLlmClient>,
 
 async function generateChatWithSearch(client: ReturnType<typeof getLlmClient>, message: string, context?: ChatContext) {
   const messages = buildChatMessages(message, context);
-  const searchModel = getSearchModel();
-  const chatModel = getChatModel();
+  const candidates = [getSearchModel(), getSearchFallbackModel(), getChatModel()].filter(
+    (model, index, list) => list.indexOf(model) === index,
+  );
 
-  try {
-    const response = await createChatCompletion(client!, {
-      model: searchModel,
-      messages,
-    });
+  let lastError: unknown;
+  for (const model of candidates) {
+    try {
+      const response = model.toLowerCase().includes("search")
+        ? await createLiveSearchChatCompletion(client!, { model, messages })
+        : await createChatCompletion(client!, {
+            model,
+            temperature: 0.35,
+            messages,
+          });
 
-    const text = response.choices[0]?.message?.content?.trim();
-    if (!text) throw new Error("Live search returned an empty answer.");
-    return repairHowToDeflection(client, message, text, context);
-  } catch (error) {
-    console.warn("AIML search model failed, falling back to chat model", error);
-    const response = await createChatCompletion(client!, {
-      model: chatModel,
-      temperature: 0.35,
-      messages,
-    });
-
-    const text = response.choices[0]?.message?.content?.trim();
-    if (!text) throw new Error("The model returned an empty answer.");
-    return repairHowToDeflection(client, message, text, context);
+      const text = response.choices[0]?.message?.content?.trim();
+      if (!text) throw new Error("Live search returned an empty answer.");
+      return repairHowToDeflection(client, message, text, context);
+    } catch (error) {
+      lastError = error;
+      console.warn(`AIML chat model "${model}" failed, trying next`, error);
+    }
   }
+
+  throw lastError instanceof Error ? lastError : new Error("AIML live chat could not complete.");
 }
 
 function isHowToDeflection(text: string) {
