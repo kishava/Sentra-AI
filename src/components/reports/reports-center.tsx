@@ -122,7 +122,7 @@ export function ReportsCenter() {
                 key={report.id}
                 type="button"
                 onClick={() => setSelectedId(report.id)}
-                className={`sentra-focus rounded-2xl border p-4 text-left transition hover:border-cyan-200/30 ${
+                className={`sentra-focus rounded-2xl border p-4 text-left transition ${
                   selected?.id === report.id ? "border-cyan-200/30 bg-cyan-300/10" : "border-white/10 bg-white/[0.045]"
                 }`}
               >
@@ -220,7 +220,7 @@ export function ReportsCenter() {
                         </div>
                         <p className="mt-2 text-xs leading-5 text-white/50">{source.claimSupported}</p>
                         {source.url && (
-                          <a href={source.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-100 hover:text-white">
+                          <a href={source.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-100">
                             Open source <ExternalLink className="h-3 w-3" />
                           </a>
                         )}

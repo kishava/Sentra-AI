@@ -82,8 +82,8 @@ export function LandingSections() {
               viewport={{ once: true }}
               transition={{ delay: index * 0.08 }}
             >
-              <Card className="group h-full p-6 transition duration-300 hover:-translate-y-2 hover:border-cyan-200/30 hover:bg-white/[0.09]" glow>
-                <feature.icon className="h-8 w-8 text-sentra-cyan transition group-hover:scale-110" />
+              <Card className="group h-full p-6 transition duration-300" glow>
+                <feature.icon className="h-8 w-8 text-sentra-cyan transition" />
                 <h3 className="mt-8 text-xl font-semibold text-white">{feature.title}</h3>
                 <p className="mt-3 text-sm leading-6 text-white/55">{feature.body}</p>
               </Card>

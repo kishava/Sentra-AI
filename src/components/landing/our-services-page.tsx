@@ -165,7 +165,7 @@ function ServiceGuideModal({
               type="button"
               onClick={() => setStepIndex(index)}
               className={cn(
-                "sentra-focus rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-200/30 hover:bg-white/[0.06]",
+                "sentra-focus rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left transition",
                 stepIndex === index && "border-cyan-200/30 bg-cyan-300/10",
               )}
             >

@@ -148,7 +148,7 @@ function AnalystQuickAccess({ report }: { report: WorldEngineReport }) {
             <a
               key={id}
               href={`#${id}`}
-              className="sentra-focus shrink-0 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-xs text-white/58 transition hover:border-cyan-200/30 hover:text-white"
+              className="sentra-focus shrink-0 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-xs text-white/58 transition"
             >
               {label}
             </a>
@@ -211,7 +211,7 @@ function WorldMapPanel({
                 onClick={() => onSelect(signal)}
                 className={cn(
                   "sentra-focus rounded-xl border p-3 text-left transition",
-                  selected?.id === signal.id ? "border-cyan-200/30 bg-cyan-300/10" : "border-white/8 bg-black/10 hover:border-white/18",
+                  selected?.id === signal.id ? "border-cyan-200/30 bg-cyan-300/10" : "border-white/8 bg-black/10",
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -533,7 +533,7 @@ export function WorldEngineStudio() {
           />
           <div className="relative mt-4 flex flex-wrap gap-2">
             {prompts.map((suggestion) => (
-              <button key={suggestion} type="button" onClick={() => void runWorldEngine(suggestion)} className="sentra-focus rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-xs text-white/58 transition hover:border-cyan-200/35 hover:text-white">
+              <button key={suggestion} type="button" onClick={() => void runWorldEngine(suggestion)} className="sentra-focus rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-xs text-white/58 transition">
                 {suggestion}
               </button>
             ))}
@@ -582,7 +582,7 @@ export function WorldEngineStudio() {
             <div className="flex flex-wrap items-center gap-2" aria-label="Signal filters">
               <Filter className="mr-1 h-4 w-4 text-white/40" />
               {domains.map((item) => (
-                <button key={item} type="button" onClick={() => setDomain(item)} className={cn("sentra-focus rounded-full border px-3 py-1.5 text-xs capitalize transition", domain === item ? "border-cyan-200/30 bg-cyan-300/10 text-cyan-50" : "border-white/10 text-white/52 hover:text-white")}>
+                <button key={item} type="button" onClick={() => setDomain(item)} className={cn("sentra-focus rounded-full border px-3 py-1.5 text-xs capitalize transition", domain === item ? "border-cyan-200/30 bg-cyan-300/10 text-cyan-50" : "border-white/10 text-white/52")}>
                   {item}
                 </button>
               ))}
@@ -642,7 +642,7 @@ export function WorldEngineStudio() {
                     ["executive", "2-minute executive"],
                     ["deep", "Deep analyst mode"],
                   ].map(([mode, label]) => (
-                    <button key={mode} type="button" disabled={synthesizing} onClick={() => void narrate(mode as "quick" | "executive" | "deep")} className="sentra-focus rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left text-sm text-white/68 transition hover:border-cyan-200/26 hover:bg-cyan-300/[0.07] hover:text-white disabled:cursor-wait disabled:opacity-50">
+                    <button key={mode} type="button" disabled={synthesizing} onClick={() => void narrate(mode as "quick" | "executive" | "deep")} className="sentra-focus rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left text-sm text-white/68 transition disabled:cursor-wait disabled:opacity-50">
                       <Play className="mb-3 h-4 w-4 text-sentra-cyan" />
                       {label}
                     </button>
@@ -678,7 +678,7 @@ export function WorldEngineStudio() {
               {report.sources.length ? (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {report.sources.map((source, index) => (
-                    <a key={`${source.url}-${index}`} className="sentra-focus rounded-full border border-white/10 px-3 py-2 text-xs text-cyan-100 transition hover:bg-white/[0.06]" href={source.url} target="_blank" rel="noreferrer">
+                    <a key={`${source.url}-${index}`} className="sentra-focus rounded-full border border-white/10 px-3 py-2 text-xs text-cyan-100 transition" href={source.url} target="_blank" rel="noreferrer">
                       {source.title}
                     </a>
                   ))}

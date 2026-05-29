@@ -41,7 +41,7 @@ export function SignalFeed({ signals = signalStream }: { signals?: IntelligenceS
           return (
             <div
               key={signal.id}
-              className="rounded-3xl border border-white/10 bg-white/[0.045] p-4 transition-colors hover:border-cyan-200/30 hover:bg-white/[0.075]"
+              className="rounded-3xl border border-white/10 bg-white/[0.045] p-4 transition-colors"
             >
               <div className="flex gap-4">
                 <span className="mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/10 text-sentra-cyan">

@@ -51,7 +51,7 @@ export function CommandPalette({ className }: { className?: string }) {
     <>
       <button
         className={cn(
-          "sentra-focus flex w-full min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/60 backdrop-blur-xl transition hover:border-cyan-200/30 hover:text-white",
+          "sentra-focus flex w-full min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/60 backdrop-blur-xl transition",
           className,
         )}
         onClick={() => setOpen(true)}

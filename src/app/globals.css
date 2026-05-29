@@ -153,10 +153,6 @@ textarea {
   border-radius: 999px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.32);
-}
-
 @layer components {
   .type-display-xl {
     font-family: var(--font-display);
@@ -239,47 +235,12 @@ textarea {
       box-shadow 240ms ease;
   }
 
-  .glass-panel:hover {
-    border-color: rgba(255, 255, 255, 0.145);
-    box-shadow:
-      0 28px 70px rgba(0, 0, 0, 0.3),
-      0 0 58px rgba(71, 130, 255, 0.065),
-      inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  }
-
-  .premium-hover-card {
+  .premium-card {
     position: relative;
     overflow: hidden;
   }
 
-  .premium-hover-card::after {
-    content: "";
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    opacity: 0;
-    background:
-      radial-gradient(420px circle at 50% 50%, rgba(83, 244, 255, 0.14), transparent 42%),
-      linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.07) 38%, transparent 58%);
-    mix-blend-mode: screen;
-    transition: opacity 220ms ease;
-  }
-
-  .premium-hover-card:hover {
-    border-color: rgba(83, 244, 255, 0.28);
-    box-shadow:
-      0 30px 78px rgba(0, 0, 0, 0.34),
-      0 0 34px rgba(83, 244, 255, 0.085),
-      0 0 0 1px rgba(83, 244, 255, 0.08),
-      inset 0 1px 0 rgba(255, 255, 255, 0.14);
-  }
-
-  .premium-hover-card:hover::after {
-    opacity: 1;
-  }
-
-  .premium-hover-card > * {
+  .premium-card > * {
     position: relative;
     z-index: 2;
   }
@@ -391,17 +352,6 @@ textarea {
   transition: opacity 220ms ease, transform 220ms ease;
 }
 
-.nav-glow-link:hover {
-  transform: translate3d(3px, -1px, 0);
-  border-color: rgba(83, 244, 255, 0.18);
-  box-shadow: inset 0 0 24px rgba(83, 244, 255, 0.035), 0 10px 26px rgba(0, 0, 0, 0.16);
-}
-
-.nav-glow-link:hover::before {
-  opacity: 1;
-  transform: scaleY(1);
-}
-
 button:not(:disabled),
 a,
 .sentra-focus {
@@ -411,16 +361,6 @@ a,
     border-color 220ms ease,
     box-shadow 220ms ease,
     transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-button:not(:disabled):hover {
-  transform: translate3d(0, -2px, 0) scale(1.015);
-}
-
-button:not(:disabled):hover svg,
-a:hover svg {
-  transform: translate3d(1px, -1px, 0) scale(1.08);
-  filter: drop-shadow(0 0 8px rgba(83, 244, 255, 0.35));
 }
 
 button svg,
@@ -438,9 +378,6 @@ select {
     transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-input:hover,
-textarea:hover,
-select:hover,
 input:focus,
 textarea:focus,
 select:focus {
@@ -462,10 +399,6 @@ select:focus {
   will-change: filter;
 }
 
-.premium-ai-orb:hover {
-  filter: drop-shadow(0 0 34px rgba(83, 244, 255, 0.28));
-}
-
 .recharts-wrapper,
 .recharts-surface,
 .recharts-layer,
@@ -473,14 +406,6 @@ select:focus {
 .recharts-sector,
 .recharts-rectangle {
   transition: filter 220ms ease, opacity 220ms ease, transform 220ms ease;
-}
-
-.recharts-dot:hover,
-.recharts-active-dot,
-.recharts-sector:hover,
-.recharts-rectangle:hover {
-  filter: drop-shadow(0 0 10px rgba(83, 244, 255, 0.45));
-  transform: scale(1.035);
 }
 
 .recharts-tooltip-wrapper {
@@ -507,18 +432,14 @@ select:focus {
   }
 }
 
-@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+@media (pointer: coarse), (prefers-reduced-motion: reduce) {
   .glass-panel,
-  .premium-hover-card,
+  .premium-card,
   button:not(:disabled),
   .nav-glow-link,
   [data-float] {
     animation: none !important;
     transform: none !important;
-  }
-
-  .premium-hover-card::after {
-    display: none;
   }
 }
 
@@ -528,9 +449,24 @@ select:focus {
   }
 }
 
+.sentra-ambient-glow {
+  background:
+    radial-gradient(620px circle at 18% 18%, rgba(83, 244, 255, 0.09), transparent 58%),
+    radial-gradient(760px circle at 78% 12%, rgba(104, 124, 255, 0.08), transparent 58%),
+    radial-gradient(680px circle at 54% 84%, rgba(255, 79, 216, 0.055), transparent 60%);
+  animation: sentra-ambient-drift 24s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+
 .particle-grid {
-  background-image: radial-gradient(circle at center, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 48px 48px;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.032) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.032) 1px, transparent 1px),
+    radial-gradient(circle at center, rgba(83, 244, 255, 0.08) 0 1px, transparent 1.5px);
+  background-position: 0 0, 0 0, 24px 24px;
+  background-size: 56px 56px, 56px 56px, 56px 56px;
+  animation: sentra-grid-drift 34s linear infinite;
+  will-change: background-position, opacity;
 }
 
 .particle-dot {
@@ -561,6 +497,27 @@ select:focus {
   50% {
     transform: translate3d(0, -28px, 0) scale(1.2);
     opacity: 0.75;
+  }
+}
+
+@keyframes sentra-ambient-drift {
+  0% {
+    transform: translate3d(-1.5%, -1%, 0) scale(1.04);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translate3d(1.5%, 1%, 0) scale(1.08);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(2%, -1.5%, 0) scale(1.05);
+    opacity: 0.78;
+  }
+}
+
+@keyframes sentra-grid-drift {
+  to {
+    background-position: 56px 56px, 56px 56px, 80px 80px;
   }
 }
 

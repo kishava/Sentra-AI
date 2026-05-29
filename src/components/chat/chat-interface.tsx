@@ -58,7 +58,7 @@ const assistantMarkdownComponents: Components = {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="break-words text-sentra-cyan underline decoration-cyan-300/30 underline-offset-4 transition hover:text-white"
+      className="break-words text-sentra-cyan underline decoration-cyan-300/30 underline-offset-4 transition"
     >
       {children}
     </a>
@@ -490,7 +490,7 @@ export function ChatInterface() {
                         )}
                         <button
                           className={cn(
-                            "ml-auto rounded-full border border-white/10 p-2 text-white/50 transition hover:text-white",
+                            "ml-auto rounded-full border border-white/10 p-2 text-white/50 transition",
                             speaking &&
                               activeVoiceText === message.content &&
                               "border-cyan-200/40 bg-cyan-300/10 text-cyan-100",
@@ -535,7 +535,7 @@ export function ChatInterface() {
               {prompts.map((prompt) => (
                 <button
                   key={prompt}
-                  className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs text-white/60 transition hover:border-cyan-200/30 hover:text-white"
+                  className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs text-white/60 transition"
                   onClick={() => sendMessage(prompt)}
                 >
                   {prompt}

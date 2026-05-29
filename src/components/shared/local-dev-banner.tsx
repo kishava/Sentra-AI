@@ -13,7 +13,7 @@ export function LocalDevBanner() {
         {" "}
         — Supabase is off. Chat, Bright Data, and voice work; data is not saved to the cloud.{" "}
       </span>
-      <Link href="/settings" className="underline underline-offset-2 hover:text-white">
+      <Link href="/settings" className="underline underline-offset-2">
         Settings
       </Link>
     </div>

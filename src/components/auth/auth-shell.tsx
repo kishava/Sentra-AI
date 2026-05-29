@@ -407,7 +407,7 @@ export function AuthShell({ mode }: AuthShellProps) {
 
             <p className="mt-7 text-center text-sm text-white/50">
               {isSignUp ? "Already have an account?" : "New to Sentra AI?"}{" "}
-              <Link href={authToggleHref} className="font-medium text-sentra-cyan hover:text-white">
+              <Link href={authToggleHref} className="font-medium text-sentra-cyan">
                 {isSignUp ? "Sign in" : "Create account"}
               </Link>
             </p>

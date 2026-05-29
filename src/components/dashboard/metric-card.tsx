@@ -14,7 +14,7 @@ type MetricCardProps = {
 
 export function MetricCard({ icon: Icon, label, value, trend, tone = "neutral" }: MetricCardProps) {
   return (
-    <Card className="p-5 transition-colors hover:border-cyan-200/25" glow data-float>
+    <Card className="p-5 transition-colors" glow data-float>
       <div className="flex items-start justify-between">
         <span className="grid h-11 w-11 place-items-center rounded-2xl bg-cyan-300/10 text-sentra-cyan">
           <Icon className="h-5 w-5" />

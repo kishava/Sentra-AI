@@ -72,7 +72,7 @@ function AlertsPageContent() {
                 className={
                   activeFilter === filter
                     ? "rounded-full border border-cyan-200/40 bg-cyan-300/15 px-4 py-2 text-sm text-cyan-100 transition"
-                    : "rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/60 transition hover:border-cyan-200/30 hover:text-white"
+                    : "rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/60 transition"
                 }
                 onClick={() => updateFilter(filter)}
               >

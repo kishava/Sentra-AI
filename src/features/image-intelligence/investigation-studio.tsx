@@ -10,10 +10,14 @@ import {
   History,
   ImagePlus,
   Layers2,
+  Mic,
+  MicOff,
   RotateCcw,
   ScanSearch,
   Sparkles,
   UploadCloud,
+  Volume2,
+  VolumeX,
   X,
   ZoomIn,
   ZoomOut,
@@ -81,10 +85,10 @@ function EvidencePreview({
           <p className="truncate text-xs text-white/65">{evidence.file.name}</p>
         </div>
         <div className="flex gap-1">
-          <button type="button" onClick={onInspect} className="sentra-focus rounded-xl p-2 text-white/55 transition hover:bg-white/10 hover:text-white" aria-label={`Inspect ${title}`}>
+          <button type="button" onClick={onInspect} className="sentra-focus rounded-xl p-2 text-white/55 transition" aria-label={`Inspect ${title}`}>
             <Expand className="h-4 w-4" />
           </button>
-          <button type="button" onClick={onRemove} className="sentra-focus rounded-xl p-2 text-white/55 transition hover:bg-white/10 hover:text-white" aria-label={`Remove ${title}`}>
+          <button type="button" onClick={onRemove} className="sentra-focus rounded-xl p-2 text-white/55 transition" aria-label={`Remove ${title}`}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -143,12 +147,24 @@ export function InvestigationStudio() {
   const [report, setReport] = useState<ImageInvestigationReport | null>(null);
   const [history, setHistory] = useState<ImageInvestigationReport[]>([]);
   const [loading, setLoading] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<"idle" | "loading" | "playing">("idle");
   const [activeStep, setActiveStep] = useState(-1);
   const [inspecting, setInspecting] = useState<EvidenceImage | null>(null);
   const [zoom, setZoom] = useState(1);
   const primaryInput = useRef<HTMLInputElement>(null);
   const comparisonInput = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const voiceAbortRef = useRef<AbortController | null>(null);
+  const voiceRunIdRef = useRef(0);
+  const speakingTimeoutRef = useRef<number | null>(null);
   const pipeline = usePipelineLogs(visionPipelineScript);
+  const speaking = voiceStatus !== "idle";
 
   useEffect(() => {
     try {
@@ -166,6 +182,15 @@ export function InvestigationStudio() {
     if (primary) URL.revokeObjectURL(primary.url);
     if (comparison) URL.revokeObjectURL(comparison.url);
   }, [primary, comparison]);
+
+  useEffect(() => () => {
+    resetVoicePlayback();
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+    }
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
 
   function evidenceFor(file: File) {
     if (!accept.includes(file.type)) {
@@ -224,6 +249,7 @@ export function InvestigationStudio() {
       const data = (await response.json()) as { report?: ImageInvestigationReport; error?: string };
       if (!response.ok || !data.report) throw new Error(data.error || "No investigation report returned.");
       setReport(data.report);
+      resetVoicePlayback();
       setActiveStep(investigationTimeline.length);
       setHistory((current) => {
         const next = [data.report!, ...current.filter((entry) => entry.id !== data.report!.id)].slice(0, 8);
@@ -264,6 +290,8 @@ export function InvestigationStudio() {
   }
 
   function resetInvestigation() {
+    resetVoicePlayback();
+    stopSpeechInput();
     setPrimary(null);
     setComparison(null);
     setComparisonMode(false);
@@ -272,6 +300,220 @@ export function InvestigationStudio() {
     setActiveStep(-1);
     if (primaryInput.current) primaryInput.current.value = "";
     if (comparisonInput.current) comparisonInput.current.value = "";
+  }
+
+  function resetVoicePlayback() {
+    voiceRunIdRef.current += 1;
+    voiceAbortRef.current?.abort();
+    voiceAbortRef.current = null;
+    if (speakingTimeoutRef.current) {
+      window.clearTimeout(speakingTimeoutRef.current);
+      speakingTimeoutRef.current = null;
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    setVoiceStatus("idle");
+  }
+
+  function stopSpeechInput() {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+    setListening(false);
+  }
+
+  async function transcribeRecording(blob: Blob) {
+    if (!blob.size) {
+      toast.error("No microphone audio was recorded.");
+      return;
+    }
+
+    setTranscribing(true);
+    try {
+      const extension = blob.type.includes("mp4") ? "mp4" : "webm";
+      const formData = new FormData();
+      formData.append("audio", new File([blob], `analyst-speech.${extension}`, { type: blob.type }));
+      if (prompt.trim()) formData.append("context", prompt.trim());
+
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await response.json()) as { text?: string; error?: string };
+      if (!response.ok || !data.text?.trim()) {
+        throw new Error(data.error || "No speech was detected.");
+      }
+
+      setPrompt((current) => `${current.trim()}${current.trim() ? " " : ""}${data.text!.trim()}`);
+      toast.success("Voice prompt ready", {
+        description: "Review the transcript, then run the investigation.",
+      });
+    } catch (error) {
+      toast.error("Voice transcription failed.", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  async function toggleSpeechInput() {
+    if (listening) {
+      stopSpeechInput();
+      return;
+    }
+
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      toast.error("Microphone access needs a secure page.", {
+        description: "Open the app on localhost or an HTTPS address, then allow microphone access.",
+      });
+      return;
+    }
+
+    if (!window.MediaRecorder) {
+      toast.error("Audio recording is not supported in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
+      mediaStreamRef.current = stream;
+      const supportedType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) =>
+        MediaRecorder.isTypeSupported(type),
+      );
+      if (!supportedType) {
+        stream.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        toast.error("Your browser does not provide a supported audio recording format.");
+        return;
+      }
+
+      const recorder = new MediaRecorder(stream, { mimeType: supportedType });
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) audioChunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        recorder.onstop = null;
+        stopSpeechInput();
+        toast.error("Could not record microphone audio.");
+      };
+      recorder.onstop = () => {
+        const recording = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || supportedType || "audio/webm",
+        });
+        audioChunksRef.current = [];
+        mediaRecorderRef.current = null;
+        void transcribeRecording(recording);
+      };
+
+      recorder.start();
+      setListening(true);
+      toast.message("Recording analyst question", {
+        description: "Speak now, then click the microphone again to transcribe.",
+      });
+    } catch (error) {
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
+      const denied =
+        error instanceof DOMException &&
+        (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
+      toast.error("Microphone could not start.", {
+        description: denied
+          ? "Microphone permission was denied. Allow access in browser site settings and try again."
+          : error instanceof Error
+            ? error.message
+            : "Please check your microphone access.",
+      });
+    }
+  }
+
+  function reportNarrationText(nextReport: ImageInvestigationReport) {
+    return [
+      `AI Analyst verdict: ${nextReport.status}.`,
+      `Confidence is ${nextReport.scores.confidence} percent.`,
+      `Threat level is ${nextReport.threatLevel}.`,
+      nextReport.summary,
+      `Recommended action: ${nextReport.recommendedAction}`,
+    ].join(" ");
+  }
+
+  async function playReportVoice() {
+    if (!report) return;
+
+    if (speaking) {
+      resetVoicePlayback();
+      return;
+    }
+
+    resetVoicePlayback();
+    const runId = voiceRunIdRef.current + 1;
+    const abortController = new AbortController();
+    voiceRunIdRef.current = runId;
+    voiceAbortRef.current = abortController;
+    setVoiceStatus("loading");
+
+    try {
+      const response = await fetch("/api/voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: reportNarrationText(report) }),
+        signal: abortController.signal,
+      });
+      if (abortController.signal.aborted || voiceRunIdRef.current !== runId) return;
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "Voice provider rejected the request.");
+      }
+
+      if (response.headers.get("content-type")?.includes("audio")) {
+        const blob = await response.blob();
+        if (abortController.signal.aborted || voiceRunIdRef.current !== runId) return;
+
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+        audioRef.current = audio;
+        audioUrlRef.current = audioUrl;
+        audio.onended = resetVoicePlayback;
+        audio.onerror = resetVoicePlayback;
+        audio.onpause = () => {
+          if (audio.ended) resetVoicePlayback();
+        };
+        setVoiceStatus("playing");
+        await audio.play();
+      } else {
+        toast.message("Voice is still in demo mode", {
+          description: "Configure ElevenLabs credentials for spoken analyst output.",
+        });
+        speakingTimeoutRef.current = window.setTimeout(resetVoicePlayback, 1800);
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      resetVoicePlayback();
+      toast.error("Voice playback failed.", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
   }
 
   return (
@@ -340,7 +582,7 @@ export function InvestigationStudio() {
                       <button
                         type="button"
                         onClick={() => comparisonInput.current?.click()}
-                        className="sentra-focus flex h-72 flex-col items-center justify-center rounded-3xl border border-dashed border-white/14 bg-white/[0.03] text-white/50 transition hover:border-cyan-200/30 hover:text-white"
+                        className="sentra-focus flex h-72 flex-col items-center justify-center rounded-3xl border border-dashed border-white/14 bg-white/[0.03] text-white/50 transition"
                       >
                         <ImagePlus className="h-7 w-7 text-sentra-cyan" />
                         <span className="mt-3 text-sm">Add comparison evidence</span>
@@ -353,13 +595,30 @@ export function InvestigationStudio() {
                     <Sparkles className="h-5 w-5 text-sentra-cyan" />
                     <h2 className="text-xl font-semibold text-white">What would you like to investigate about this image?</h2>
                   </div>
-                  <Textarea
-                    value={prompt}
-                    onChange={(event) => setPrompt(event.target.value)}
-                    placeholder="Describe the evidence question, suspected alteration, location hypothesis, or threat concern..."
-                    className="mt-5 min-h-24"
-                    aria-label="Investigation question"
-                  />
+                  <div className="mt-5 grid gap-3">
+                    <Textarea
+                      value={prompt}
+                      onChange={(event) => setPrompt(event.target.value)}
+                      placeholder="Describe the evidence question, suspected alteration, location hypothesis, or threat concern..."
+                      className="min-h-24"
+                      aria-label="Investigation question"
+                    />
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs text-white/40">
+                        {listening ? "Listening now. Click stop to transcribe." : transcribing ? "Transcribing your analyst question..." : "Speak the investigation question or type it manually."}
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void toggleSpeechInput()}
+                        disabled={transcribing || loading}
+                        aria-label={listening ? "Stop voice recording" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
+                      >
+                        {listening ? <MicOff className="h-4 w-4 text-rose-200" /> : <Mic className="h-4 w-4" />}
+                        {listening ? "Stop recording" : transcribing ? "Transcribing" : "Voice input"}
+                      </Button>
+                    </div>
+                  </div>
                   <p className="mt-5 text-[11px] uppercase tracking-[0.2em] text-white/36">AI suggested investigations</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {investigationPrompts.map((suggestion) => (
@@ -368,7 +627,7 @@ export function InvestigationStudio() {
                         type="button"
                         onClick={() => setPrompt(suggestion)}
                         className={cn(
-                          "sentra-focus rounded-full border border-white/10 bg-white/[0.045] px-3.5 py-2 text-xs text-white/58 transition hover:border-cyan-200/35 hover:bg-cyan-300/[0.08] hover:text-white",
+                          "sentra-focus rounded-full border border-white/10 bg-white/[0.045] px-3.5 py-2 text-xs text-white/58 transition",
                           prompt === suggestion && "border-cyan-200/35 bg-cyan-300/[0.1] text-cyan-50",
                         )}
                       >
@@ -394,11 +653,17 @@ export function InvestigationStudio() {
         <aside className="grid content-start gap-5">
           <Card className="relative overflow-hidden p-6 text-center" glow>
             <div className="absolute inset-0 bg-gradient-to-b from-cyan-300/[0.06] to-transparent" />
-            <AiOrb speaking={loading} size="md" className="relative mx-auto" />
+            <AiOrb speaking={loading || speaking || listening || transcribing} size="md" className="relative mx-auto" />
             <p className="relative mt-5 text-lg font-semibold text-white">{loading ? "Processing evidence" : primary ? "Case staged" : "Awaiting evidence"}</p>
             <p className="relative mt-2 text-xs uppercase tracking-[0.2em] text-cyan-100/45">
-              {loading ? "Neural inspection active" : "Vision analyst standing by"}
+              {listening ? "Voice input active" : speaking ? "Voice output active" : loading ? "Neural inspection active" : "Vision analyst standing by"}
             </p>
+            {report && (
+              <Button variant="ghost" size="sm" className="relative mt-5" onClick={() => void playReportVoice()}>
+                {speaking ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                {voiceStatus === "loading" ? "Preparing voice" : speaking ? "Stop voice" : "Read report"}
+              </Button>
+            )}
           </Card>
           {primary && <ScanTimeline activeStep={activeStep} loading={loading} />}
           <Card className="p-5">
@@ -410,7 +675,7 @@ export function InvestigationStudio() {
                     key={entry.id}
                     type="button"
                     onClick={() => setReport(entry)}
-                    className="sentra-focus rounded-2xl border border-white/8 bg-white/[0.035] p-3 text-left transition hover:bg-white/[0.065]"
+                    className="sentra-focus rounded-2xl border border-white/8 bg-white/[0.035] p-3 text-left transition"
                   >
                     <span className="flex items-center justify-between gap-2 text-xs text-white/65">
                       <span className="truncate">{entry.status} verdict</span>
@@ -450,7 +715,18 @@ export function InvestigationStudio() {
         </Card>
       )}
 
-      {loading ? <ReportSkeleton /> : report && <InvestigationResults report={report} onShare={shareReport} onExport={exportPdf} />}
+      {loading ? (
+        <ReportSkeleton />
+      ) : report && (
+        <InvestigationResults
+          report={report}
+          onShare={shareReport}
+          onExport={exportPdf}
+          onSpeak={playReportVoice}
+          speaking={speaking}
+          voiceLoading={voiceStatus === "loading"}
+        />
+      )}
 
       <AnimatePresence>
         {inspecting && (

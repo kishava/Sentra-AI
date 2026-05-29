@@ -67,7 +67,7 @@ export default function SettingsPage() {
           href="https://brightdata.com/cp/zones"
           target="_blank"
           rel="noreferrer"
-          className="mt-5 inline-flex items-center gap-2 text-sm text-sentra-cyan hover:text-white"
+          className="mt-5 inline-flex items-center gap-2 text-sm text-sentra-cyan"
         >
           Open Bright Data control panel <ExternalLink className="h-4 w-4" />
         </Link>

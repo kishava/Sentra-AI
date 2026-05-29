@@ -11,7 +11,7 @@ const Card = React.forwardRef<
     <div
       ref={ref}
       className={cn(
-        "glass-panel premium-hover-card rounded-[28px]",
+        "glass-panel premium-card rounded-[28px]",
         glow && "relative overflow-hidden before:absolute before:inset-x-8 before:-top-px before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/40 before:to-transparent",
         className,
       )}

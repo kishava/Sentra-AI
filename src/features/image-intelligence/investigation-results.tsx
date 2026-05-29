@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Download, Fingerprint, MapPin, Share2, ShieldAlert, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Fingerprint, MapPin, Share2, ShieldAlert, Sparkles, Volume2, VolumeX } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   PolarAngleAxis,
@@ -19,6 +19,9 @@ type ResultsProps = {
   report: ImageInvestigationReport;
   onExport: () => void;
   onShare: () => void;
+  onSpeak: () => void;
+  speaking: boolean;
+  voiceLoading: boolean;
 };
 
 function Meter({ label, value, tone = "cyan" }: { label: string; value: number; tone?: "cyan" | "violet" | "risk" | "green" }) {
@@ -56,7 +59,7 @@ function InsightCard({ title, children }: { title: string; children: React.React
   );
 }
 
-export function InvestigationResults({ report, onExport, onShare }: ResultsProps) {
+export function InvestigationResults({ report, onExport, onShare, onSpeak, speaking, voiceLoading }: ResultsProps) {
   const chartData = [
     { metric: "Authenticity", value: report.scores.authenticity },
     { metric: "Confidence", value: report.scores.confidence },
@@ -109,6 +112,10 @@ export function InvestigationResults({ report, onExport, onShare }: ResultsProps
             <span><strong className="text-white">Recommended action:</strong> {report.recommendedAction}</span>
           </p>
           <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={onSpeak}>
+              {speaking ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              {voiceLoading ? "Preparing voice" : speaking ? "Stop voice" : "Read aloud"}
+            </Button>
             <Button variant="ghost" size="sm" onClick={onShare}><Share2 className="h-4 w-4" /> Share</Button>
             <Button variant="ghost" size="sm" onClick={onExport}><Download className="h-4 w-4" /> Export PDF</Button>
           </div>

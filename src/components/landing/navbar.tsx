@@ -20,11 +20,11 @@ export function Navbar() {
         <nav className="hidden items-center gap-8 text-sm text-white/60 md:flex">
           {links.map((link) =>
             link.href.startsWith("/") ? (
-              <Link key={link.label} href={link.href} className="transition hover:text-white">
+              <Link key={link.label} href={link.href} className="transition">
                 {link.label}
               </Link>
             ) : (
-              <a key={link.label} href={link.href} className="transition hover:text-white">
+              <a key={link.label} href={link.href} className="transition">
                 {link.label}
               </a>
             ),

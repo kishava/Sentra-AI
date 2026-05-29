@@ -9,12 +9,12 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-white/[0.96] bg-[length:180%_180%] text-sentra-ink shadow-[0_8px_22px_rgba(0,0,0,.15)] hover:bg-white hover:shadow-[0_13px_32px_rgba(0,0,0,.22)]",
+          "bg-white/[0.96] bg-[length:180%_180%] text-sentra-ink shadow-[0_8px_22px_rgba(0,0,0,.15)]",
         neon:
-          "bg-[linear-gradient(135deg,#53f4ff_0%,#3f9cff_36%,#6272ff_68%,#a855f7_100%)] bg-[length:220%_220%] text-white shadow-[0_10px_25px_rgba(38,118,235,.3)] hover:bg-[position:100%_50%] hover:brightness-110 hover:shadow-[0_15px_40px_rgba(83,244,255,.22),0_10px_34px_rgba(98,114,255,.24)]",
+          "bg-[linear-gradient(135deg,#53f4ff_0%,#3f9cff_36%,#6272ff_68%,#a855f7_100%)] bg-[length:220%_220%] text-white shadow-[0_10px_25px_rgba(38,118,235,.3)]",
         ghost:
-          "border border-white/10 bg-white/[0.045] bg-[linear-gradient(135deg,rgba(255,255,255,.06),rgba(83,244,255,.03),rgba(168,85,247,.035))] bg-[length:220%_220%] text-white backdrop-blur-xl hover:border-cyan-200/25 hover:bg-white/[0.085] hover:bg-[position:100%_50%] hover:shadow-[0_12px_30px_rgba(83,244,255,.08)]",
-        link: "text-blue-300 underline-offset-4 hover:text-blue-200 hover:underline",
+          "border border-white/10 bg-white/[0.045] bg-[linear-gradient(135deg,rgba(255,255,255,.06),rgba(83,244,255,.03),rgba(168,85,247,.035))] bg-[length:220%_220%] text-white backdrop-blur-xl",
+        link: "text-blue-300 underline-offset-4",
       },
       size: {
         sm: "h-9 px-4",

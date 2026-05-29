@@ -821,7 +821,7 @@ export function MonitorCenter() {
                     <h4 className="mt-3 break-words font-medium text-white">{monitor.requirement}</h4>
                     {matches[0] ? (
                       <button
-                        className="sentra-focus mt-2 block text-left text-sm leading-6 text-white/55 transition hover:text-white"
+                        className="sentra-focus mt-2 block text-left text-sm leading-6 text-white/55 transition"
                         onClick={() => openReport(monitor, matches[0], reportsByMonitor[monitor.id])}
                       >
                         Latest match: <span className="text-white/80">{matches[0].title}</span>
@@ -923,7 +923,7 @@ export function MonitorCenter() {
                           <div className="min-w-0">
                             <p className="text-xs uppercase tracking-[0.18em] text-white/35">{source.publisher}</p>
                             {source.url ? (
-                              <a href={source.url} target="_blank" rel="noreferrer" className="mt-2 block break-words text-sm font-medium text-cyan-100 hover:text-white">
+                              <a href={source.url} target="_blank" rel="noreferrer" className="mt-2 block break-words text-sm font-medium text-cyan-100">
                                 {source.title}
                               </a>
                             ) : (

@@ -79,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               href={item.href}
               prefetch={false}
               className={cn(
-                "nav-glow-link flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white/58 transition hover:bg-white/[0.07] hover:text-white",
+                "nav-glow-link flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white/58 transition",
                 isActive(item.href) && "bg-white/[0.08] text-white",
               )}
             >
@@ -90,7 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <Link
           href="/workspace/services"
-          className="nav-glow-link mt-5 shrink-0 rounded-3xl border border-white/10 bg-white/[0.05] p-4 transition hover:border-cyan-200/25 hover:bg-white/[0.075]"
+          className="nav-glow-link mt-5 shrink-0 rounded-3xl border border-white/10 bg-white/[0.05] p-4 transition"
         >
           <p className="text-sm font-medium text-white">Live intelligence pipeline</p>
           <p className="mt-1 text-xs leading-5 text-white/45">
@@ -105,14 +105,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <CommandPalette className="min-w-0 flex-1" />
             <Link
               href="/alerts"
-              className="nav-glow-link hidden rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-white/60 transition hover:text-white md:block"
+              className="nav-glow-link hidden rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-white/60 transition md:block"
               aria-label="Open alerts"
             >
               <BellRing className="h-5 w-5" />
             </Link>
             <Link
               href="/settings"
-              className="nav-glow-link hidden rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-white/60 transition hover:text-white md:block"
+              className="nav-glow-link hidden rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-white/60 transition md:block"
               aria-label="Open settings"
             >
               <Settings className="h-5 w-5" />
@@ -130,7 +130,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               href={item.href}
               prefetch={false}
               className={cn(
-                "sentra-focus nav-glow-link flex min-w-[4.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl px-2.5 py-2.5 text-[10px] font-medium text-white/55 transition hover:bg-white/[0.07] hover:text-white",
+                "sentra-focus nav-glow-link flex min-w-[4.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl px-2.5 py-2.5 text-[10px] font-medium text-white/55 transition",
                 isActive(item.href) && "bg-white/[0.08] text-white",
               )}
             >

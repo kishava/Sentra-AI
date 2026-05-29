@@ -13,7 +13,7 @@ routes.
 ## Features
 
 - Premium dark glassmorphism UI with animated gradients, particles, glowing AI
-  orb, hover motion, smooth reveal animations, and responsive layouts.
+  orb, smooth reveal animations, and responsive layouts.
 - Dashboard for competitor monitoring, market intelligence, live signals,
   sentiment/risk analysis, company tracking, trend visualization, and AI
   recommendations.

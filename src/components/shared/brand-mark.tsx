@@ -10,7 +10,7 @@ export function BrandLogo({ className }: { className?: string }) {
       width={1536}
       height={1024}
       className={cn(
-        "object-contain transition duration-300 ease-out group-hover:-translate-y-0.5 group-hover:brightness-110 group-hover:drop-shadow-[0_12px_26px_rgba(255,225,169,0.32)]",
+        "object-contain transition duration-300 ease-out",
         className,
       )}
       priority

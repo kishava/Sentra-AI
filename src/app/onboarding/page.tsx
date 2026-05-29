@@ -263,7 +263,7 @@ export default function OnboardingPage() {
               </span>
               <h2 className="mt-5 text-xl font-semibold text-white">{section.title}</h2>
               <p className="mt-2 min-h-20 text-sm leading-6 text-white/55">{section.description}</p>
-              <Link href={section.href} className="mt-4 inline-flex items-center gap-2 text-sm text-sentra-cyan hover:text-white">
+              <Link href={section.href} className="mt-4 inline-flex items-center gap-2 text-sm text-sentra-cyan">
                 Open
                 <ArrowRight className="h-4 w-4" />
               </Link>
@@ -304,7 +304,7 @@ export default function OnboardingPage() {
                 <Link
                   key={prompt}
                   href={`/alerts?guidePrompt=${encodeURIComponent(prompt)}`}
-                  className="sentra-focus rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-sm leading-6 text-white/62 transition hover:border-cyan-200/30 hover:text-white"
+                  className="sentra-focus rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-sm leading-6 text-white/62 transition"
                 >
                   {prompt}
                 </Link>

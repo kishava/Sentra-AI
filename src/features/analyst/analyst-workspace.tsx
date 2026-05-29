@@ -32,7 +32,7 @@ export function AnalystWorkspace() {
               onClick={() => selectMode(item.id)}
               className={cn(
                 "sentra-focus flex items-center gap-2 rounded-full px-4 py-2.5 text-sm transition",
-                mode === item.id ? "bg-cyan-300/12 text-cyan-50 shadow-glow" : "text-white/54 hover:text-white",
+                mode === item.id ? "bg-cyan-300/12 text-cyan-50 shadow-glow" : "text-white/54",
               )}
               aria-current={mode === item.id ? "page" : undefined}
             >
