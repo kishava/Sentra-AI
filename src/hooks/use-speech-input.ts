@@ -70,7 +70,7 @@ export function useSpeechInput({ value, onChange, getContext }: UseSpeechInputOp
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const chunkTranscribeRef = useRef(0);
+  const transcriptionQueueRef = useRef(Promise.resolve());
 
   useEffect(() => {
     valueRef.current = value;
@@ -90,7 +90,9 @@ export function useSpeechInput({ value, onChange, getContext }: UseSpeechInputOp
 
   const cleanupMedia = useCallback(() => {
     if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.requestData();
       mediaRecorderRef.current.stop();
+      return;
     }
     mediaRecorderRef.current = null;
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -116,17 +118,15 @@ export function useSpeechInput({ value, onChange, getContext }: UseSpeechInputOp
   const transcribeChunk = useCallback(
     async (blob: Blob) => {
       if (!blob.size) return;
-      const runId = ++chunkTranscribeRef.current;
       setTranscribing(true);
       try {
         const context = `${baseValueRef.current} ${committedRef.current}`.trim() || getContext?.() || valueRef.current;
         const result = await transcribeBlob(blob, context);
-        if (runId !== chunkTranscribeRef.current) return;
         if (!result.ok || !result.text) return;
         committedRef.current = `${committedRef.current} ${result.text}`.trim();
         mergeIntoField(committedRef.current, "");
       } finally {
-        if (runId === chunkTranscribeRef.current) setTranscribing(false);
+        setTranscribing(false);
       }
     },
     [getContext, mergeIntoField],
@@ -190,11 +190,11 @@ export function useSpeechInput({ value, onChange, getContext }: UseSpeechInputOp
       toast.error("Microphone access needs a secure page.", {
         description: "Open the app on localhost or HTTPS, then allow microphone access.",
       });
-      return;
+      return false;
     }
     if (!window.MediaRecorder) {
       toast.error("Audio recording is not supported in this browser.");
-      return;
+      return false;
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -207,7 +207,7 @@ export function useSpeechInput({ value, onChange, getContext }: UseSpeechInputOp
     if (!supportedType) {
       stream.getTracks().forEach((track) => track.stop());
       toast.error("Your browser does not provide a supported audio recording format.");
-      return;
+      return false;
     }
 
     baseValueRef.current = valueRef.current;
@@ -222,7 +222,9 @@ export function useSpeechInput({ value, onChange, getContext }: UseSpeechInputOp
     recorder.ondataavailable = (event) => {
       if (!event.data.size) return;
       audioChunksRef.current.push(event.data);
-      void transcribeChunk(event.data);
+      transcriptionQueueRef.current = transcriptionQueueRef.current
+        .then(() => transcribeChunk(event.data))
+        .catch(() => undefined);
     };
     recorder.onerror = () => {
       stopSpeechInput();
@@ -240,9 +242,10 @@ export function useSpeechInput({ value, onChange, getContext }: UseSpeechInputOp
       }
     };
 
-    recorder.start(2500);
+    recorder.start(1800);
     setListening(true);
-    toast.message("Listening", { description: "Speak — transcript updates every few seconds while you talk." });
+    toast.message("Listening", { description: "Speak now. Transcript updates every few seconds while you talk." });
+    return true;
   }, [stopSpeechInput, transcribeChunk]);
 
   const toggleSpeechInput = useCallback(async () => {
@@ -262,12 +265,16 @@ export function useSpeechInput({ value, onChange, getContext }: UseSpeechInputOp
       return;
     }
 
-    const speechStarted = startSpeechApi();
-    if (speechStarted) return;
-
     try {
-      await startMediaRecorder();
+      const recorderStarted = await startMediaRecorder();
+      if (recorderStarted) return;
+
+      const speechStarted = startSpeechApi();
+      if (speechStarted) return;
     } catch (error) {
+      const speechStarted = startSpeechApi();
+      if (speechStarted) return;
+
       const denied =
         error instanceof DOMException &&
         (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");

@@ -71,6 +71,11 @@ body {
   color: hsl(var(--foreground));
 }
 
+body > main {
+  position: relative;
+  z-index: 1;
+}
+
 h1,
 h2,
 h3,

@@ -25,7 +25,7 @@ export function Hero() {
           className="mx-auto w-full max-w-4xl xl:mx-0"
         >
           <Badge variant="cyan" className="mb-5">Autonomous intelligence command center</Badge>
-          <h1 className="type-display-xl max-w-[16ch] text-balance text-white">
+          <h1 className="max-w-[18ch] text-balance font-display text-[clamp(3.4rem,5.2vw,6.3rem)] font-bold leading-[0.98] tracking-tight text-white">
             <span className="premium-gradient-text">
               Monitor competitors, verify evidence, and brief leaders automatically
             </span>

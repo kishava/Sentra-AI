@@ -345,6 +345,7 @@ export function WorldEngineStudio() {
   const [synthesizing, setSynthesizing] = useState(false);
   const [narrationUrl, setNarrationUrl] = useState<string>();
   const [narrationLabel, setNarrationLabel] = useState<string>();
+  const [activeNarrationMode, setActiveNarrationMode] = useState<"quick" | "executive" | "deep" | null>(null);
   const [muted, setMuted] = useState(true);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [sources, setSources] = useState<CollectionSource[]>([]);
@@ -352,6 +353,7 @@ export function WorldEngineStudio() {
   const [thoughts, setThoughts] = useState<WorldEngineReport["reasoning"]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activityRequestRef = useRef<AbortController | null>(null);
+  const narrationAbortRef = useRef<AbortController | null>(null);
   const {
     listening,
     transcribing,
@@ -373,9 +375,19 @@ export function WorldEngineStudio() {
     ? selectedSignal
     : displaySignals[0];
 
+  function stopNarration() {
+    narrationAbortRef.current?.abort();
+    narrationAbortRef.current = null;
+    audioRef.current?.pause();
+    if (audioRef.current) audioRef.current.currentTime = 0;
+    setSpeaking(false);
+    setSynthesizing(false);
+    setActiveNarrationMode(null);
+  }
+
   useEffect(() => () => {
     activityRequestRef.current?.abort();
-    audioRef.current?.pause();
+    stopNarration();
   }, []);
 
   useEffect(() => () => {
@@ -477,23 +489,37 @@ export function WorldEngineStudio() {
 
   async function narrate(mode: "quick" | "executive" | "deep") {
     if (!report) return;
+    if ((speaking || synthesizing) && activeNarrationMode === mode) {
+      stopNarration();
+      return;
+    }
+
+    stopNarration();
+    const controller = new AbortController();
+    narrationAbortRef.current = controller;
     setSynthesizing(true);
     setSpeaking(false);
+    setActiveNarrationMode(mode);
     appendClientLog("VOICE", `Requesting ${mode} intelligence narration.`, "Voice synthesis", "info", "ElevenLabs");
     updateSource({ id: "elevenlabs", name: "ElevenLabs Voice", channel: "api", status: "active", detail: "Synthesis request in flight" });
     try {
-      audioRef.current?.pause();
       const response = await fetch("/api/voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: report.briefings[mode] }),
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error ?? "Narrator request failed.");
       }
       if (response.headers.get("content-type")?.includes("audio")) {
-        setNarrationUrl(URL.createObjectURL(await response.blob()));
+        const nextUrl = URL.createObjectURL(await response.blob());
+        setNarrationUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return nextUrl;
+        });
         setNarrationLabel(`${mode === "quick" ? "30-second" : mode === "executive" ? "Executive" : "Deep analyst"} briefing`);
         updateSource({ id: "elevenlabs", name: "ElevenLabs Voice", channel: "api", status: "success", detail: "Audio stream received" });
         appendClientLog("VOICE", "Spoken intelligence briefing generated and ready for playback.", "Voice synthesis", "success", "ElevenLabs");
@@ -503,11 +529,15 @@ export function WorldEngineStudio() {
         toast.message("Narrator script ready", { description: "Configure ElevenLabs credentials for spoken playback." });
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       updateSource({ id: "elevenlabs", name: "ElevenLabs Voice", channel: "api", status: "error", detail: "Synthesis request failed" });
       appendClientLog("VOICE", "Voice synthesis request failed.", "Voice synthesis", "error", "ElevenLabs");
       toast.error(error instanceof Error ? error.message : "Voice narration failed.");
     } finally {
-      setSynthesizing(false);
+      if (!controller.signal.aborted) {
+        setSynthesizing(false);
+        narrationAbortRef.current = null;
+      }
     }
   }
 
@@ -679,9 +709,22 @@ export function WorldEngineStudio() {
                     ["executive", "2-minute executive"],
                     ["deep", "Deep analyst mode"],
                   ].map(([mode, label]) => (
-                    <button key={mode} type="button" disabled={synthesizing} onClick={() => void narrate(mode as "quick" | "executive" | "deep")} className="sentra-focus rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left text-sm text-white/68 transition disabled:cursor-wait disabled:opacity-50">
-                      <Play className="mb-3 h-4 w-4 text-sentra-cyan" />
-                      {label}
+                    <button
+                      key={mode}
+                      type="button"
+                      disabled={synthesizing && activeNarrationMode !== mode}
+                      onClick={() => void narrate(mode as "quick" | "executive" | "deep")}
+                      className={cn(
+                        "sentra-focus rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left text-sm text-white/68 transition disabled:cursor-wait disabled:opacity-50",
+                        activeNarrationMode === mode && (speaking || synthesizing) && "border-cyan-200/30 bg-cyan-300/[0.08] text-cyan-50",
+                      )}
+                    >
+                      {activeNarrationMode === mode && (speaking || synthesizing) ? (
+                        <VolumeX className="mb-3 h-4 w-4 text-rose-200" />
+                      ) : (
+                        <Play className="mb-3 h-4 w-4 text-sentra-cyan" />
+                      )}
+                      {activeNarrationMode === mode && synthesizing ? "Stop preparing" : activeNarrationMode === mode && speaking ? "Stop audio" : label}
                     </button>
                   ))}
                 </div>
@@ -695,7 +738,10 @@ export function WorldEngineStudio() {
                       className="w-full accent-cyan-300"
                       onPlay={() => setSpeaking(true)}
                       onPause={() => setSpeaking(false)}
-                      onEnded={() => setSpeaking(false)}
+                      onEnded={() => {
+                        setSpeaking(false);
+                        setActiveNarrationMode(null);
+                      }}
                     />
                   </div>
                 )}
