@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSupabaseServiceRoleKey } from "@/lib/supabase/env";
 
 type RateLimitConfig = {
   action: string;
@@ -24,7 +25,7 @@ export async function checkRateLimit(userId: string, key: keyof typeof LIMITS) {
   const config = LIMITS[key];
   if (!config) return { allowed: true as const };
 
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!getSupabaseServiceRoleKey()) {
     return { allowed: true as const };
   }
 

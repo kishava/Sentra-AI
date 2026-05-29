@@ -2,6 +2,7 @@ import axios from "axios";
 import { createHash } from "crypto";
 import { signalStream } from "@/data/mock-intelligence";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSupabaseServiceRoleKey } from "@/lib/supabase/env";
 import type { BrightDataRequest } from "@/types/intelligence";
 
 type BrightDataEvidence = {
@@ -39,7 +40,7 @@ function buildCacheKey(mode: string, zone: string, query: string, targetUrl?: st
 }
 
 async function readCache(cacheKey: string): Promise<BrightDataEvidence | null> {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  if (!getSupabaseServiceRoleKey()) return null;
 
   try {
     const admin = createAdminClient();
@@ -62,7 +63,7 @@ async function readCache(cacheKey: string): Promise<BrightDataEvidence | null> {
 }
 
 async function writeCache(cacheKey: string, value: BrightDataEvidence) {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return;
+  if (!getSupabaseServiceRoleKey()) return;
 
   try {
     const admin = createAdminClient();

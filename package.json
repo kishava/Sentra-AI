@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
-    "prepare": "node scripts/install-githooks.js"
+    "prepare": "node scripts/install-githooks.js",
+    "db:migrate": "node scripts/apply-supabase-migrations.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
@@ -47,6 +48,7 @@
     "autoprefixer": "^10.5.0",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.6",
+    "pg": "^8.21.0",
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.19",
     "typescript": "^6.0.3"
