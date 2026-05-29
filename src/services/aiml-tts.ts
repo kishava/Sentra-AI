@@ -1,3 +1,4 @@
+import { getPlatformEnv } from "@/lib/secrets/platform-secrets";
 import { isAimlConfigured } from "@/lib/llm/client";
 
 const AIML_TTS_URL = "https://api.aimlapi.com/v1/tts";
@@ -41,7 +42,8 @@ function extractAudioUrl(payload: AimlTtsJson) {
 export async function synthesizeAimlSpeech(text: string, playbackSpeed = 1) {
   if (!isAimlConfigured()) return null;
 
-  const apiKey = process.env.AIML_API_KEY!.trim();
+  const apiKey = getPlatformEnv("AIML_API_KEY");
+  if (!apiKey) return null;
   const trimmed = text.trim().slice(0, 4096);
   if (!trimmed) return null;
 

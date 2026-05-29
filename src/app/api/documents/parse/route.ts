@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
 import { extractDocumentFromFile } from "@/lib/documents/extract-text";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    await ensurePlatformSecrets();
     const auth = await requireApiUser();
     if ("error" in auth) return auth.error;
 

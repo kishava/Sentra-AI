@@ -5,6 +5,7 @@ import { getMonitor, recordMonitorEvents, updateMonitorChecked } from "@/lib/db/
 import { saveIntelligenceReport } from "@/lib/db/reports";
 import { filterSignalsForMonitor } from "@/lib/monitor-match";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { collectWebIntelligence } from "@/services/bright-data";
 import { createExecutiveReport } from "@/services/intelligence-report";
 import { generateEnterpriseAnalysis } from "@/services/openai";
@@ -22,6 +23,7 @@ type LocalMonitorPayload = {
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
+    await ensurePlatformSecrets();
     const auth = await requireApiUser();
     if ("error" in auth) return auth.error;
 

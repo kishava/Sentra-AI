@@ -1,10 +1,11 @@
 import OpenAI from "openai";
+import { getPlatformEnv } from "@/lib/secrets/platform-secrets";
 import { isFeatherlessConfigured } from "@/lib/llm/featherless";
 
 const AIML_DEFAULT_BASE_URL = "https://api.aimlapi.com/v1";
 
 export function isAimlConfigured() {
-  return Boolean(process.env.AIML_API_KEY?.trim());
+  return Boolean(getPlatformEnv("AIML_API_KEY"));
 }
 
 /** At least one inference provider is configured. */
@@ -14,12 +15,12 @@ export function isLlmConfigured() {
 
 /** All LLM traffic routes through AI/ML API (OpenAI-compatible gateway). */
 export function getLlmClient(): OpenAI | null {
-  const aimlKey = process.env.AIML_API_KEY?.trim();
+  const aimlKey = getPlatformEnv("AIML_API_KEY");
   if (!aimlKey) return null;
 
   return new OpenAI({
     apiKey: aimlKey,
-    baseURL: process.env.AIML_BASE_URL?.trim() || AIML_DEFAULT_BASE_URL,
+    baseURL: getPlatformEnv("AIML_BASE_URL") || AIML_DEFAULT_BASE_URL,
   });
 }
 

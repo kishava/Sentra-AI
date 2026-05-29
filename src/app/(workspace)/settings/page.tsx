@@ -31,6 +31,7 @@ import { type SentraSettings, type VoiceMode, useSettings } from "@/settings/set
 type IntegrationStatus = {
   supabase: boolean;
   supabaseSchema: boolean;
+  secretsSource?: "supabase" | "env" | "mixed";
   aiml: boolean;
   openai: boolean;
   llm?: {
@@ -258,6 +259,10 @@ export default function SettingsPage() {
         <ul className="mt-5 space-y-4">
           <StatusRow label="Supabase credentials" ok={status?.supabase} />
           <StatusRow label="Supabase workspace schema" ok={status?.supabaseSchema} />
+          <StatusRow
+            label={`API keys vault (${status?.secretsSource ?? "env"})`}
+            ok={status?.secretsSource === "supabase" || status?.aiml}
+          />
           <StatusRow label="AI/ML API (LLM)" ok={status?.aiml || status?.llm?.ready} />
           <StatusRow label="Featherless (open models)" ok={status?.featherless} />
           <StatusRow label="AIML voice (TTS)" ok={status?.aimlVoice ?? status?.elevenlabs} />
@@ -268,6 +273,13 @@ export default function SettingsPage() {
         {status?.brightData?.message && (
           <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/60">
             {status.brightData.message}
+          </p>
+        )}
+        {status?.secretsSource === "env" && status?.supabase && (
+          <p className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 text-sm text-cyan-50/90">
+            Provider keys are still in local env. Run{" "}
+            <code className="font-mono text-xs">npm run secrets:sync</code> to store them in Supabase
+            (safe for deploy). On Vercel, only Supabase keys are needed after sync.
           </p>
         )}
         {status?.supabase && !status.supabaseSchema && (

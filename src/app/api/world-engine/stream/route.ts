@@ -1,6 +1,7 @@
 import { requireApiUser } from "@/lib/auth/session";
 import { isAimlConfigured, isLlmConfigured } from "@/lib/llm/client";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { ensurePlatformSecrets, getPlatformEnv } from "@/lib/secrets/platform-secrets";
 import { collectDemoWebIntelligence, collectWebIntelligence } from "@/services/bright-data";
 import { encodeSse, RealtimeLogService } from "@/services/realtime-log";
 import { generateWorldEngineReport } from "@/services/world-engine";
@@ -22,6 +23,7 @@ function sourceIdentity(url: string, title: string) {
 }
 
 export async function POST(request: Request) {
+  await ensurePlatformSecrets();
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
 
@@ -56,14 +58,14 @@ export async function POST(request: Request) {
       const logs = new RealtimeLogService(emit);
       const heartbeat = setInterval(() => logs.health(), 1000);
       const brightDataConfigured = body?.brightData?.serp !== false && Boolean(
-        process.env.BRIGHT_DATA_API_KEY &&
-        process.env.BRIGHT_DATA_SERP_ENDPOINT &&
-        process.env.BRIGHT_DATA_SERP_ZONE,
+        getPlatformEnv("BRIGHT_DATA_API_KEY") &&
+        getPlatformEnv("BRIGHT_DATA_SERP_ENDPOINT") &&
+        getPlatformEnv("BRIGHT_DATA_SERP_ZONE"),
       );
       const unlockerConfigured = body?.brightData?.webUnlocker !== false && Boolean(
-        process.env.BRIGHT_DATA_API_KEY &&
-        process.env.BRIGHT_DATA_WEB_UNLOCKER_ENDPOINT &&
-        process.env.BRIGHT_DATA_WEB_UNLOCKER_ZONE,
+        getPlatformEnv("BRIGHT_DATA_API_KEY") &&
+        getPlatformEnv("BRIGHT_DATA_WEB_UNLOCKER_ENDPOINT") &&
+        getPlatformEnv("BRIGHT_DATA_WEB_UNLOCKER_ZONE"),
       );
       const llmConfigured = isLlmConfigured();
       const aimlConfigured = isAimlConfigured();
@@ -97,9 +99,9 @@ export async function POST(request: Request) {
           });
         } else {
           const missingSettings = [
-            !process.env.BRIGHT_DATA_API_KEY && "API key",
-            !process.env.BRIGHT_DATA_SERP_ENDPOINT && "SERP endpoint",
-            !process.env.BRIGHT_DATA_SERP_ZONE && "SERP zone",
+            !getPlatformEnv("BRIGHT_DATA_API_KEY") && "API key",
+            !getPlatformEnv("BRIGHT_DATA_SERP_ENDPOINT") && "SERP endpoint",
+            !getPlatformEnv("BRIGHT_DATA_SERP_ZONE") && "SERP zone",
           ].filter(Boolean).join(", ");
           logs.source({
             id: "bright-data-serp",

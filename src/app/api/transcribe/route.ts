@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { transcribeAudio } from "@/services/openai";
 
 export const runtime = "nodejs";
@@ -9,6 +10,7 @@ const MAX_AUDIO_SIZE = 25 * 1024 * 1024;
 
 export async function POST(request: Request) {
   try {
+    await ensurePlatformSecrets();
     const auth = await requireApiUser();
     if ("error" in auth) return auth.error;
 

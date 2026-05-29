@@ -16,6 +16,11 @@ import {
   isFeatherlessConfigured,
 } from "@/lib/llm/featherless";
 import { discoverBrightDataZones } from "@/services/bright-data";
+import {
+  ensurePlatformSecrets,
+  getPlatformEnv,
+  getPlatformSecretsSource,
+} from "@/lib/secrets/platform-secrets";
 
 function buildBrightDataStatus(serpZone: boolean, unlockerZone: boolean, brightDataKey: boolean) {
   return {
@@ -24,7 +29,7 @@ function buildBrightDataStatus(serpZone: boolean, unlockerZone: boolean, brightD
     unlockerZone,
     ready: brightDataKey && (serpZone || unlockerZone),
     message: !brightDataKey
-      ? "Add BRIGHT_DATA_API_KEY to .env.local"
+      ? "Add BRIGHT_DATA_API_KEY to Supabase vault (npm run secrets:sync) or .env.local"
       : !serpZone && !unlockerZone
         ? "Create SERP and Web Unlocker zones in Bright Data, then set BRIGHT_DATA_SERP_ZONE and BRIGHT_DATA_WEB_UNLOCKER_ZONE in .env.local"
         : !serpZone
@@ -36,12 +41,14 @@ function buildBrightDataStatus(serpZone: boolean, unlockerZone: boolean, brightD
 }
 
 export function getIntegrationStatus() {
-  const brightDataKey = Boolean(process.env.BRIGHT_DATA_API_KEY?.trim());
-  const serpZone = Boolean(process.env.BRIGHT_DATA_SERP_ZONE?.trim());
-  const unlockerZone = Boolean(process.env.BRIGHT_DATA_WEB_UNLOCKER_ZONE?.trim());
+  const brightDataKey = Boolean(getPlatformEnv("BRIGHT_DATA_API_KEY"));
+  const serpZone = Boolean(getPlatformEnv("BRIGHT_DATA_SERP_ZONE"));
+  const unlockerZone = Boolean(getPlatformEnv("BRIGHT_DATA_WEB_UNLOCKER_ZONE"));
   const llmReady = isLlmConfigured();
+  const secretsSource = getPlatformSecretsSource();
 
   return {
+    secretsSource,
     supabase: Boolean(
       process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
         (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
@@ -79,8 +86,9 @@ export function getIntegrationStatus() {
 
 /** Enriches status by probing the Bright Data account when zone env vars are missing. */
 export async function getIntegrationStatusWithDiscovery() {
+  await ensurePlatformSecrets();
   const base = getIntegrationStatus();
-  const apiKey = process.env.BRIGHT_DATA_API_KEY?.trim();
+  const apiKey = getPlatformEnv("BRIGHT_DATA_API_KEY");
   if (!apiKey || (base.brightData.serpZone && base.brightData.unlockerZone)) {
     return base;
   }

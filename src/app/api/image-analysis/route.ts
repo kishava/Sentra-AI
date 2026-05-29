@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { analyzeImageInvestigation } from "@/services/image-analysis";
 import type { ImageFileEvidence } from "@/types/image-intelligence";
 
@@ -28,6 +29,7 @@ async function evidenceFromFile(file: File) {
 }
 
 export async function POST(request: Request) {
+  await ensurePlatformSecrets();
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
 

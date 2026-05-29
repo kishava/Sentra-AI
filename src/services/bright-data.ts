@@ -2,6 +2,7 @@ import axios from "axios";
 import { createHash } from "crypto";
 import { signalStream } from "@/data/mock-intelligence";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getPlatformEnv } from "@/lib/secrets/platform-secrets";
 import { getSupabaseServiceRoleKey } from "@/lib/supabase/env";
 import type { BrightDataRequest } from "@/types/intelligence";
 
@@ -30,7 +31,7 @@ type BrightDataZone = { name: string; type: string };
 let resolvedZones: { serp?: string; unlocker?: string } | null = null;
 
 function getCacheTtlSeconds() {
-  const raw = Number(process.env.BRIGHT_DATA_CACHE_TTL_SECONDS ?? 900);
+  const raw = Number(getPlatformEnv("BRIGHT_DATA_CACHE_TTL_SECONDS") ?? 900);
   return Number.isFinite(raw) && raw > 0 ? raw : 900;
 }
 
@@ -95,7 +96,7 @@ async function fetchActiveBrightDataZones(apiKey: string) {
 }
 
 export async function discoverBrightDataZones(apiKey: string): Promise<{ serp?: string; unlocker?: string }> {
-  const managementKey = process.env.BRIGHT_DATA_MANAGEMENT_KEY?.trim();
+  const managementKey = getPlatformEnv("BRIGHT_DATA_MANAGEMENT_KEY");
   const keys = [apiKey, managementKey].filter(Boolean) as string[];
 
   for (const key of keys) {
@@ -112,8 +113,8 @@ export async function discoverBrightDataZones(apiKey: string): Promise<{ serp?: 
 async function resolveBrightDataZones(apiKey: string) {
   if (resolvedZones) return resolvedZones;
 
-  const envSerp = process.env.BRIGHT_DATA_SERP_ZONE?.trim();
-  const envUnlocker = process.env.BRIGHT_DATA_WEB_UNLOCKER_ZONE?.trim();
+  const envSerp = getPlatformEnv("BRIGHT_DATA_SERP_ZONE");
+  const envUnlocker = getPlatformEnv("BRIGHT_DATA_WEB_UNLOCKER_ZONE");
   if (envSerp || envUnlocker) {
     resolvedZones = { serp: envSerp, unlocker: envUnlocker };
     return resolvedZones;
@@ -144,11 +145,11 @@ export async function collectWebIntelligence({
 }: BrightDataRequest): Promise<BrightDataEvidence> {
   const effectiveMode = mode === "scraper" && targetUrl ? "unlocker" : mode;
   const endpointKey = endpointByMode[effectiveMode];
-  const endpoint = process.env[endpointKey];
-  const apiKey = process.env.BRIGHT_DATA_API_KEY;
+  const endpoint = getPlatformEnv(endpointKey);
+  const apiKey = getPlatformEnv("BRIGHT_DATA_API_KEY");
   const zoneKey =
     effectiveMode === "serp" || effectiveMode === "unlocker" ? zoneByMode[effectiveMode] : null;
-  let zone = zoneKey ? process.env[zoneKey]?.trim() : null;
+  let zone = zoneKey ? getPlatformEnv(zoneKey) : null;
 
   if (apiKey && zoneKey && !zone) {
     const zones = await resolveBrightDataZones(apiKey);

@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { analyzeMonitorIntent } from "@/services/openai";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  await ensurePlatformSecrets();
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
 

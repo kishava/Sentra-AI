@@ -1,19 +1,20 @@
 import OpenAI from "openai";
 import { createChatCompletion } from "@/lib/llm/client";
+import { getPlatformEnv } from "@/lib/secrets/platform-secrets";
 
 const FEATHERLESS_BASE_URL = "https://api.featherless.ai/v1";
 
 export function isFeatherlessConfigured() {
-  return Boolean(process.env.FEATHERLESS_API_KEY?.trim());
+  return Boolean(getPlatformEnv("FEATHERLESS_API_KEY"));
 }
 
 export function getFeatherlessClient(): OpenAI | null {
-  const apiKey = process.env.FEATHERLESS_API_KEY?.trim();
+  const apiKey = getPlatformEnv("FEATHERLESS_API_KEY");
   if (!apiKey) return null;
 
   return new OpenAI({
     apiKey,
-    baseURL: process.env.FEATHERLESS_BASE_URL?.trim() || FEATHERLESS_BASE_URL,
+    baseURL: getPlatformEnv("FEATHERLESS_BASE_URL") || FEATHERLESS_BASE_URL,
     defaultHeaders: {
       "HTTP-Referer": process.env.SENTRA_APP_URL?.trim() || "http://localhost:3001",
       "X-Title": "Sentra AI",

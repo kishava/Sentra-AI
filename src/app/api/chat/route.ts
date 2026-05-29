@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
 import { appendChatMessage, createChatThread } from "@/lib/db/chat";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { isAimlConfigured, isLlmConfigured } from "@/lib/llm/client";
 import { collectWebIntelligence } from "@/services/bright-data";
 import { generateChatResponse, resolveDocumentChatProvider } from "@/services/openai";
@@ -50,6 +51,7 @@ function getHistory(value: unknown): Pick<ChatMessage, "role" | "content">[] {
 
 export async function POST(request: Request) {
   try {
+    await ensurePlatformSecrets();
     const auth = await requireApiUser();
     if ("error" in auth) return auth.error;
 
