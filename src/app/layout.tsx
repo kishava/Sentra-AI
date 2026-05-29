@@ -9,6 +9,8 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
+  fallback: ["system-ui", "Segoe UI", "sans-serif"],
+  adjustFontFallback: true,
 });
 
 export const metadata: Metadata = {

@@ -70,7 +70,7 @@ export type WorldEngineReport = {
   id: string;
   query: string;
   generatedAt: string;
-  provider: "openai-live" | "bright-data-openai" | "demo";
+  provider: "aiml-live" | "aiml-bright-data" | "openai-live" | "bright-data-openai" | "demo";
   scenarioMode: boolean;
   headline: string;
   executiveSummary: string;

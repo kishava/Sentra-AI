@@ -36,6 +36,6 @@ export type ImageInvestigationReport = {
   emotionalContext: string;
   comparisonAnalysis?: string;
   limitations: string[];
-  source: "openai-vision" | "demo";
+  source: "aiml-vision" | "openai-vision" | "demo";
   files: ImageFileEvidence[];
 };

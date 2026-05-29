@@ -2,7 +2,7 @@
 
 Sentra AI is a production-style enterprise AI intelligence platform built with
 Next.js 15, TypeScript, Tailwind CSS, ShadCN-style UI primitives, Framer Motion,
-GSAP, Three.js / React Three Fiber, OpenAI, Bright Data, ElevenLabs, Lucide
+GSAP, Three.js / React Three Fiber, AI/ML API, Bright Data, ElevenLabs, Lucide
 icons, and Recharts.
 
 The app presents a futuristic operating system for autonomous business
@@ -28,7 +28,7 @@ routes.
   tracking, system health telemetry, and safe summarized thought-stream cards.
 - Visual-forensics analyst workspace for prompt-directed image investigations,
   comparison review, verdict scoring, report history, and PDF export.
-- Backend API routes for Bright Data intelligence collection, OpenAI analysis,
+- Backend API routes for Bright Data intelligence collection, AI/ML API (OpenAI-compatible) analysis,
   and ElevenLabs speech synthesis.
 - Demo-safe fallbacks when provider keys are absent, so the project runs
   immediately for demos and hackathons.
@@ -40,16 +40,16 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3001](http://localhost:3001) (dev server default port).
 
 ## Local development (GitHub collab, no deploy yet)
 
 You can run Sentra **without Supabase**. Leave `NEXT_PUBLIC_SUPABASE_URL` and
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` empty in `.env.local`.
 
-1. Copy `.env.example` → `.env.local` and add **OpenAI**, **Bright Data**, and
+1. Copy `.env.example` → `.env.local` and add **AIML_API_KEY**, **Bright Data**, and
    **ElevenLabs** keys (see hackathon demo below).
-2. `npm run dev` → open `/sign-in` → **Enter workspace (local mode)**.
+2. `npm run dev` → open [http://localhost:3001](http://localhost:3001) → **Enter workspace (local mode)**.
 3. Monitors are stored in **browser localStorage** per machine; chat history is
    session-only until you add Supabase for deploy.
 
@@ -67,11 +67,19 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 
-OPENAI_API_KEY=
-OPENAI_CHAT_MODEL=gpt-4o
-OPENAI_WORLD_MODEL=gpt-5.5
-OPENAI_TRANSCRIPTION_MODEL=gpt-4o-transcribe
+AIML_API_KEY=
+AIML_BASE_URL=https://api.aimlapi.com/v1
+AIML_MODEL_ANALYSIS=gpt-4o-mini
+AIML_MODEL_CHAT=gpt-4o
+AIML_MODEL_SEARCH=gpt-4o-search-preview
+AIML_MODEL_INTENT=gpt-4o-mini
+AIML_MODEL_WORLD=gpt-4o
+AIML_MODEL_VISION=gpt-4o
+AIML_MODEL_TRANSCRIBE=whisper-1
 SENTRA_TIMEZONE=Asia/Colombo
+
+# Optional direct OpenAI fallback
+OPENAI_API_KEY=
 
 BRIGHT_DATA_API_KEY=
 BRIGHT_DATA_CACHE_TTL_SECONDS=900
@@ -94,7 +102,7 @@ remain functional.
 - `/sign-in` - Supabase auth (email, magic link, Google, GitHub)
 - `/sign-up` - create workspace
 - `/onboarding` - first-run setup checklist
-- `/settings` - integration status (Bright Data zones, OpenAI, ElevenLabs)
+- `/settings` - integration status (Bright Data zones, AI/ML API, ElevenLabs)
 - `/dashboard` - intelligence operating system with live briefing refresh
 - `/chat` - AI analyst chat with microphone transcription and voice playback
 - `/analyst` - AI World Engine and visual-forensics investigation workspaces
@@ -129,19 +137,24 @@ remain functional.
 3. Enable Email, Magic Link, Google, and GitHub providers in Authentication.
 4. Set redirect URL: `http://localhost:3000/auth/callback` (and your production URL).
 
-## Hackathon demo script (Bright Data)
+## Hackathon demo script
 
-1. **Dashboard** → **Refresh briefing** (SERP via Bright Data when zones are set).
-2. **Chat** → `Track competitor pricing changes` or paste a competitor `https://` URL (Unlocker).
-3. **Alerts** → create a monitor → **Check now** (SERP/Unlocker + structured signals).
+**Bright Data** collects live web evidence; **AI/ML API** routes each task to the right model through one key.
 
-Promo code for credits: `unlocked` on [brightdata.com](https://brightdata.com).
+1. Add `AIML_API_KEY` from [aimlapi.com](https://aimlapi.com) and Bright Data keys to `.env.local`.
+2. **Settings** → confirm **AI/ML API** and **Bright Data** show Ready.
+3. **Dashboard** → **Refresh briefing** (SERP via Bright Data + AIML analysis).
+4. **Chat** → generic question (AIML search model) or paste a competitor `https://` URL (Bright Data + AIML).
+5. **Alerts** → create a monitor → **Check now** (SERP/Unlocker + structured signals).
+6. **World Engine** / **Visual forensics** → one query each to verify AIML paths.
+
+Bright Data promo: `unlocked` on [brightdata.com](https://brightdata.com).
 
 ## Production Notes
 
 - Deploys cleanly on Vercel.
 - Provider calls run in Node.js API routes and keep secrets server-side.
 - Chat uses Bright Data only when configured and a collection-oriented prompt
-  is detected; otherwise it remains on OpenAI live web search.
+  is detected; otherwise it uses AI/ML API search-capable models.
 - Demo fallbacks are intentionally typed and isolated in `src/data` and
   `src/services` so they can be swapped for real data pipelines.

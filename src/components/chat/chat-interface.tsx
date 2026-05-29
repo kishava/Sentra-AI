@@ -378,9 +378,11 @@ export function ChatInterface() {
                         <span className="text-sm font-medium text-white">Sentra AI</span>
                         {message.provider && (
                           <span className="hidden rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/45 sm:inline-flex">
-                            {message.provider === "bright-data-openai"
-                              ? "Bright Data + AI"
-                              : "Live web search"}
+                            {message.provider === "aiml-bright-data" || message.provider === "bright-data-openai"
+                              ? "Bright Data + AIML"
+                              : message.provider === "aiml-search"
+                                ? "AIML live search"
+                                : "Live web search"}
                           </span>
                         )}
                         <button

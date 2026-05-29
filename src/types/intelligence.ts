@@ -57,7 +57,7 @@ export type ExecutiveIntelligenceReport = {
   hallucinationRisk: "low" | "medium" | "high";
 };
 
-export type ChatProvider = "openai-web-search" | "bright-data-openai";
+export type ChatProvider = "aiml-search" | "aiml-bright-data" | "openai-web-search" | "bright-data-openai";
 
 export type ChatMessage = {
   id: string;
@@ -82,5 +82,5 @@ export type MonitorIntent = {
   keywords: string[];
   rationale: string;
   confidence: number;
-  provider: "openai" | "heuristic";
+  provider: "aiml" | "openai" | "heuristic";
 };

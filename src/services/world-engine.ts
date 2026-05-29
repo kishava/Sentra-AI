@@ -1,4 +1,11 @@
-import OpenAI from "openai";
+import {
+  createChatCompletion,
+  getLlmClient,
+  getLlmProviderLabel,
+  getSearchModel,
+  getWorldModel,
+  isLlmConfigured,
+} from "@/lib/llm/client";
 import { createDemoWorldReport } from "@/data/mock-world-engine";
 import type {
   EntityKind,
@@ -83,6 +90,14 @@ function parseReportJson(output: string): RawReport {
     }
     throw new Error("The world engine returned an invalid intelligence model.");
   }
+}
+
+function resolveProvider(input: WorldEngineInput): WorldEngineReport["provider"] {
+  const label = getLlmProviderLabel();
+  if (input.brightDataAvailable) {
+    return label === "aiml" ? "aiml-bright-data" : "bright-data-openai";
+  }
+  return label === "aiml" ? "aiml-live" : "openai-live";
 }
 
 function normalizeSignals(value: unknown): WorldMapSignal[] {
@@ -181,7 +196,7 @@ function normalizeReport(raw: RawReport, input: WorldEngineInput): WorldEngineRe
     id: crypto.randomUUID(),
     query: input.query,
     generatedAt: new Date().toISOString(),
-    provider: input.brightDataAvailable ? "bright-data-openai" : "openai-live",
+    provider: resolveProvider(input),
     scenarioMode: Boolean(raw.scenarioMode),
     headline: text(raw.headline, fallback.headline),
     executiveSummary: text(raw.executiveSummary, fallback.executiveSummary),
@@ -214,21 +229,89 @@ function normalizeReport(raw: RawReport, input: WorldEngineInput): WorldEngineRe
   };
 }
 
-export async function generateWorldEngineReport(
-  input: WorldEngineInput,
-  observer?: WorldEngineObserver,
-): Promise<WorldEngineReport> {
-  if (!process.env.OPENAI_API_KEY) return createDemoWorldReport(input.query);
-
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const currentDate = new Intl.DateTimeFormat("en-US", {
+function currentDateLabel() {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "long",
     timeZone: process.env.SENTRA_TIMEZONE || "Asia/Colombo",
   }).format(new Date());
+}
+
+function buildWorldUserPrompt(input: WorldEngineInput) {
+  return `User intelligence request: ${input.query}\n\nCollected Bright Data evidence when configured; it may be illustrative demo evidence otherwise:\n${input.evidence.slice(0, 8000)}`;
+}
+
+async function generateViaChatCompletions(
+  client: NonNullable<ReturnType<typeof getLlmClient>>,
+  input: WorldEngineInput,
+  observer?: WorldEngineObserver,
+): Promise<WorldEngineReport> {
+  const searchStartedAt = performance.now();
+  observer?.onResponseCreated?.();
+  observer?.onWebSearchStarted?.();
+  observer?.onWebSearchSearching?.();
+  observer?.onWebSearchCompleted?.(Math.round(performance.now() - searchStartedAt));
+  observer?.onSynthesisStarted?.();
+
+  const response = await createChatCompletion(client, {
+    model: getSearchModel(),
+    temperature: 0.25,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: `${instructions}\nThe current date for resolving time-sensitive requests is ${currentDateLabel()}.`,
+      },
+      { role: "user", content: buildWorldUserPrompt(input) },
+    ],
+  });
+
+  const output = response.choices[0]?.message?.content?.trim();
+  if (!output) throw new Error("The world engine returned no intelligence model.");
+  const parsed = parseReportJson(output);
+  return normalizeReport(parsed, input);
+}
+
+type WebSearchOutput = {
+  type: "web_search_call";
+  action: { type: "search"; sources?: Array<{ url: string }> };
+};
+
+function isWebSearchOutput(item: unknown): item is WebSearchOutput {
+  if (!item || typeof item !== "object" || !("type" in item) || item.type !== "web_search_call" || !("action" in item)) {
+    return false;
+  }
+  const action = item.action;
+  return Boolean(action && typeof action === "object" && "type" in action && action.type === "search");
+}
+
+function extractSearchedSources(output: unknown[]): WorldSource[] {
+  return output.flatMap((item) =>
+    isWebSearchOutput(item)
+      ? (item.action.sources ?? []).flatMap((source: { url: string }) => {
+          try {
+            return [
+              {
+                title: new URL(source.url).hostname.replace(/^www\./, ""),
+                url: source.url,
+              },
+            ];
+          } catch {
+            return [];
+          }
+        })
+      : [],
+  );
+}
+
+async function generateViaResponsesApi(
+  client: NonNullable<ReturnType<typeof getLlmClient>>,
+  input: WorldEngineInput,
+  observer?: WorldEngineObserver,
+): Promise<WorldEngineReport> {
   const request = {
-    model: process.env.OPENAI_WORLD_MODEL || process.env.OPENAI_CHAT_MODEL || "gpt-5.5",
-    instructions: `${instructions}\nThe current date for resolving time-sensitive requests is ${currentDate}.`,
-    input: `User intelligence request: ${input.query}\n\nCollected Bright Data evidence when configured; it may be illustrative demo evidence otherwise:\n${input.evidence.slice(0, 8000)}`,
+    model: getWorldModel(),
+    instructions: `${instructions}\nThe current date for resolving time-sensitive requests is ${currentDateLabel()}.`,
+    input: buildWorldUserPrompt(input),
     tools: [{ type: "web_search" as const, search_context_size: "medium" as const }],
     tool_choice: "required" as const,
     include: ["web_search_call.action.sources" as const],
@@ -274,7 +357,7 @@ export async function generateWorldEngineReport(
         publishSources(event.response.output);
       }
       if (event.type === "response.failed") {
-        throw new Error("The OpenAI intelligence synthesis failed.");
+        throw new Error("The intelligence synthesis failed.");
       }
     }
     if (!outputText.trim()) throw new Error("The world engine returned no intelligence model.");
@@ -291,34 +374,22 @@ export async function generateWorldEngineReport(
   return normalizeReport({ ...parsed, sources: [...providedSources, ...searchedSources] }, input);
 }
 
-type WebSearchOutput = {
-  type: "web_search_call";
-  action: { type: "search"; sources?: Array<{ url: string }> };
-};
+export async function generateWorldEngineReport(
+  input: WorldEngineInput,
+  observer?: WorldEngineObserver,
+): Promise<WorldEngineReport> {
+  const client = getLlmClient();
+  if (!client || !isLlmConfigured()) return createDemoWorldReport(input.query);
 
-function isWebSearchOutput(item: unknown): item is WebSearchOutput {
-  if (!item || typeof item !== "object" || !("type" in item) || item.type !== "web_search_call" || !("action" in item)) {
-    return false;
+  const useAimlChatPath = getLlmProviderLabel() === "aiml";
+
+  try {
+    if (useAimlChatPath) {
+      return await generateViaChatCompletions(client, input, observer);
+    }
+    return await generateViaResponsesApi(client, input, observer);
+  } catch (error) {
+    console.warn("World engine primary path failed, using chat completions fallback", error);
+    return generateViaChatCompletions(client, input, observer);
   }
-  const action = item.action;
-  return Boolean(action && typeof action === "object" && "type" in action && action.type === "search");
-}
-
-function extractSearchedSources(output: unknown[]): WorldSource[] {
-  return output.flatMap((item) =>
-    isWebSearchOutput(item)
-      ? (item.action.sources ?? []).flatMap((source: { url: string }) => {
-          try {
-            return [
-              {
-                title: new URL(source.url).hostname.replace(/^www\./, ""),
-                url: source.url,
-              },
-            ];
-          } catch {
-            return [];
-          }
-        })
-      : [],
-  );
 }

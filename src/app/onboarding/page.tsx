@@ -74,7 +74,7 @@ export default function OnboardingPage() {
       .then((response) => response.json())
       .then((data) => {
         setBrightDataReady(Boolean(data?.brightData?.ready));
-        setOpenAiReady(Boolean(data?.openai?.ready ?? data?.openAI?.ready));
+        setOpenAiReady(Boolean(data?.llm?.ready ?? data?.aiml ?? data?.openai?.ready ?? data?.openAI?.ready));
       })
       .catch(() => {
         setBrightDataReady(false);

@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Message is too long." }, { status: 400 });
     }
 
-    let provider: ChatProvider = "openai-web-search";
+    let provider: ChatProvider = "aiml-search";
     let brightDataEvidence: string | undefined;
     const collectionRequest = getCollectionRequest(message);
 
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     if (collectionRequest && brightDataEnabled) {
       const evidence = await collectWebIntelligence(collectionRequest);
       if (evidence.provider === "bright-data") {
-        provider = "bright-data-openai";
+        provider = "aiml-bright-data";
         brightDataEvidence = evidence.evidence;
       }
     }

@@ -19,39 +19,46 @@ export async function synthesizeSpeech(text: string) {
     return null;
   }
 
-  const response = await fetch(`${ELEVENLABS_BASE_URL}/${voiceId}`, {
-    method: "POST",
-    headers: {
-      "xi-api-key": apiKey,
-      "Content-Type": "application/json",
-      Accept: "audio/mpeg",
-    },
-    body: JSON.stringify({
-      text,
-      model_id: "eleven_multilingual_v2",
-      voice_settings: {
-        stability: 0.42,
-        similarity_boost: 0.78,
-        style: 0.28,
-        use_speaker_boost: true,
+  try {
+    const response = await fetch(`${ELEVENLABS_BASE_URL}/${voiceId}`, {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
       },
-    }),
-  });
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: {
+          stability: 0.42,
+          similarity_boost: 0.78,
+          style: 0.28,
+          use_speaker_boost: true,
+        },
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
 
-  if (!response.ok) {
-    const details = await response
-      .json()
-      .catch(() => response.text())
-      .catch(() => undefined);
+    if (!response.ok) {
+      const details = await response
+        .json()
+        .catch(() => response.text())
+        .catch(() => undefined);
 
-    throw new ElevenLabsError(
-      getElevenLabsErrorMessage(details) ?? `ElevenLabs request failed: ${response.status}`,
-      response.status,
-      details,
-    );
+      throw new ElevenLabsError(
+        getElevenLabsErrorMessage(details) ?? `ElevenLabs request failed: ${response.status}`,
+        response.status,
+        details,
+      );
+    }
+
+    return response.arrayBuffer();
+  } catch (error) {
+    if (error instanceof ElevenLabsError) throw error;
+    console.warn("ElevenLabs unavailable, using demo voice fallback", error);
+    return null;
   }
-
-  return response.arrayBuffer();
 }
 
 function getElevenLabsErrorMessage(details: unknown) {

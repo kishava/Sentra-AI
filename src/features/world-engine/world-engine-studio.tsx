@@ -92,7 +92,13 @@ function VerdictStrip({ report }: { report: WorldEngineReport }) {
           <div className="flex flex-wrap gap-2">
             <Badge variant="cyan">{report.scenarioMode ? "Simulation active" : "World intelligence active"}</Badge>
             <Badge variant={report.provider === "demo" ? "violet" : "success"}>
-              {report.provider === "demo" ? "Illustrative demo signals" : report.provider === "bright-data-openai" ? "Bright Data + live AI" : "Live AI search"}
+              {report.provider === "demo"
+                ? "Illustrative demo signals"
+                : report.provider === "bright-data-openai" || report.provider === "aiml-bright-data"
+                  ? "Bright Data + AIML"
+                  : report.provider === "aiml-live"
+                    ? "AIML live search"
+                    : "Live AI search"}
             </Badge>
           </div>
           <h2 className="mt-4 text-2xl font-semibold text-white md:text-3xl">{report.headline}</h2>

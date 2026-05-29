@@ -1,4 +1,10 @@
-import OpenAI from "openai";
+import {
+  createChatCompletion,
+  getLlmClient,
+  getLlmProviderLabel,
+  getVisionModel,
+  isLlmConfigured,
+} from "@/lib/llm/client";
 import type {
   ImageFileEvidence,
   ImageInvestigationReport,
@@ -83,6 +89,10 @@ function threatLevel(value: unknown): ThreatLevel {
     : "moderate";
 }
 
+function visionSourceLabel(): ImageInvestigationReport["source"] {
+  return getLlmProviderLabel() === "aiml" ? "aiml-vision" : "openai-vision";
+}
+
 function normalizeModelReport(
   report: ModelReport,
   prompt: string,
@@ -116,7 +126,7 @@ function normalizeModelReport(
       "Visual probability estimates are indicators, not proof of authenticity.",
       "Verify provenance through source files, metadata tooling, and corroborating evidence.",
     ]),
-    source: "openai-vision",
+    source: visionSourceLabel(),
     files,
   };
 }
@@ -128,7 +138,7 @@ function demoReport(prompt: string, files: ImageFileEvidence[]): ImageInvestigat
     prompt,
     status: "Inconclusive",
     threatLevel: "moderate",
-    recommendedAction: "Configure OpenAI Vision for visual assessment, then preserve originals for provenance checks.",
+    recommendedAction: "Configure AIML_API_KEY for visual assessment, then preserve originals for provenance checks.",
     scores: {
       aiGeneratedProbability: 50,
       confidence: 12,
@@ -141,7 +151,7 @@ function demoReport(prompt: string, files: ImageFileEvidence[]): ImageInvestigat
       "Demo-mode report prepared. A live vision model is required before visible scene or authenticity indicators can be assessed.",
     forensicAnalysis: [
       "File ingestion completed and an investigation prompt was registered.",
-      "Pixel-level visual reasoning is unavailable until OPENAI_API_KEY is configured.",
+      "Pixel-level visual reasoning is unavailable until AIML_API_KEY is configured.",
     ],
     metadataInsights: [
       `Uploaded evidence: ${files.map((file) => `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB, ${file.type})`).join("; ")}.`,
@@ -163,13 +173,47 @@ function demoReport(prompt: string, files: ImageFileEvidence[]): ImageInvestigat
   };
 }
 
-export async function analyzeImageInvestigation({ prompt, images }: AnalyzeImageInput) {
-  const files = images.map((image) => image.file);
-  if (!process.env.OPENAI_API_KEY) return demoReport(prompt, files);
+async function analyzeWithChatCompletions(
+  client: NonNullable<ReturnType<typeof getLlmClient>>,
+  prompt: string,
+  images: AnalyzeImageInput["images"],
+  files: ImageFileEvidence[],
+) {
+  const response = await createChatCompletion(client, {
+    model: getVisionModel(),
+    temperature: 0.2,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: ANALYST_INSTRUCTIONS },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Investigation question: ${prompt}\nThere ${images.length === 1 ? "is one evidence image" : "are two evidence images. Compare them when relevant"}. Produce the JSON forensic report.`,
+          },
+          ...images.map((image) => ({
+            type: "image_url" as const,
+            image_url: { url: image.dataUrl, detail: "high" as const },
+          })),
+        ],
+      },
+    ],
+  });
 
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const output = response.choices[0]?.message?.content?.trim();
+  if (!output) throw new Error("Vision analysis returned an empty report.");
+  return normalizeModelReport(JSON.parse(output) as ModelReport, prompt, files);
+}
+
+async function analyzeWithResponsesApi(
+  client: NonNullable<ReturnType<typeof getLlmClient>>,
+  prompt: string,
+  images: AnalyzeImageInput["images"],
+  files: ImageFileEvidence[],
+) {
   const response = await client.responses.create({
-    model: process.env.OPENAI_VISION_MODEL || "gpt-4.1-mini",
+    model: getVisionModel(),
     instructions: ANALYST_INSTRUCTIONS,
     input: [
       {
@@ -194,4 +238,17 @@ export async function analyzeImageInvestigation({ prompt, images }: AnalyzeImage
   const output = response.output_text.trim();
   if (!output) throw new Error("Vision analysis returned an empty report.");
   return normalizeModelReport(JSON.parse(output) as ModelReport, prompt, files);
+}
+
+export async function analyzeImageInvestigation({ prompt, images }: AnalyzeImageInput) {
+  const files = images.map((image) => image.file);
+  const client = getLlmClient();
+  if (!client || !isLlmConfigured()) return demoReport(prompt, files);
+
+  try {
+    return await analyzeWithChatCompletions(client, prompt, images, files);
+  } catch (error) {
+    console.warn("Vision chat.completions failed, trying responses API", error);
+    return analyzeWithResponsesApi(client, prompt, images, files);
+  }
 }

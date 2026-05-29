@@ -29,7 +29,13 @@ import { type SentraSettings, type VoiceMode, useSettings } from "@/settings/set
 type IntegrationStatus = {
   supabase: boolean;
   supabaseSchema: boolean;
+  aiml: boolean;
   openai: boolean;
+  llm?: {
+    ready: boolean;
+    provider: "aiml" | "openai" | null;
+    models: Record<string, string> | null;
+  };
   elevenlabs: boolean;
   brightData: {
     apiKey: boolean;
@@ -229,6 +235,7 @@ export default function SettingsPage() {
         </SettingsCard>
       </div>
 
+<<<<<<< Updated upstream
       <Card className="p-5" glow>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -240,11 +247,50 @@ export default function SettingsPage() {
           </div>
           <Badge variant="violet">Local device policy</Badge>
         </div>
+=======
+      <Card className="p-6" glow>
+        <h2 className="text-lg font-semibold text-white">Connection status</h2>
+        <ul className="mt-5 space-y-4">
+          <StatusRow label="Supabase credentials" ok={status?.supabase} />
+          <StatusRow label="Supabase workspace schema" ok={status?.supabaseSchema} />
+          <StatusRow label="AI/ML API (LLM)" ok={status?.aiml || status?.llm?.ready} />
+          <StatusRow
+            label="LLM fallback (OpenAI direct)"
+            ok={status?.openai && !status?.aiml}
+            optional
+          />
+          <StatusRow label="ElevenLabs" ok={status?.elevenlabs} />
+          <StatusRow label="Bright Data API key" ok={status?.brightData?.apiKey} />
+          <StatusRow label="Bright Data SERP zone" ok={status?.brightData?.serpZone} />
+          <StatusRow label="Bright Data Unlocker zone" ok={status?.brightData?.unlockerZone} />
+        </ul>
+        {status?.brightData?.message && (
+          <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/60">
+            {status.brightData.message}
+          </p>
+        )}
+        {status?.supabase && !status.supabaseSchema && (
+          <p className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm text-amber-100">
+            Authentication is connected, but workspace tables are missing. Run
+            {" "}<code className="font-mono text-xs">supabase/migrations/001_initial_schema.sql</code>{" "}
+            in the Supabase SQL Editor to enable regular accounts and saved data.
+          </p>
+        )}
+        <Link
+          href="https://brightdata.com/cp/zones"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-5 inline-flex items-center gap-2 text-sm text-sentra-cyan hover:text-white"
+        >
+          Open Bright Data control panel <ExternalLink className="h-4 w-4" />
+        </Link>
+>>>>>>> Stashed changes
       </Card>
     </div>
   );
 }
 
+<<<<<<< Updated upstream
 function SettingsCard({
   icon: Icon,
   title,
@@ -261,6 +307,18 @@ function SettingsCard({
       <div className="mb-5 flex items-start gap-3 border-b border-white/10 pb-5">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.08] text-sentra-cyan">
           <Icon className="h-5 w-5" />
+=======
+function StatusRow({ label, ok, optional }: { label: string; ok?: boolean; optional?: boolean }) {
+  return (
+    <li className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+      <span className="text-sm text-white/70">
+        {label}
+        {optional ? <span className="ml-1 text-white/35">(optional)</span> : null}
+      </span>
+      {ok ? (
+        <span className="flex items-center gap-1 text-xs text-emerald-300">
+          <CheckCircle2 className="h-4 w-4" /> Ready
+>>>>>>> Stashed changes
         </span>
         <div>
           <h2 className="text-xl font-semibold text-white">{title}</h2>
