@@ -11,6 +11,8 @@ type LocalUser = {
 export type LocalSession = {
   userId: string;
   email: string;
+  displayName?: string;
+  avatarUrl?: string;
   companyName?: string;
   signedInAt: string;
 };
@@ -18,6 +20,12 @@ export type LocalSession = {
 const USERS_KEY = "sentra-local-users";
 const SESSION_KEY = "sentra-local-session";
 const GUIDE_KEY = "sentra-new-user-guide";
+const PROFILE_KEY = "sentra-user-profile";
+
+export type UserProfile = {
+  displayName?: string;
+  avatarUrl?: string;
+};
 
 function getUsers() {
   if (typeof window === "undefined") return [];
@@ -106,6 +114,28 @@ export function getLocalSession() {
 export function signOutLocalAccount() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(SESSION_KEY);
+}
+
+export function getUserProfile(): UserProfile {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(PROFILE_KEY) || "{}") as UserProfile;
+  } catch {
+    return {};
+  }
+}
+
+export function saveUserProfile(profile: UserProfile) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+export function updateLocalSession(session: Partial<LocalSession>) {
+  if (typeof window === "undefined") return;
+  const current = getLocalSession();
+  if (!current) return;
+  const updated = { ...current, ...session };
+  window.localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
 }
 
 export function markNewUserGuidePending() {
