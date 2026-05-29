@@ -18,6 +18,7 @@ import { useSpeechInput } from "@/hooks/use-speech-input";
 import { useTypewriter } from "@/hooks/use-typewriter";
 import { chatPipelineScript } from "@/lib/pipeline-log-scripts";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/settings/settings-context";
 import type { ChatMessage, ChatProvider } from "@/types/intelligence";
 
 const prompts = [
@@ -82,6 +83,7 @@ function AssistantMessage({ content, animated }: { content: string; animated?: b
 }
 
 export function ChatInterface() {
+  const { settings } = useSettings();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -168,7 +170,16 @@ export function ChatInterface() {
   }, [pathname]);
 
   useEffect(() => {
+    if (!settings.voice.microphone) stopSpeechInput();
+  }, [settings.voice.microphone, stopSpeechInput]);
+
+  useEffect(() => {
+    if (!settings.voice.enabled) queueMicrotask(resetVoicePlayback);
+  }, [settings.voice.enabled]);
+
+  useEffect(() => {
     if (autoGreetingStartedRef.current) return;
+    if (!settings.voice.enabled || !settings.voice.autoPlayback) return;
 
     autoGreetingStartedRef.current = true;
     const timeout = window.setTimeout(() => {
@@ -205,7 +216,7 @@ export function ChatInterface() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed, history: messages, threadId }),
+        body: JSON.stringify({ message: trimmed, history: messages, threadId, brightData: settings.brightData }),
       });
       const data = (await response.json()) as {
         message?: string;
@@ -251,6 +262,11 @@ export function ChatInterface() {
   }, [searchParams]);
 
   async function playVoice(content: string, options?: { automatic?: boolean }) {
+    if (!settings.voice.enabled) {
+      if (!options?.automatic) toast.message("AI voice response is disabled in Settings.");
+      return;
+    }
+
     if (speaking && currentVoiceTextRef.current === content) {
       resetVoicePlayback();
       return;
@@ -285,6 +301,8 @@ export function ChatInterface() {
 
         const audioUrl = URL.createObjectURL(blob);
         const audio = new Audio(audioUrl);
+        audio.volume = settings.voice.volume;
+        audio.playbackRate = settings.voice.speed;
         audioRef.current = audio;
         audioUrlRef.current = audioUrl;
         audio.onended = resetVoicePlayback;
@@ -366,13 +384,15 @@ export function ChatInterface() {
                           </span>
                         )}
                         <button
+                          type="button"
                           className={cn(
                             "ml-auto rounded-full border border-white/10 p-2 text-white/50 transition",
                             speaking &&
                               activeVoiceText === message.content &&
                               "border-cyan-200/40 bg-cyan-300/10 text-cyan-100",
                           )}
-                          onClick={() => playVoice(message.content)}
+                          onClick={() => void playVoice(message.content)}
+                          disabled={!settings.voice.enabled}
                           aria-label={
                             speaking && activeVoiceText === message.content
                               ? "Stop voice response"
@@ -433,23 +453,25 @@ export function ChatInterface() {
                 className="min-h-24 sm:min-h-16"
               />
               <div className="grid grid-cols-2 gap-3 sm:contents">
-                <Button
-                  type="button"
-                  variant={listening ? "neon" : "ghost"}
-                  size="icon"
-                  className="h-14 w-full shrink-0 sm:h-16 sm:w-16"
-                  onClick={toggleSpeechInput}
-                  disabled={transcribing}
-                  aria-label={listening ? "Stop voice recording" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
-                >
-                  {transcribing ? (
-                    <Sparkles className="h-5 w-5 animate-pulse" />
-                  ) : listening ? (
-                    <MicOff className="h-5 w-5" />
-                  ) : (
-                    <Mic2 className="h-5 w-5" />
-                  )}
-                </Button>
+                {settings.voice.microphone && (
+                  <Button
+                    type="button"
+                    variant={listening ? "neon" : "ghost"}
+                    size="icon"
+                    className="h-14 w-full shrink-0 sm:h-16 sm:w-16"
+                    onClick={() => void toggleSpeechInput()}
+                    disabled={transcribing}
+                    aria-label={listening ? "Stop voice recording" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
+                  >
+                    {transcribing ? (
+                      <Sparkles className="h-5 w-5 animate-pulse" />
+                    ) : listening ? (
+                      <MicOff className="h-5 w-5" />
+                    ) : (
+                      <Mic2 className="h-5 w-5" />
+                    )}
+                  </Button>
+                )}
                 <Button
                   variant="neon"
                   size="icon"
@@ -467,7 +489,9 @@ export function ChatInterface() {
                 ? liveTranscript
                   ? `Listening: ${liveTranscript}`
                   : "Listening — transcript appears as you speak."
-                : transcribing
+                : !settings.voice.microphone
+                  ? "Microphone input is disabled in Settings."
+                  : transcribing
                   ? "Refining transcript..."
                   : "Tip: include a URL or words like monitor, competitor, or pricing to collect evidence with Bright Data first."}
             </p>
@@ -500,8 +524,9 @@ export function ChatInterface() {
                   return;
                 }
 
-                playVoice(latestAssistant.content);
+                void playVoice(latestAssistant.content);
               }}
+              disabled={!settings.voice.enabled}
             >
               {voiceStatus === "loading" ? (
                 <Sparkles className="h-4 w-4 animate-pulse" />
@@ -511,7 +536,7 @@ export function ChatInterface() {
               {speaking ? "Stop voice" : "Voice controls"}
             </Button>
           </Card>
-          {(loading || pipeline.logs.length > 0) && (
+          {settings.analyst.liveLogs && (loading || pipeline.logs.length > 0) && (
             <Card className="overflow-hidden p-0" glow>
               <div className="border-b border-white/10 px-5 py-4">
                 <p className="text-sm font-semibold text-white">Live intelligence terminal</p>

@@ -1,31 +1,40 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Camera, Globe2 } from "lucide-react";
+import { Camera, Globe2, ScanFace } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { FaceIntelligenceStudio } from "@/features/image-intelligence/face-intelligence-studio";
 import { InvestigationStudio } from "@/features/image-intelligence/investigation-studio";
 import { WorldEngineStudio } from "@/features/world-engine/world-engine-studio";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/settings/settings-context";
+import { Card } from "@/components/ui/card";
 
-type AnalystMode = "world" | "vision";
+type AnalystMode = "world" | "vision" | "face";
 
 export function AnalystWorkspace() {
+  const { settings } = useSettings();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const mode: AnalystMode = searchParams.get("mode") === "vision" ? "vision" : "world";
+  const modeParam = searchParams.get("mode");
+  const mode: AnalystMode = modeParam === "vision" ? "vision" : modeParam === "face" ? "face" : "world";
 
   function selectMode(nextMode: AnalystMode) {
-    router.replace(nextMode === "vision" ? "/analyst?mode=vision" : "/analyst", { scroll: false });
+    if (nextMode === "face" && !settings.forensics.faceIntelligence) return;
+    router.replace(nextMode === "world" ? "/analyst" : `/analyst?mode=${nextMode}`, { scroll: false });
   }
+
+  const modes = [
+    { id: "world" as const, label: "AI World Engine", icon: Globe2 },
+    { id: "vision" as const, label: "Visual Forensics", icon: Camera },
+    ...(settings.forensics.faceIntelligence ? [{ id: "face" as const, label: "AI Face Intelligence", icon: ScanFace }] : []),
+  ];
 
   return (
     <>
       <div className="sticky top-20 z-20 -mx-2 mb-7 flex items-center bg-sentra-ink/78 px-2 py-3 backdrop-blur-xl">
         <nav className="inline-flex rounded-full border border-white/10 bg-white/[0.045] p-1 shadow-[0_14px_34px_rgba(0,0,0,.22)]" aria-label="AI Analyst modes">
-          {[
-            { id: "world" as const, label: "AI World Engine", icon: Globe2 },
-            { id: "vision" as const, label: "Visual Forensics", icon: Camera },
-          ].map((item) => (
+          {modes.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -43,7 +52,21 @@ export function AnalystWorkspace() {
       </div>
       <AnimatePresence mode="wait">
         <motion.div key={mode} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-          {mode === "world" ? <WorldEngineStudio /> : <InvestigationStudio />}
+          {mode === "world" ? (
+            <WorldEngineStudio />
+          ) : mode === "face" && !settings.forensics.faceIntelligence ? (
+            <Card className="grid min-h-80 place-items-center p-8 text-center" glow>
+              <div>
+                <ScanFace className="mx-auto h-10 w-10 text-sentra-cyan" />
+                <h1 className="mt-4 text-xl font-semibold text-white">AI Face Intelligence is disabled</h1>
+                <p className="mt-2 text-sm text-white/48">Enable it in Settings to open face authenticity analysis.</p>
+              </div>
+            </Card>
+          ) : mode === "face" ? (
+            <FaceIntelligenceStudio />
+          ) : (
+            <InvestigationStudio />
+          )}
         </motion.div>
       </AnimatePresence>
     </>

@@ -61,6 +61,11 @@ export async function POST(request: Request) {
       message?: string;
       history?: unknown;
       threadId?: string;
+      brightData?: {
+        serp?: boolean;
+        scraper?: boolean;
+        webUnlocker?: boolean;
+      };
     };
     const message = body.message?.trim();
 
@@ -76,7 +81,13 @@ export async function POST(request: Request) {
     let brightDataEvidence: string | undefined;
     const collectionRequest = getCollectionRequest(message);
 
-    if (collectionRequest) {
+    const brightDataEnabled = collectionRequest
+      ? collectionRequest.mode === "unlocker"
+        ? body.brightData?.webUnlocker !== false
+        : body.brightData?.serp !== false
+      : true;
+
+    if (collectionRequest && brightDataEnabled) {
       const evidence = await collectWebIntelligence(collectionRequest);
       if (evidence.provider === "bright-data") {
         provider = "bright-data-openai";

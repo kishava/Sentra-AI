@@ -4,11 +4,12 @@ export async function streamWorldActivity(
   query: string,
   onEvent: (event: ActivityStreamEvent) => void,
   signal?: AbortSignal,
+  options?: { brightData?: { serp?: boolean; scraper?: boolean; webUnlocker?: boolean } },
 ) {
   const response = await fetch("/api/world-engine/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, brightData: options?.brightData }),
     signal,
   });
 

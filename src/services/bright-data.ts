@@ -119,6 +119,10 @@ function getDemoEvidence(query: string): BrightDataEvidence {
   };
 }
 
+export function collectDemoWebIntelligence(query: string): BrightDataEvidence {
+  return getDemoEvidence(query);
+}
+
 export async function collectWebIntelligence({
   query,
   targetUrl,

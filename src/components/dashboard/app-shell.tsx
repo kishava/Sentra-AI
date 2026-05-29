@@ -110,13 +110,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <BellRing className="h-5 w-5" />
             </Link>
-            <Link
-              href="/settings"
-              className="nav-glow-link hidden rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-white/60 transition md:block"
-              aria-label="Open settings"
-            >
-              <Settings className="h-5 w-5" />
-            </Link>
             <UserMenu />
           </div>
         </header>

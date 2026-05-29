@@ -36,6 +36,7 @@ import { InvestigationResults } from "@/features/image-intelligence/investigatio
 import { usePipelineLogs } from "@/hooks/use-pipeline-logs";
 import { visionPipelineScript } from "@/lib/pipeline-log-scripts";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/settings/settings-context";
 import type { ImageInvestigationReport } from "@/types/image-intelligence";
 
 type EvidenceImage = { file: File; url: string };
@@ -140,6 +141,7 @@ function ReportSkeleton() {
 }
 
 export function InvestigationStudio() {
+  const { settings } = useSettings();
   const [primary, setPrimary] = useState<EvidenceImage | null>(null);
   const [comparison, setComparison] = useState<EvidenceImage | null>(null);
   const [comparisonMode, setComparisonMode] = useState(false);
@@ -195,6 +197,14 @@ export function InvestigationStudio() {
     stopSpeechInput();
   }, [stopSpeechInput]);
 
+  useEffect(() => {
+    if (!settings.voice.microphone) stopSpeechInput();
+  }, [settings.voice.microphone, stopSpeechInput]);
+
+  useEffect(() => {
+    if (!settings.voice.enabled) resetVoicePlayback();
+  }, [settings.voice.enabled]);
+
   function evidenceFor(file: File) {
     if (!accept.includes(file.type)) {
       toast.error("Unsupported evidence file.", { description: "Use PNG, JPEG, or WEBP." });
@@ -235,6 +245,10 @@ export function InvestigationStudio() {
 
   async function investigate() {
     if (!primary || !prompt.trim() || loading) return;
+    if (!settings.forensics.authenticityDetection) {
+      toast.message("Image authenticity detection is disabled in Settings.");
+      return;
+    }
     stopSpeechInput();
     setLoading(true);
     setReport(null);
@@ -260,6 +274,14 @@ export function InvestigationStudio() {
         window.localStorage.setItem(historyKey, JSON.stringify(next));
         return next;
       });
+      if (settings.privacy.clearUploadsAfterAnalysis) {
+        if (primary) URL.revokeObjectURL(primary.url);
+        if (comparison) URL.revokeObjectURL(comparison.url);
+        setPrimary(null);
+        setComparison(null);
+        if (primaryInput.current) primaryInput.current.value = "";
+        if (comparisonInput.current) comparisonInput.current.value = "";
+      }
     } catch (error) {
       setActiveStep(0);
       toast.error("Investigation could not be completed.", {
@@ -338,6 +360,10 @@ export function InvestigationStudio() {
 
   async function playReportVoice() {
     if (!report) return;
+    if (!settings.voice.enabled) {
+      toast.message("AI voice response is disabled in Settings.");
+      return;
+    }
 
     if (speaking) {
       resetVoicePlayback();
@@ -371,6 +397,8 @@ export function InvestigationStudio() {
 
         const audioUrl = URL.createObjectURL(blob);
         const audio = new Audio(audioUrl);
+        audio.volume = settings.voice.volume;
+        audio.playbackRate = settings.voice.speed;
         audioRef.current = audio;
         audioUrlRef.current = audioUrl;
         audio.onended = resetVoicePlayback;
@@ -492,16 +520,18 @@ export function InvestigationStudio() {
                             ? "Refining transcript..."
                             : "Speak the investigation question or type it manually."}
                       </p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void toggleSpeechInput()}
-                        disabled={transcribing || loading}
-                        aria-label={listening ? "Stop voice recording" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
-                      >
-                        {listening ? <MicOff className="h-4 w-4 text-rose-200" /> : <Mic className="h-4 w-4" />}
-                        {listening ? "Stop recording" : transcribing ? "Transcribing" : "Voice input"}
-                      </Button>
+                      {settings.voice.microphone && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void toggleSpeechInput()}
+                          disabled={transcribing || loading}
+                          aria-label={listening ? "Stop voice recording" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
+                        >
+                          {listening ? <MicOff className="h-4 w-4 text-rose-200" /> : <Mic className="h-4 w-4" />}
+                          {listening ? "Stop recording" : transcribing ? "Transcribing" : "Voice input"}
+                        </Button>
+                      )}
                     </div>
                   </div>
                   <p className="mt-5 text-[11px] uppercase tracking-[0.2em] text-white/36">AI suggested investigations</p>
@@ -522,7 +552,7 @@ export function InvestigationStudio() {
                   </div>
                   <div className="mt-6 flex flex-col items-start justify-between gap-3 border-t border-white/10 pt-5 sm:flex-row sm:items-center">
                     <p className="text-xs text-white/40">Analysis begins only when you authorize the investigation.</p>
-                    <Button variant="neon" disabled={!prompt.trim() || loading} onClick={investigate}>
+                    <Button variant="neon" disabled={!prompt.trim() || loading || !settings.forensics.authenticityDetection} onClick={investigate}>
                       {loading ? <ScanSearch className="h-4 w-4 animate-pulse" /> : <Sparkles className="h-4 w-4" />}
                       {loading ? "Investigating" : "Run investigation"} <ArrowRight className="h-4 w-4" />
                     </Button>
@@ -544,7 +574,7 @@ export function InvestigationStudio() {
               {listening ? "Voice input active" : speaking ? "Voice output active" : loading ? "Neural inspection active" : "Vision analyst standing by"}
             </p>
             {report && (
-              <Button variant="ghost" size="sm" className="relative mt-5" onClick={() => void playReportVoice()}>
+              <Button variant="ghost" size="sm" className="relative mt-5" onClick={() => void playReportVoice()} disabled={!settings.voice.enabled}>
                 {speaking ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                 {voiceStatus === "loading" ? "Preparing voice" : speaking ? "Stop voice" : "Read report"}
               </Button>
@@ -579,7 +609,7 @@ export function InvestigationStudio() {
         </aside>
       </div>
 
-      {(loading || pipeline.logs.length > 0) && (
+      {settings.analyst.liveLogs && (loading || pipeline.logs.length > 0) && (
         <Card className="forensics-terminal mt-7 w-full overflow-hidden rounded-[30px] p-0" glow>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[0.018] px-5 py-4 md:px-7">
             <div>

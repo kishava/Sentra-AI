@@ -1,6 +1,6 @@
 import { requireApiUser } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { collectWebIntelligence } from "@/services/bright-data";
+import { collectDemoWebIntelligence, collectWebIntelligence } from "@/services/bright-data";
 import { encodeSse, RealtimeLogService } from "@/services/realtime-log";
 import { generateWorldEngineReport } from "@/services/world-engine";
 import type { ActivityStreamEvent } from "@/types/activity-console";
@@ -29,7 +29,14 @@ export async function POST(request: Request) {
     return new Response(limited.message ?? "Rate limit exceeded.", { status: 429 });
   }
 
-  const body = (await request.json().catch(() => null)) as { query?: string } | null;
+  const body = (await request.json().catch(() => null)) as {
+    query?: string;
+    brightData?: {
+      serp?: boolean;
+      scraper?: boolean;
+      webUnlocker?: boolean;
+    };
+  } | null;
   const query = body?.query?.trim().slice(0, 1500);
   if (!query) return new Response("An intelligence question is required.", { status: 400 });
 
@@ -47,12 +54,12 @@ export async function POST(request: Request) {
       };
       const logs = new RealtimeLogService(emit);
       const heartbeat = setInterval(() => logs.health(), 1000);
-      const brightDataConfigured = Boolean(
+      const brightDataConfigured = body?.brightData?.serp !== false && Boolean(
         process.env.BRIGHT_DATA_API_KEY &&
         process.env.BRIGHT_DATA_SERP_ENDPOINT &&
         process.env.BRIGHT_DATA_SERP_ZONE,
       );
-      const unlockerConfigured = Boolean(
+      const unlockerConfigured = body?.brightData?.webUnlocker !== false && Boolean(
         process.env.BRIGHT_DATA_API_KEY &&
         process.env.BRIGHT_DATA_WEB_UNLOCKER_ENDPOINT &&
         process.env.BRIGHT_DATA_WEB_UNLOCKER_ZONE,
@@ -131,7 +138,9 @@ export async function POST(request: Request) {
         });
 
         const collectionStartedAt = performance.now();
-        const evidence = await collectWebIntelligence({ query, mode: "serp" });
+        const evidence = brightDataConfigured
+          ? await collectWebIntelligence({ query, mode: "serp" })
+          : collectDemoWebIntelligence(query);
         const collectionLatency = Math.round(performance.now() - collectionStartedAt);
         if (evidence.provider === "bright-data") {
           logs.source({

@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSpeechInput } from "@/hooks/use-speech-input";
 import { cn } from "@/lib/utils";
 import { streamWorldActivity } from "@/services/activity-stream-client";
+import { useSettings } from "@/settings/settings-context";
 import type { ActivityCategory, ActivityLevel, ActivityLog, CollectionSource, PipelineHealth } from "@/types/activity-console";
 import type { WorldDomain, WorldEngineReport, WorldMapSignal } from "@/types/world-engine";
 import {
@@ -335,6 +336,7 @@ function WorldPulseMode({
 }
 
 export function WorldEngineStudio() {
+  const { settings } = useSettings();
   const [prompt, setPrompt] = useState(prompts[0]);
   const [report, setReport] = useState<WorldEngineReport | null>(null);
   const [loading, setLoading] = useState(false);
@@ -396,11 +398,21 @@ export function WorldEngineStudio() {
 
   useEffect(() => {
     if (!narrationUrl || !audioRef.current) return;
+    audioRef.current.volume = settings.voice.volume;
+    audioRef.current.playbackRate = settings.voice.speed;
     void audioRef.current.play().catch(() => {
       setSpeaking(false);
       toast.message("Narration ready", { description: "Press play in the narrator player to begin audio." });
     });
-  }, [narrationUrl]);
+  }, [narrationUrl, settings.voice.speed, settings.voice.volume]);
+
+  useEffect(() => {
+    if (!settings.voice.microphone) stopSpeechInput();
+  }, [settings.voice.microphone, stopSpeechInput]);
+
+  useEffect(() => {
+    if (!settings.voice.enabled) queueMicrotask(stopNarration);
+  }, [settings.voice.enabled]);
 
   function appendClientLog(
     category: ActivityCategory,
@@ -427,7 +439,7 @@ export function WorldEngineStudio() {
   }
 
   function soundPing() {
-    if (muted) return;
+    if (muted || !settings.experience.soundEffects) return;
     const AudioContextClass = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return;
     const context = new AudioContextClass();
@@ -448,6 +460,10 @@ export function WorldEngineStudio() {
   async function runWorldEngine(nextPrompt = prompt) {
     const query = nextPrompt.trim();
     if (!query || loading) return;
+    if (!settings.analyst.worldIntelligence) {
+      toast.message("AI World Engine is disabled in Settings.");
+      return;
+    }
     stopSpeechInput();
     setPrompt(query);
     setLoading(true);
@@ -473,7 +489,7 @@ export function WorldEngineStudio() {
           setDomain("all");
         }
         if (event.type === "error") streamError = event.message;
-      }, controller.signal);
+      }, controller.signal, { brightData: settings.brightData });
       if (streamError) throw new Error(streamError);
       soundPing();
     } catch (error) {
@@ -489,6 +505,10 @@ export function WorldEngineStudio() {
 
   async function narrate(mode: "quick" | "executive" | "deep") {
     if (!report) return;
+    if (!settings.voice.enabled) {
+      toast.message("AI voice response is disabled in Settings.");
+      return;
+    }
     if ((speaking || synthesizing) && activeNarrationMode === mode) {
       stopNarration();
       return;
@@ -586,17 +606,19 @@ export function WorldEngineStudio() {
                   ? "Refining transcript..."
                   : "Type a global question or use voice input."}
             </p>
-            <Button
-              type="button"
-              variant={listening ? "neon" : "ghost"}
-              size="sm"
-              onClick={() => void toggleSpeechInput()}
-              disabled={transcribing || loading}
-              aria-label={listening ? "Stop voice input" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
-            >
-              {listening ? <MicOff className="h-4 w-4 text-rose-200" /> : <Mic className="h-4 w-4" />}
-              {listening ? "Stop voice" : transcribing ? "Transcribing" : "Voice input"}
-            </Button>
+            {settings.voice.microphone && (
+              <Button
+                type="button"
+                variant={listening ? "neon" : "ghost"}
+                size="sm"
+                onClick={() => void toggleSpeechInput()}
+                disabled={transcribing || loading}
+                aria-label={listening ? "Stop voice input" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
+              >
+                {listening ? <MicOff className="h-4 w-4 text-rose-200" /> : <Mic className="h-4 w-4" />}
+                {listening ? "Stop voice" : transcribing ? "Transcribing" : "Voice input"}
+              </Button>
+            )}
           </div>
           <div className="relative mt-4 flex flex-wrap gap-2">
             {prompts.map((suggestion) => (
@@ -607,7 +629,7 @@ export function WorldEngineStudio() {
           </div>
           <div className="relative mt-6 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-white/38">Observed evidence and modeled forecasts are explicitly separated in each brief.</p>
-            <Button variant="neon" onClick={() => void runWorldEngine()} disabled={loading || !prompt.trim()}>
+            <Button variant="neon" onClick={() => void runWorldEngine()} disabled={loading || !prompt.trim() || !settings.analyst.worldIntelligence}>
               <Send className="h-4 w-4" /> Launch World Engine
             </Button>
           </div>
@@ -616,20 +638,30 @@ export function WorldEngineStudio() {
           <AiOrb speaking={loading || speaking || synthesizing || listening || transcribing} size="md" />
           <h2 className="mt-5 text-xl font-semibold text-white">AI Intelligence Narrator</h2>
           <p className="mt-2 text-sm leading-6 text-white/52">Visual reasoning with optional ElevenLabs executive briefings.</p>
-          <Button variant="ghost" className="mt-5" onClick={() => setMuted((value) => !value)}>
+          <Button variant="ghost" className="mt-5" onClick={() => setMuted((value) => !value)} disabled={!settings.experience.soundEffects}>
             {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             Command sounds {muted ? "off" : "on"}
           </Button>
         </Card>
       </section>
 
-      {(loading || (logs.length > 0 && !report)) && (
+      {settings.analyst.liveLogs && (loading || (logs.length > 0 && !report)) && (
         <section className="mb-5">
           <AIActivityConsole logs={logs} sources={sources} thoughts={thoughts} health={health} running={loading} />
         </section>
       )}
 
-      {!loading && !report && (
+      {!settings.analyst.worldIntelligence && (
+        <Card className="grid min-h-56 place-items-center p-8 text-center" glow>
+          <div>
+            <Globe2 className="mx-auto h-10 w-10 text-sentra-cyan" />
+            <h2 className="mt-4 text-xl font-semibold text-white">World intelligence mode is disabled</h2>
+            <p className="mt-2 text-sm text-white/48">Enable AI Analyst Settings to launch the AI World Engine.</p>
+          </div>
+        </Card>
+      )}
+
+      {settings.analyst.worldIntelligence && !loading && !report && (
         <Card className="grid min-h-56 place-items-center p-8 text-center" glow>
           <div>
             <Globe2 className="mx-auto h-10 w-10 text-sentra-cyan" />
@@ -670,30 +702,30 @@ export function WorldEngineStudio() {
               <WorldMapPanel signals={displaySignals} selected={activeSignal} onSelect={(signal) => { setSelectedSignal(signal); soundPing(); }} onFullscreen={() => setPulseMode(true)} />
             </section>
             <div className="grid gap-5">
-              {report.visualizations.includes("radar") && (
+              {settings.analyst.automaticVisualizations && report.visualizations.includes("radar") && (
                 <section id="analyst-radar" className="scroll-mt-24">
                   <SignalRadar report={report} />
                 </section>
               )}
-              <section id="analyst-reasoning" className="scroll-mt-24">
+              {settings.analyst.reasoningSummaries && <section id="analyst-reasoning" className="scroll-mt-24">
                 <ReasoningTimeline report={report} />
-              </section>
+              </section>}
             </div>
           </div>
           <div className="grid items-start gap-5 xl:grid-cols-2">
-            {report.visualizations.includes("network") && (
+            {settings.analyst.automaticVisualizations && report.visualizations.includes("network") && (
               <section id="analyst-graph" className="scroll-mt-24">
                 <IntelligenceGraph report={report} />
               </section>
             )}
-            {report.visualizations.includes("forecast") && (
+            {settings.analyst.automaticVisualizations && report.visualizations.includes("forecast") && (
               <section id="analyst-forecast" className="scroll-mt-24">
                 <ForecastEngine report={report} />
               </section>
             )}
           </div>
           <div className="grid items-start gap-5 xl:grid-cols-[.7fr_1.3fr]">
-            {report.visualizations.includes("sentiment") && (
+            {settings.analyst.automaticVisualizations && report.visualizations.includes("sentiment") && (
               <section id="analyst-regional" className="scroll-mt-24">
                 <SentimentSystem report={report} />
               </section>
@@ -712,7 +744,7 @@ export function WorldEngineStudio() {
                     <button
                       key={mode}
                       type="button"
-                      disabled={synthesizing && activeNarrationMode !== mode}
+                    disabled={!settings.voice.enabled || (synthesizing && activeNarrationMode !== mode)}
                       onClick={() => void narrate(mode as "quick" | "executive" | "deep")}
                       className={cn(
                         "sentra-focus rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left text-sm text-white/68 transition disabled:cursor-wait disabled:opacity-50",
@@ -776,9 +808,9 @@ export function WorldEngineStudio() {
               </div>
             </Card>
           </section>
-          <section id="analyst-activity" className="scroll-mt-24">
+          {settings.analyst.liveLogs && <section id="analyst-activity" className="scroll-mt-24">
             <AIActivityConsole logs={logs} sources={sources} thoughts={thoughts} health={health} running={false} />
-          </section>
+          </section>}
         </motion.div>
       )}
 

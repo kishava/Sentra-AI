@@ -3,6 +3,7 @@
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useMemo, useRef, useSyncExternalStore } from "react";
 import * as THREE from "three";
+import { useSettings } from "@/settings/settings-context";
 
 function subscribeReducedMotion(onStoreChange: () => void) {
   const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -79,9 +80,10 @@ function IntelligenceField() {
 }
 
 export function Global3DField() {
+  const { settings } = useSettings();
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, getReducedMotion, () => true);
 
-  if (reducedMotion) return null;
+  if (reducedMotion || !settings.experience.animations || !settings.experience.particleBackground) return null;
 
   return (
     <div className="global-3d-field pointer-events-none fixed inset-0 z-0 overflow-hidden opacity-70" aria-hidden>

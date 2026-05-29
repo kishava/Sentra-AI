@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/settings/settings-context";
 
 function subscribeVisibility(onStoreChange: () => void) {
   document.addEventListener("visibilitychange", onStoreChange);
@@ -18,7 +19,10 @@ type ParticleFieldProps = {
 };
 
 export function ParticleField({ lite = false }: ParticleFieldProps) {
+  const { settings } = useSettings();
   const pageHidden = useSyncExternalStore(subscribeVisibility, getPageHidden, () => false);
+
+  if (!settings.experience.particleBackground) return null;
 
   return (
     <div
