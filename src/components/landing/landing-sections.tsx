@@ -35,7 +35,7 @@ const features = [
   {
     icon: Bot,
     title: "AI analyst workflows",
-    body: "OpenAI summarizes weak signals into risks, opportunities, recommendations, and confidence-scored action plans.",
+    body: "AI/ML API summarizes live Bright Data evidence into risks, opportunities, recommendations, and confidence-scored action plans.",
   },
   {
     icon: BellRing,
@@ -45,7 +45,7 @@ const features = [
   {
     icon: Mic2,
     title: "Voice intelligence",
-    body: "ElevenLabs voice playback turns enterprise briefings into a cinematic AI analyst experience.",
+    body: "Speechmatics voice playback turns GTM briefings into a low-latency spoken analyst experience.",
   },
 ];
 

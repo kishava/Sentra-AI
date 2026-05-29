@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
 import { validatePublicHttpsUrl } from "@/lib/security/url";
 import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
-import { collectWebIntelligence } from "@/services/bright-data";
+import {
+  BrightDataCollectionError,
+  BrightDataNotConfiguredError,
+  collectWebIntelligence,
+} from "@/services/bright-data";
 import type { BrightDataRequest } from "@/types/intelligence";
 
 export const runtime = "nodejs";
@@ -30,6 +34,15 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     console.error("Bright Data route failed", error);
-    return NextResponse.json({ error: "Unable to collect web intelligence" }, { status: 500 });
+    if (error instanceof BrightDataNotConfiguredError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+    if (error instanceof BrightDataCollectionError) {
+      return NextResponse.json({ error: error.message }, { status: 502 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unable to collect web intelligence" },
+      { status: 500 },
+    );
   }
 }

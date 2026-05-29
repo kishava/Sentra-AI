@@ -16,7 +16,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Sentra AI | Autonomous Enterprise Intelligence",
   description:
-    "Sentra AI transforms the live web into autonomous enterprise intelligence using Bright Data, OpenAI, and voice AI.",
+    "Sentra AI transforms the live web into GTM intelligence using Bright Data, AI/ML API, and Speechmatics voice.",
 };
 
 export default function RootLayout({

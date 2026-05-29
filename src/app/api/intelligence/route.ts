@@ -4,7 +4,12 @@ import { saveIntelligenceRun, getLatestBriefing } from "@/lib/db/intelligence";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { validatePublicHttpsUrl } from "@/lib/security/url";
-import { collectWebIntelligence } from "@/services/bright-data";
+import {
+  BrightDataCollectionError,
+  BrightDataNotConfiguredError,
+  collectWebIntelligence,
+  requiresLiveBrightData,
+} from "@/services/bright-data";
 import { generateEnterpriseAnalysis } from "@/services/openai";
 
 export const runtime = "nodejs";
@@ -20,6 +25,13 @@ async function runIntelligence(query: string, targetUrl?: string) {
     targetUrl: validated?.ok ? validated.url : undefined,
     mode: targetUrl ? "unlocker" : "serp",
   });
+  if (requiresLiveBrightData() && webEvidence.provider !== "bright-data") {
+    throw new BrightDataNotConfiguredError(
+      "Bright Data must be configured for live GTM briefings in production.",
+      targetUrl ? "unlocker" : "serp",
+      "missing_zone",
+    );
+  }
   const analysis = await generateEnterpriseAnalysis(query, webEvidence.evidence);
   return { provider: webEvidence.provider, analysis, cacheHit: webEvidence.cacheHit };
 }
@@ -60,6 +72,12 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Intelligence route failed", error);
+    if (error instanceof BrightDataNotConfiguredError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+    if (error instanceof BrightDataCollectionError) {
+      return NextResponse.json({ error: error.message }, { status: 502 });
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to generate intelligence" },
       { status: 500 },

@@ -55,7 +55,7 @@ const categoryColors: Record<ActivityCategory, string> = {
 
 const streamRegistry: CollectionSource[] = [
   { id: "bright-data-serp", name: "Google SERP via Bright Data", channel: "api", status: "idle", detail: "Awaiting route selection" },
-  { id: "openai-live-search", name: "OpenAI Web Search", channel: "api", status: "idle", detail: "Awaiting route selection" },
+  { id: "aiml-live-search", name: "AI/ML API search", channel: "api", status: "idle", detail: "Awaiting route selection" },
   { id: "reuters", name: "Reuters", channel: "source", status: "idle", detail: "Not referenced in current run" },
   { id: "linkedin", name: "LinkedIn", channel: "source", status: "idle", detail: "Not referenced in current run" },
   { id: "techcrunch", name: "TechCrunch", channel: "source", status: "idle", detail: "Not referenced in current run" },

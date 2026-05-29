@@ -249,7 +249,7 @@ export default function OnboardingPage() {
             <p className="text-sm uppercase tracking-[0.24em] text-white/35">Setup status</p>
             <div className="mt-5 grid gap-3">
               <StatusRow ready={brightDataReady} label="Bright Data" description="Live web evidence and signal collection" />
-              <StatusRow ready={openAiReady} label="OpenAI" description="Chat, monitor intent, and alert summaries" />
+              <StatusRow ready={openAiReady} label="AI/ML API" description="Chat, monitor intent, and alert summaries" />
               <StatusRow ready label="Workspace" description="Dashboard, chat, alerts, and analyst tools" />
             </div>
           </Card>

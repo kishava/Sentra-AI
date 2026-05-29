@@ -93,3 +93,27 @@ export async function updateMonitorChecked(supabase: SupabaseClient, userId: str
     .eq("id", monitorId)
     .eq("user_id", userId);
 }
+
+const CRON_MIN_INTERVAL_MS = 30 * 60 * 1000;
+
+export type DbMonitorWithUser = DbMonitor & { user_id: string };
+
+export async function listActiveMonitorsDueForCronWithUsers(supabase: SupabaseClient, limit = 8) {
+  const { data, error } = await supabase
+    .from("monitors")
+    .select("*, user_id")
+    .eq("active", true)
+    .order("last_checked_at", { ascending: true, nullsFirst: true })
+    .limit(50);
+
+  if (error) throw new Error(error.message);
+
+  const now = Date.now();
+  const due = (data ?? []).filter((row) => {
+    const last = row.last_checked_at as string | null;
+    if (!last) return true;
+    return now - new Date(last).getTime() >= CRON_MIN_INTERVAL_MS;
+  });
+
+  return due.slice(0, limit) as DbMonitorWithUser[];
+}

@@ -48,7 +48,7 @@ export const sentraServices: SentraService[] = [
     tagline: "Research assistant",
     summary: "Ask business questions in plain language with live web answers, voice, and competitor monitoring.",
     description:
-      "Ask questions in plain language. Sentra uses OpenAI web search by default and Bright Data when you monitor competitors, pricing, or paste a URL.",
+      "Ask questions in plain language. Sentra uses AI/ML API live search by default and Bright Data when you monitor competitors, pricing, or paste a URL.",
     href: "/chat",
     icon: Bot,
     highlights: ["Live web answers", "Bright Data triggers", "Voice playback", "Prompt shortcuts"],
@@ -56,7 +56,7 @@ export const sentraServices: SentraService[] = [
       "Open AI Chat from the sidebar.",
       "Try: Track competitor pricing changes or paste a competitor HTTPS URL.",
       "Use the microphone to dictate; use the speaker icon to hear replies.",
-      "Watch the provider badge on answers (Bright Data + OpenAI vs web search only).",
+      "Watch the provider badge on answers (Bright Data + AIML vs live search only).",
     ],
   },
   {
@@ -148,15 +148,15 @@ export const sentraServices: SentraService[] = [
     id: "settings",
     title: "Workspace Settings",
     tagline: "Integrations",
-    summary: "Check OpenAI, Bright Data, ElevenLabs, and Supabase connection status in one place.",
+    summary: "Check AI/ML API, Bright Data, Speechmatics, and Supabase connection status in one place.",
     description:
-      "See which providers are connected: OpenAI, Bright Data, ElevenLabs, and Supabase (when you deploy).",
+      "See which providers are connected: AI/ML API, Bright Data, Speechmatics, and Supabase (when you deploy).",
     href: "/settings",
     icon: Settings,
     highlights: ["Integration status", "Bright Data zones", "Local dev mode", "Deploy checklist"],
     steps: [
       "Open Settings from the header or sidebar.",
-      "Verify OpenAI and Bright Data show Ready before a demo.",
+      "Verify AI/ML API and Bright Data show Ready before a hackathon demo.",
       "Add missing keys to .env.local on each developer machine.",
       "Add Supabase keys only when you are ready for cloud auth and persistence.",
     ],

@@ -15,6 +15,10 @@ import {
   getFeatherlessVisionModel,
   isFeatherlessConfigured,
 } from "@/lib/llm/featherless";
+import {
+  allowBrightDataDemoFallback,
+  isProductionDeploy,
+} from "@/lib/bright-data/config";
 import { isSpeechmaticsConfigured } from "@/services/speechmatics-tts";
 import { discoverBrightDataZones } from "@/services/bright-data";
 import {
@@ -83,6 +87,12 @@ export function getIntegrationStatus() {
         }
       : null,
     brightData: buildBrightDataStatus(serpZone, unlockerZone, brightDataKey),
+    hackathon: {
+      track: "GTM Intelligence" as const,
+      production: isProductionDeploy(),
+      demoFallbackAllowed: allowBrightDataDemoFallback(),
+      brightDataLiveRequired: !allowBrightDataDemoFallback(),
+    },
   };
 }
 

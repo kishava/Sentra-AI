@@ -2,7 +2,7 @@
 
 Sentra AI is a production-style enterprise AI intelligence platform built with
 Next.js 15, TypeScript, Tailwind CSS, ShadCN-style UI primitives, Framer Motion,
-GSAP, Three.js / React Three Fiber, AI/ML API, Bright Data, ElevenLabs, Lucide
+GSAP, Three.js / React Three Fiber, AI/ML API, Bright Data, Speechmatics, Lucide
 icons, and Recharts.
 
 The app presents a futuristic operating system for autonomous business
@@ -28,10 +28,10 @@ routes.
   tracking, system health telemetry, and safe summarized thought-stream cards.
 - Visual-forensics analyst workspace for prompt-directed image investigations,
   comparison review, verdict scoring, report history, and PDF export.
-- Backend API routes for Bright Data intelligence collection, AI/ML API (OpenAI-compatible) analysis,
-  and ElevenLabs speech synthesis.
-- Demo-safe fallbacks when provider keys are absent, so the project runs
-  immediately for demos and hackathons.
+- Backend API routes for Bright Data intelligence collection (SERP + Web Unlocker),
+  AI/ML API analysis, and Speechmatics voice synthesis.
+- Demo-safe fallbacks in **local dev** when provider keys are absent; **production**
+  requires live Bright Data for GTM collection paths.
 
 ## Getting Started
 
@@ -61,8 +61,8 @@ Get keys from the project owner (secure message) or a Supabase team invite. Full
 You can run Sentra **without Supabase**. Leave `NEXT_PUBLIC_SUPABASE_URL` and
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` empty in `.env.local`.
 
-1. `npm run env:setup` then add **AIML_API_KEY**, **Bright Data**, and
-   **ElevenLabs** keys if not using the Supabase vault (see hackathon demo below).
+1. `npm run env:setup` then sync provider keys to Supabase vault (`npm run secrets:sync`)
+   or add **AIML_API_KEY**, **Bright Data**, and **SPEECHMATICS_API_KEY** locally.
 2. `npm run dev` → open [http://localhost:3001](http://localhost:3001) → **Enter workspace (local mode)**.
 3. Monitors are stored in **browser localStorage** per machine; chat history is
    session-only until you add Supabase for deploy.
@@ -116,7 +116,7 @@ remain functional.
 - `/sign-in` - Supabase auth (email, magic link, Google, GitHub)
 - `/sign-up` - create workspace
 - `/onboarding` - first-run setup checklist
-- `/settings` - integration status (Bright Data zones, AI/ML API, ElevenLabs)
+- `/settings` - integration status (Bright Data zones, AI/ML API, Speechmatics)
 - `/dashboard` - intelligence operating system with live briefing refresh
 - `/chat` - AI analyst chat with microphone transcription and voice playback
 - `/analyst` - AI World Engine and visual-forensics investigation workspaces
@@ -124,10 +124,10 @@ remain functional.
 
 ## API Routes
 
-- `POST /api/chat` - answers general chat questions using OpenAI live web search;
-  monitoring, competitor, pricing, extraction, and URL prompts use Bright Data
-  collection first when configured, then OpenAI analysis with citations
-- `POST /api/transcribe` - transcribes microphone recordings with OpenAI speech-to-text
+- `POST /api/chat` - answers general chat questions using AI/ML API live web search;
+  monitoring, competitor, pricing, and URL prompts use Bright Data collection first,
+  then AIML analysis with citations
+- `POST /api/transcribe` - transcribes microphone recordings (AIML Whisper)
 - `GET|POST /api/intelligence` - returns risks, opportunities, recommendations,
   confidence score, and live signals
 - `POST /api/world-engine` - creates visualization-ready global intelligence
@@ -138,10 +138,11 @@ remain functional.
 - `POST /api/image-analysis` - analyzes uploaded visual evidence after an
   investigator submits a prompt
 - `POST /api/bright-data` - reusable Bright Data collection endpoint (auth required)
-- `POST /api/voice` - ElevenLabs text-to-speech with demo fallback
+- `POST /api/voice` - Speechmatics text-to-speech (WAV)
+- `GET /api/cron/monitors` - scheduled GTM monitor checks (Vercel Cron + `CRON_SECRET`)
 - `GET /api/signals` - latest signals for the signed-in user
 - `GET|POST /api/monitors` - CRUD custom monitors
-- `POST /api/monitors/[id]/check` - Bright Data + OpenAI monitor check (manual, credit-safe)
+- `POST /api/monitors/[id]/check` - Bright Data + AIML monitor check (manual or cron)
 - `GET /api/health/integrations` - integration readiness for settings/onboarding
 
 ## Supabase setup
@@ -151,18 +152,29 @@ remain functional.
 3. Enable Email, Magic Link, Google, and GitHub providers in Authentication.
 4. Set redirect URL: `http://localhost:3001/auth/callback` (and your production URL).
 
-## Hackathon demo script
+## Hackathon — GTM Intelligence (Web Data UNLOCKED)
 
-**Bright Data** collects live web evidence; **AI/ML API** routes each task to the right model through one key.
+**Track:** [GTM Intelligence](https://lablab.ai/ai-hackathons/brightdata-ai-agents-web-data-hackathon)  
+**Full submission guide:** [docs/HACKATHON_GTM_SUBMISSION.md](docs/HACKATHON_GTM_SUBMISSION.md)
 
-1. Add `AIML_API_KEY` from [aimlapi.com](https://aimlapi.com) and Bright Data keys to `.env.local`.
-2. **Settings** → confirm **AI/ML API** and **Bright Data** show Ready.
-3. **Dashboard** → **Refresh briefing** (SERP via Bright Data + AIML analysis).
-4. **Chat** → generic question (AIML search model) or paste a competitor `https://` URL (Bright Data + AIML).
-5. **Alerts** → create a monitor → **Check now** (SERP/Unlocker + structured signals).
-6. **World Engine** / **Visual forensics** → one query each to verify AIML paths.
+**Stack:** Bright Data (SERP + Web Unlocker) → AI/ML API → Supabase → Vercel. Voice via Speechmatics.
+
+### Judge demo (5 min)
+
+1. `npm run secrets:sync` — AIML, Bright Data zones, Speechmatics in Supabase vault.
+2. Deploy to Vercel with Supabase env vars + `CRON_SECRET` (see hackathon doc).
+3. **Settings** → AI/ML API + Bright Data + Speechmatics **Ready**.
+4. **Dashboard** → **Refresh briefing** → **Live · Bright Data** (not Sample).
+5. **Chat** → paste competitor `https://` URL → badge **Bright Data + AIML**.
+6. **Alerts** → monitor → **Check now** → executive report.
+7. Optional: **World Engine**, document upload (Featherless), voice play.
 
 Bright Data promo: `unlocked` on [brightdata.com](https://brightdata.com).
+
+### Production GTM rules
+
+- On Vercel/production, **sample Bright Data fallback is disabled** unless `SENTRA_ALLOW_DEMO_FALLBACK=true`.
+- Active monitors are checked every **30 minutes** via `/api/cron/monitors` (see `vercel.json`).
 
 ## Production Notes
 

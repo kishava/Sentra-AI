@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { BrandLogo } from "@/components/shared/brand-mark";
+import { GtmBrightDataBanner } from "@/components/shared/gtm-bright-data-banner";
 import { LocalDevBanner } from "@/components/shared/local-dev-banner";
 import { ParticleField } from "@/components/shared/particle-field";
 import { NewUserGuideModal } from "@/components/dashboard/new-user-guide-modal";
@@ -133,6 +134,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
       <section className="pb-24 lg:pb-0 lg:pl-72">
         <LocalDevBanner />
+        <GtmBrightDataBanner />
         <header className="sticky top-0 z-30 border-b border-white/10 bg-sentra-ink/92 px-4 py-4 md:px-8">
           <div className="flex min-w-0 items-center gap-3 md:gap-4">
             <CommandPalette className="min-w-0 flex-1" />

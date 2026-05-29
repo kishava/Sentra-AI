@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
-import { getSignalsForRun, saveIntelligenceRun } from "@/lib/db/intelligence";
-import { getMonitor, recordMonitorEvents, updateMonitorChecked } from "@/lib/db/monitors";
-import { saveIntelligenceReport } from "@/lib/db/reports";
-import { filterSignalsForMonitor } from "@/lib/monitor-match";
+import { getMonitor } from "@/lib/db/monitors";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
-import { collectWebIntelligence } from "@/services/bright-data";
-import { createExecutiveReport } from "@/services/intelligence-report";
-import { generateEnterpriseAnalysis } from "@/services/openai";
+import { monitorCheckErrorStatus, runMonitorCheck } from "@/services/monitor-check";
 import type { Severity } from "@/types/intelligence";
 
 export const runtime = "nodejs";
@@ -67,76 +62,24 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       monitor = stored;
     }
 
-    const webEvidence = await collectWebIntelligence({
-      query: monitor.requirement,
-      targetUrl: monitor.target_url ?? undefined,
-      mode: monitor.target_url ? "unlocker" : "serp",
+    const result = await runMonitorCheck(monitor, {
+      supabase: auth.localMode ? undefined : auth.supabase ?? undefined,
+      userId: auth.user.id,
+      persist: !auth.localMode && Boolean(auth.supabase),
     });
-
-    const analysis = await generateEnterpriseAnalysis(monitor.requirement, webEvidence.evidence);
-
-    let savedSignals = analysis.signals;
-    if (!auth.localMode && auth.supabase) {
-      try {
-        const runId = await saveIntelligenceRun(auth.supabase, auth.user.id, {
-          query: monitor.requirement,
-          provider: webEvidence.provider,
-          evidencePreview: analysis.summary,
-          analysis,
-        });
-        savedSignals = await getSignalsForRun(auth.supabase, auth.user.id, runId);
-      } catch (error) {
-        console.warn("Monitor run persistence skipped", error);
-      }
-    }
-
-    const matched = filterSignalsForMonitor(
-      {
-        requirement: monitor.requirement,
-        category: monitor.category as "any",
-        minimumSeverity: monitor.minimum_severity,
-        keywords: monitor.keywords,
-      },
-      savedSignals.length ? savedSignals : analysis.signals,
-    );
-
-    if (!auth.localMode && auth.supabase) {
-      try {
-        await recordMonitorEvents(auth.supabase, auth.user.id, monitor.id, matched);
-        await updateMonitorChecked(auth.supabase, auth.user.id, monitor.id);
-      } catch (error) {
-        console.warn("Monitor event persistence skipped", error);
-      }
-    }
-
-    const report = createExecutiveReport({
-      requirement: monitor.requirement,
-      analysis,
-      matchedSignals: matched,
-      evidence: webEvidence.evidence,
-      provider: webEvidence.provider,
-    });
-
-    if (!auth.localMode && auth.supabase) {
-      try {
-        await saveIntelligenceReport(auth.supabase, auth.user.id, report, monitor.id);
-      } catch (error) {
-        console.warn("Report persistence skipped", error);
-      }
-    }
 
     return NextResponse.json({
-      provider: webEvidence.provider,
-      matchedCount: matched.length,
-      signals: matched,
-      analysis,
-      report,
+      provider: result.provider,
+      matchedCount: result.matchedCount,
+      signals: result.signals,
+      analysis: result.analysis,
+      report: result.report,
     });
   } catch (error) {
     console.error("Monitor check failed", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Monitor check failed." },
-      { status: 500 },
+      { status: monitorCheckErrorStatus(error) },
     );
   }
 }

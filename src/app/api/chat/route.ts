@@ -4,7 +4,12 @@ import { appendChatMessage, createChatThread } from "@/lib/db/chat";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { isAimlConfigured, isLlmConfigured } from "@/lib/llm/client";
-import { collectWebIntelligence } from "@/services/bright-data";
+import {
+  BrightDataCollectionError,
+  BrightDataNotConfiguredError,
+  collectWebIntelligence,
+  requiresLiveBrightData,
+} from "@/services/bright-data";
 import { generateChatResponse, resolveDocumentChatProvider } from "@/services/openai";
 import type { BrightDataRequest, ChatDocumentEvidence, ChatMessage, ChatProvider } from "@/types/intelligence";
 
@@ -124,6 +129,15 @@ export async function POST(request: Request) {
 
     if (collectionRequest && brightDataEnabled) {
       const evidence = await collectWebIntelligence(collectionRequest);
+      if (requiresLiveBrightData() && evidence.provider !== "bright-data") {
+        return NextResponse.json(
+          {
+            error:
+              "Bright Data is required for competitor and monitoring prompts in production. Configure SERP and Web Unlocker zones in Settings.",
+          },
+          { status: 503 },
+        );
+      }
       if (evidence.provider === "bright-data") {
         brightDataEvidence = evidence.evidence;
         provider = documentEvidence
@@ -168,6 +182,12 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Chat route failed", error);
+    if (error instanceof BrightDataNotConfiguredError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+    if (error instanceof BrightDataCollectionError) {
+      return NextResponse.json({ error: error.message }, { status: 502 });
+    }
     const message =
       error instanceof Error ? error.message : "Sentra AI could not generate a response";
     return NextResponse.json({ error: message }, { status: 500 });

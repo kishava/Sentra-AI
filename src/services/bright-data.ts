@@ -1,10 +1,24 @@
 import axios from "axios";
 import { createHash } from "crypto";
 import { signalStream } from "@/data/mock-intelligence";
+import {
+  allowBrightDataDemoFallback,
+  assertBrightDataReady,
+  BrightDataCollectionError,
+  type BrightDataMode,
+} from "@/lib/bright-data/config";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPlatformEnv } from "@/lib/secrets/platform-secrets";
 import { getSupabaseServiceRoleKey } from "@/lib/supabase/env";
 import type { BrightDataRequest } from "@/types/intelligence";
+
+export {
+  allowBrightDataDemoFallback,
+  BrightDataCollectionError,
+  BrightDataNotConfiguredError,
+  getBrightDataReadiness,
+  requiresLiveBrightData,
+} from "@/lib/bright-data/config";
 
 type BrightDataEvidence = {
   provider: "bright-data" | "demo";
@@ -143,7 +157,7 @@ export async function collectWebIntelligence({
   targetUrl,
   mode = "serp",
 }: BrightDataRequest): Promise<BrightDataEvidence> {
-  const effectiveMode = mode === "scraper" && targetUrl ? "unlocker" : mode;
+  const effectiveMode = (mode === "scraper" && targetUrl ? "unlocker" : mode) as BrightDataMode;
   const endpointKey = endpointByMode[effectiveMode];
   const endpoint = getPlatformEnv(endpointKey);
   const apiKey = getPlatformEnv("BRIGHT_DATA_API_KEY");
@@ -156,11 +170,17 @@ export async function collectWebIntelligence({
     zone = effectiveMode === "serp" ? zones.serp : zones.unlocker;
   }
 
-  if (!apiKey || !endpoint || (zoneKey && !zone) || (effectiveMode === "unlocker" && !targetUrl)) {
+  const misconfigured =
+    !apiKey || !endpoint || (zoneKey && !zone) || (effectiveMode === "unlocker" && !targetUrl);
+
+  if (misconfigured) {
     if (apiKey && zoneKey && !zone) {
       console.warn(
         "Bright Data zone not configured. Create a SERP or Web Unlocker zone in the Bright Data control panel.",
       );
+    }
+    if (!allowBrightDataDemoFallback()) {
+      assertBrightDataReady({ query, targetUrl, mode });
     }
     return getDemoEvidence(query);
   }
@@ -218,7 +238,14 @@ export async function collectWebIntelligence({
     await writeCache(cacheKey, result);
     return result;
   } catch (error) {
-    console.error("Bright Data lookup failed; using demo evidence", error);
+    console.error("Bright Data lookup failed", error);
+    if (!allowBrightDataDemoFallback()) {
+      throw new BrightDataCollectionError(
+        `Bright Data ${effectiveMode} collection failed. Check zones and API key in Settings.`,
+        effectiveMode,
+        error,
+      );
+    }
     return getDemoEvidence(query);
   }
 }

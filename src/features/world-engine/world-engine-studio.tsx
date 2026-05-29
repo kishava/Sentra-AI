@@ -643,7 +643,7 @@ export function WorldEngineStudio() {
         <Card className="flex flex-col items-center justify-center p-6 text-center" glow>
           <AiOrb speaking={loading || speaking || synthesizing || listening || transcribing} size="md" />
           <h2 className="mt-5 text-xl font-semibold text-white">AI Intelligence Narrator</h2>
-          <p className="mt-2 text-sm leading-6 text-white/52">Visual reasoning with optional ElevenLabs executive briefings.</p>
+          <p className="mt-2 text-sm leading-6 text-white/52">Visual reasoning with optional Speechmatics executive briefings.</p>
           <Button variant="ghost" className="mt-5" onClick={() => setMuted((value) => !value)} disabled={!settings.experience.soundEffects}>
             {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             Command sounds {muted ? "off" : "on"}

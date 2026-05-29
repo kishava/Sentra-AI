@@ -627,8 +627,9 @@ export function MonitorCenter() {
             <Badge variant="cyan">Automated monitoring</Badge>
             <h2 className="mt-3 text-2xl font-semibold text-white">Create signal monitor</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
-              Define the requirement, category, and alert threshold. Sentra will keep checking
-              incoming signals and alert you when a match appears.
+              Define the requirement, category, and alert threshold. In production, active monitors
+              are checked every 30 minutes via server cron; use Autopilot for in-browser checks while
+              you work.
             </p>
           </div>
           <Button
