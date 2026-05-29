@@ -13,14 +13,18 @@ type FetchVoiceResult =
   | { kind: "demo" }
   | { kind: "error"; message: string };
 
-async function fetchVoiceChunk(text: string, signal: AbortSignal): Promise<FetchVoiceResult> {
+async function fetchVoiceChunk(
+  text: string,
+  signal: AbortSignal,
+  speed: number,
+): Promise<FetchVoiceResult> {
   if (signal.aborted) throw new DOMException(VOICE_ABORT_REASON, "AbortError");
 
   try {
     const response = await fetch("/api/voice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, speed }),
       signal,
     });
 
@@ -66,7 +70,7 @@ function playBlob(blob: Blob, settings: VoicePlaybackSettings, signal: AbortSign
 
     signal.addEventListener("abort", onAbort, { once: true });
     audio.volume = settings.volume;
-    audio.playbackRate = settings.speed;
+    audio.playbackRate = 1;
     audio.onended = () => {
       signal.removeEventListener("abort", onAbort);
       cleanup();
@@ -104,20 +108,31 @@ export async function playPipelinedVoice(
     return "empty" as const;
   }
 
-  callbacks?.onStatus?.("loading", "Preparing first sentence…");
+  callbacks?.onStatus?.("loading", "Preparing first phrase…");
 
-  let nextFetch: Promise<FetchVoiceResult> = fetchVoiceChunk(chunks[0]!, signal);
+  const prefetch = new Map<number, Promise<FetchVoiceResult>>();
+  const queueFetch = (index: number) => {
+    if (index >= chunks.length || prefetch.has(index)) return;
+    prefetch.set(index, fetchVoiceChunk(chunks[index]!, signal, settings.speed));
+  };
+
+  queueFetch(0);
+  queueFetch(1);
 
   for (let index = 0; index < chunks.length; index += 1) {
     if (signal.aborted) return "cancelled" as const;
 
+    queueFetch(index + 2);
+
     let current: FetchVoiceResult;
     try {
-      current = await nextFetch;
+      current = await prefetch.get(index)!;
     } catch (error) {
       if (isAbortError(error) || signal.aborted) return "cancelled" as const;
       throw error;
     }
+
+    prefetch.delete(index);
 
     if (signal.aborted) return "cancelled" as const;
 
@@ -128,11 +143,6 @@ export async function playPipelinedVoice(
     if (current.kind === "demo") {
       callbacks?.onStatus?.("idle");
       return "demo" as const;
-    }
-
-    const upcoming = index + 1 < chunks.length ? chunks[index + 1]! : null;
-    if (upcoming) {
-      nextFetch = fetchVoiceChunk(upcoming, signal);
     }
 
     callbacks?.onStatus?.("playing", `Speaking ${index + 1} of ${chunks.length}`);

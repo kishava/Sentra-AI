@@ -39,6 +39,7 @@ type IntegrationStatus = {
     models: Record<string, string> | null;
   };
   elevenlabs: boolean;
+  aimlVoice?: boolean;
   brightData: {
     apiKey: boolean;
     serpZone: boolean;
@@ -159,7 +160,7 @@ export default function SettingsPage() {
           </div>
           <div className="grid gap-2">
             <StatusLine label="AI/ML API (LLM)" ok={status?.aiml || status?.llm?.ready} />
-            <StatusLine label="ElevenLabs voice" ok={status?.elevenlabs} />
+            <StatusLine label="AIML voice (TTS)" ok={status?.aimlVoice ?? status?.elevenlabs} />
             <StatusLine label="Bright Data API" ok={status?.brightData.apiKey} />
             <StatusLine label="Workspace database" ok={status?.supabaseSchema} />
           </div>
@@ -256,7 +257,7 @@ export default function SettingsPage() {
           <StatusRow label="Supabase credentials" ok={status?.supabase} />
           <StatusRow label="Supabase workspace schema" ok={status?.supabaseSchema} />
           <StatusRow label="AI/ML API (LLM)" ok={status?.aiml || status?.llm?.ready} />
-          <StatusRow label="ElevenLabs" ok={status?.elevenlabs} />
+          <StatusRow label="AIML voice (TTS)" ok={status?.aimlVoice ?? status?.elevenlabs} />
           <StatusRow label="Bright Data API key" ok={status?.brightData?.apiKey} />
           <StatusRow label="Bright Data SERP zone" ok={status?.brightData?.serpZone} />
           <StatusRow label="Bright Data Unlocker zone" ok={status?.brightData?.unlockerZone} />

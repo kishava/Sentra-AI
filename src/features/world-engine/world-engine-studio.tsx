@@ -526,8 +526,8 @@ export function WorldEngineStudio() {
     setSynthesizing(true);
     setSpeaking(false);
     setActiveNarrationMode(mode);
-    appendClientLog("VOICE", `Requesting ${mode} intelligence narration.`, "Voice synthesis", "info", "ElevenLabs");
-    updateSource({ id: "elevenlabs", name: "ElevenLabs Voice", channel: "api", status: "active", detail: "Synthesis request in flight" });
+    appendClientLog("VOICE", `Requesting ${mode} intelligence narration.`, "Voice synthesis", "info", "AIML TTS");
+    updateSource({ id: "aiml-voice", name: "AIML Voice", channel: "api", status: "active", detail: "Synthesis request in flight" });
     try {
       const response = await fetch("/api/voice", {
         method: "POST",
@@ -547,17 +547,17 @@ export function WorldEngineStudio() {
           return nextUrl;
         });
         setNarrationLabel(`${mode === "quick" ? "30-second" : mode === "executive" ? "Executive" : "Deep analyst"} briefing`);
-        updateSource({ id: "elevenlabs", name: "ElevenLabs Voice", channel: "api", status: "success", detail: "Audio stream received" });
-        appendClientLog("VOICE", "Spoken intelligence briefing generated and ready for playback.", "Voice synthesis", "success", "ElevenLabs");
+        updateSource({ id: "aiml-voice", name: "AIML Voice", channel: "api", status: "success", detail: "Audio stream received" });
+        appendClientLog("VOICE", "Spoken intelligence briefing generated and ready for playback.", "Voice synthesis", "success", "AIML TTS");
       } else {
-        updateSource({ id: "elevenlabs", name: "ElevenLabs Voice", channel: "api", status: "unavailable", detail: "Demo mode: credentials not configured" });
-        appendClientLog("VOICE", "Voice provider unavailable; narration script remains available.", "Voice synthesis", "warning", "ElevenLabs");
-        toast.message("Narrator script ready", { description: "Configure ElevenLabs credentials for spoken playback." });
+        updateSource({ id: "aiml-voice", name: "AIML Voice", channel: "api", status: "unavailable", detail: "Demo mode: AIML_API_KEY not configured" });
+        appendClientLog("VOICE", "Voice provider unavailable; narration script remains available.", "Voice synthesis", "warning", "AIML TTS");
+        toast.message("Narrator script ready", { description: "Set AIML_API_KEY in .env.local for spoken playback." });
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      updateSource({ id: "elevenlabs", name: "ElevenLabs Voice", channel: "api", status: "error", detail: "Synthesis request failed" });
-      appendClientLog("VOICE", "Voice synthesis request failed.", "Voice synthesis", "error", "ElevenLabs");
+      updateSource({ id: "aiml-voice", name: "AIML Voice", channel: "api", status: "error", detail: "Synthesis request failed" });
+      appendClientLog("VOICE", "Voice synthesis request failed.", "Voice synthesis", "error", "AIML TTS");
       toast.error(error instanceof Error ? error.message : "Voice narration failed.");
     } finally {
       if (!controller.signal.aborted) {

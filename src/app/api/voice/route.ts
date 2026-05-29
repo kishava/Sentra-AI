@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { ElevenLabsError, synthesizeSpeech } from "@/services/elevenlabs";
+import { AimlTtsError, synthesizeSpeech } from "@/services/voice-synthesis";
 
 export const runtime = "nodejs";
 
@@ -15,19 +15,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: limited.message }, { status: 429 });
     }
 
-    const body = (await request.json()) as { text?: string };
+    const body = (await request.json()) as { text?: string; speed?: number };
     const text = body.text?.trim();
+    const speed = typeof body.speed === "number" ? body.speed : 1;
 
     if (!text) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
     }
 
-    const audio = await synthesizeSpeech(text.slice(0, 2500));
+    const audio = await synthesizeSpeech(text, speed);
 
     if (!audio) {
       return NextResponse.json({
         demo: true,
-        message: "ElevenLabs keys are not configured. Demo voice orb is active.",
+        message: "Add AIML_API_KEY to .env.local for live voice (openai/tts-1 via aimlapi.com).",
       });
     }
 
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Voice route failed", error);
-    if (error instanceof ElevenLabsError) {
+    if (error instanceof AimlTtsError) {
       return NextResponse.json(
         {
           error: error.message,

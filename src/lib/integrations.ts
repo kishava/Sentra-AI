@@ -58,9 +58,8 @@ export function getIntegrationStatus() {
           }
         : null,
     },
-    elevenlabs: Boolean(
-      process.env.ELEVENLABS_API_KEY?.trim() && process.env.ELEVENLABS_VOICE_ID?.trim(),
-    ),
+    elevenlabs: isAimlConfigured(),
+    aimlVoice: isAimlConfigured(),
     brightData: buildBrightDataStatus(serpZone, unlockerZone, brightDataKey),
   };
 }

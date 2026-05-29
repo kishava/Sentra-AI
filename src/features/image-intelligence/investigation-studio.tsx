@@ -410,7 +410,7 @@ export function InvestigationStudio() {
         await audio.play();
       } else {
         toast.message("Voice is still in demo mode", {
-          description: "Configure ElevenLabs credentials for spoken analyst output.",
+          description: "Set AIML_API_KEY in .env.local for spoken analyst output.",
         });
         speakingTimeoutRef.current = window.setTimeout(resetVoicePlayback, 1800);
       }

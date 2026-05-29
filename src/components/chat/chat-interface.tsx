@@ -315,7 +315,7 @@ export function ChatInterface() {
 
       if (result === "demo") {
         toast.message("Voice is still in demo mode", {
-          description: "Restart the dev server so Next.js reloads your ElevenLabs key.",
+          description: "Set AIML_API_KEY in .env.local and restart npm run dev.",
         });
         speakingTimeoutRef.current = window.setTimeout(finishVoicePlayback, 1800);
         return;
