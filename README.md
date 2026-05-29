@@ -42,13 +42,27 @@ npm run dev
 
 Open [http://localhost:3001](http://localhost:3001) (dev server default port).
 
+## Collaborators (missing `.env.local`)
+
+`.env.local` is gitignored — it is **not** pushed to GitHub. New developers:
+
+```bash
+npm run env:setup    # creates .env.local from .env.example
+# add Supabase keys (see docs/COLLABORATOR_SETUP.md)
+npm run env:check
+npm run dev
+```
+
+Get keys from the project owner (secure message) or a Supabase team invite. Full guide:
+**[docs/COLLABORATOR_SETUP.md](docs/COLLABORATOR_SETUP.md)** and **[docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md)**.
+
 ## Local development (GitHub collab, no deploy yet)
 
 You can run Sentra **without Supabase**. Leave `NEXT_PUBLIC_SUPABASE_URL` and
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` empty in `.env.local`.
 
-1. Copy `.env.example` → `.env.local` and add **AIML_API_KEY**, **Bright Data**, and
-   **ElevenLabs** keys (see hackathon demo below).
+1. `npm run env:setup` then add **AIML_API_KEY**, **Bright Data**, and
+   **ElevenLabs** keys if not using the Supabase vault (see hackathon demo below).
 2. `npm run dev` → open [http://localhost:3001](http://localhost:3001) → **Enter workspace (local mode)**.
 3. Monitors are stored in **browser localStorage** per machine; chat history is
    session-only until you add Supabase for deploy.

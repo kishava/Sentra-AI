@@ -5,6 +5,9 @@ Dashboard: https://supabase.com/dashboard/project/rgvjmtpimjvgusrqrldj
 
 ## 1. Environment variables (`.env.local`)
 
+New collaborators: run `npm run env:setup`, then follow **[COLLABORATOR_SETUP.md](./COLLABORATOR_SETUP.md)**.
+The owner should share keys via a **private channel** or invite you under **Project Settings → Team** — never commit `.env.local`.
+
 | Variable | Where to get it |
 |----------|-----------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Project Settings → API → Project URL |

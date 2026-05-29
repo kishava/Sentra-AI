@@ -11,6 +11,8 @@
     "type-check": "tsc --noEmit",
     "prepare": "node scripts/install-githooks.js",
     "db:migrate": "node scripts/apply-supabase-migrations.mjs",
+    "env:setup": "node scripts/setup-env-local.mjs",
+    "env:check": "node scripts/check-env.mjs",
     "secrets:sync": "node scripts/sync-secrets-to-supabase.mjs",
     "secrets:rotate": "node scripts/rotate-platform-secret.mjs",
     "secrets:verify": "node scripts/verify-vault.mjs"
