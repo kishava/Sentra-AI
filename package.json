@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "prepare": "node scripts/install-githooks.js"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
