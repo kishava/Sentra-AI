@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { LiveAgentLogs } from "@/features/activity-console/ai-activity-console";
 import { usePipelineLogs } from "@/hooks/use-pipeline-logs";
+import { useSpeechInput } from "@/hooks/use-speech-input";
 import { useTypewriter } from "@/hooks/use-typewriter";
 import { chatPipelineScript } from "@/lib/pipeline-log-scripts";
 import { cn } from "@/lib/utils";
@@ -89,13 +90,8 @@ export function ChatInterface() {
   const [loading, setLoading] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<"idle" | "loading" | "playing">("idle");
   const [activeVoiceText, setActiveVoiceText] = useState<string | null>(null);
-  const [listening, setListening] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
   const handledPromptRef = useRef<string | null>(null);
   const autoGreetingStartedRef = useRef(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const voiceAbortRef = useRef<AbortController | null>(null);
@@ -109,6 +105,17 @@ export function ChatInterface() {
   );
   const speaking = voiceStatus !== "idle";
   const pipeline = usePipelineLogs(chatPipelineScript);
+  const {
+    listening,
+    transcribing,
+    liveTranscript,
+    toggleSpeechInput,
+    stopSpeechInput,
+  } = useSpeechInput({
+    value: input,
+    onChange: setInput,
+    getContext: () => input,
+  });
 
   function resetVoicePlayback() {
     voiceRunIdRef.current += 1;
@@ -149,13 +156,9 @@ export function ChatInterface() {
     return () => {
       window.removeEventListener("pagehide", resetVoicePlayback);
       resetVoicePlayback();
-      if (mediaRecorderRef.current?.state === "recording") {
-        mediaRecorderRef.current.onstop = null;
-        mediaRecorderRef.current.stop();
-      }
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      stopSpeechInput();
     };
-  }, []);
+  }, [stopSpeechInput]);
 
   useEffect(() => {
     if (pathname !== "/chat") {
@@ -184,6 +187,7 @@ export function ChatInterface() {
   async function sendMessage(nextInput = input) {
     const trimmed = nextInput.trim();
     if (!trimmed || loading) return;
+    stopSpeechInput();
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -313,133 +317,6 @@ export function ChatInterface() {
 
       toast.error("Voice playback failed.", {
         description: error instanceof Error ? error.message : "Please try again.",
-      });
-    }
-  }
-
-  function stopSpeechInput() {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-    }
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-    mediaStreamRef.current = null;
-    setListening(false);
-  }
-
-  async function transcribeRecording(blob: Blob) {
-    if (!blob.size) {
-      toast.error("No microphone audio was recorded.");
-      return;
-    }
-
-    setTranscribing(true);
-    try {
-      const extension = blob.type.includes("mp4") ? "mp4" : "webm";
-      const formData = new FormData();
-      formData.append("audio", new File([blob], `speech.${extension}`, { type: blob.type }));
-      if (input.trim()) {
-        formData.append("context", input.trim());
-      }
-
-      const response = await fetch("/api/transcribe", {
-        method: "POST",
-        body: formData,
-      });
-      const data = (await response.json()) as { text?: string; error?: string };
-      if (!response.ok || !data.text?.trim()) {
-        throw new Error(data.error || "No speech was detected.");
-      }
-
-      setInput((current) => `${current.trim()}${current.trim() ? " " : ""}${data.text!.trim()}`);
-      toast.success("Voice prompt ready", {
-        description: "Review the transcript, then send your message.",
-      });
-    } catch (error) {
-      toast.error("Voice transcription failed.", {
-        description: error instanceof Error ? error.message : "Please try again.",
-      });
-    } finally {
-      setTranscribing(false);
-    }
-  }
-
-  async function toggleSpeechInput() {
-    if (listening) {
-      stopSpeechInput();
-      return;
-    }
-
-    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-      toast.error("Microphone access needs a secure page.", {
-        description: "Open the app on localhost or an HTTPS address, then allow microphone access.",
-      });
-      return;
-    }
-
-    if (!window.MediaRecorder) {
-      toast.error("Audio recording is not supported in this browser.");
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
-        },
-      });
-      mediaStreamRef.current = stream;
-      const supportedType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) =>
-        MediaRecorder.isTypeSupported(type),
-      );
-      if (!supportedType) {
-        stream.getTracks().forEach((track) => track.stop());
-        mediaStreamRef.current = null;
-        toast.error("Your browser does not provide a supported audio recording format.");
-        return;
-      }
-
-      const recorder = new MediaRecorder(stream, { mimeType: supportedType });
-      mediaRecorderRef.current = recorder;
-      audioChunksRef.current = [];
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size) audioChunksRef.current.push(event.data);
-      };
-      recorder.onerror = () => {
-        recorder.onstop = null;
-        stopSpeechInput();
-        toast.error("Could not record microphone audio.");
-      };
-      recorder.onstop = () => {
-        const recording = new Blob(audioChunksRef.current, {
-          type: recorder.mimeType || supportedType || "audio/webm",
-        });
-        audioChunksRef.current = [];
-        mediaRecorderRef.current = null;
-        void transcribeRecording(recording);
-      };
-
-      recorder.start();
-      setListening(true);
-      toast.message("Recording voice prompt", {
-        description: "Speak now, then click the microphone again to transcribe.",
-      });
-    } catch (error) {
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-      mediaRecorderRef.current = null;
-      const denied =
-        error instanceof DOMException &&
-        (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
-      toast.error("Microphone could not start.", {
-        description: denied
-          ? "Microphone permission was denied. Allow access in browser site settings and try again."
-          : error instanceof Error
-            ? error.message
-            : "Please check your microphone access.",
       });
     }
   }
@@ -586,21 +463,29 @@ export function ChatInterface() {
               </div>
             </div>
             <p className="mt-2 text-xs text-white/40">
-              Tip: include a URL or words like monitor, competitor, or pricing to collect evidence with Bright Data first.
+              {listening
+                ? liveTranscript
+                  ? `Listening: ${liveTranscript}`
+                  : "Listening — transcript appears as you speak."
+                : transcribing
+                  ? "Refining transcript..."
+                  : "Tip: include a URL or words like monitor, competitor, or pricing to collect evidence with Bright Data first."}
             </p>
           </div>
         </Card>
 
         <aside className="grid min-w-0 content-start gap-5">
           <Card className="p-6 text-center" glow>
-            <AiOrb speaking={speaking} size="md" className="mx-auto" />
+            <AiOrb speaking={speaking || listening || transcribing} size="md" className="mx-auto" />
             <h3 className="mt-6 text-xl font-semibold text-white">Voice analyst</h3>
             <p className="mt-2 text-sm leading-6 text-white/55">
               {voiceStatus === "loading"
                 ? "Generating voice audio..."
                 : voiceStatus === "playing"
                   ? "Speaking now. Click the active voice button to stop."
-                  : "Use the microphone beside the prompt box to speak your request, or click a response voice button."}
+                  : listening
+                    ? "Transcript updates live in the prompt while you speak."
+                    : "Use the microphone beside the prompt box to speak your request, or click a response voice button."}
             </p>
             <Button
               variant="ghost"

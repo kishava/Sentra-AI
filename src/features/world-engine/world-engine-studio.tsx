@@ -10,7 +10,9 @@ import {
   Expand,
   Filter,
   Globe2,
+  Mic,
   Mic2,
+  MicOff,
   Play,
   RadioTower,
   Send,
@@ -28,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { useSpeechInput } from "@/hooks/use-speech-input";
 import { cn } from "@/lib/utils";
 import { streamWorldActivity } from "@/services/activity-stream-client";
 import type { ActivityCategory, ActivityLevel, ActivityLog, CollectionSource, PipelineHealth } from "@/types/activity-console";
@@ -349,6 +352,17 @@ export function WorldEngineStudio() {
   const [thoughts, setThoughts] = useState<WorldEngineReport["reasoning"]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activityRequestRef = useRef<AbortController | null>(null);
+  const {
+    listening,
+    transcribing,
+    liveTranscript,
+    toggleSpeechInput,
+    stopSpeechInput,
+  } = useSpeechInput({
+    value: prompt,
+    onChange: setPrompt,
+    getContext: () => prompt,
+  });
 
   const signals = useMemo(
     () => report?.signals.filter((signal) => domain === "all" || signal.domain === domain) ?? [],
@@ -422,6 +436,7 @@ export function WorldEngineStudio() {
   async function runWorldEngine(nextPrompt = prompt) {
     const query = nextPrompt.trim();
     if (!query || loading) return;
+    stopSpeechInput();
     setPrompt(query);
     setLoading(true);
     setReport(null);
@@ -531,6 +546,28 @@ export function WorldEngineStudio() {
             className="relative mt-6 min-h-20"
             aria-label="Global intelligence question"
           />
+          <div className="relative mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-white/40">
+              {listening
+                ? liveTranscript
+                  ? `Listening: ${liveTranscript}`
+                  : "Listening — transcript appears as you speak."
+                : transcribing
+                  ? "Refining transcript..."
+                  : "Type a global question or use voice input."}
+            </p>
+            <Button
+              type="button"
+              variant={listening ? "neon" : "ghost"}
+              size="sm"
+              onClick={() => void toggleSpeechInput()}
+              disabled={transcribing || loading}
+              aria-label={listening ? "Stop voice input" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
+            >
+              {listening ? <MicOff className="h-4 w-4 text-rose-200" /> : <Mic className="h-4 w-4" />}
+              {listening ? "Stop voice" : transcribing ? "Transcribing" : "Voice input"}
+            </Button>
+          </div>
           <div className="relative mt-4 flex flex-wrap gap-2">
             {prompts.map((suggestion) => (
               <button key={suggestion} type="button" onClick={() => void runWorldEngine(suggestion)} className="sentra-focus rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-xs text-white/58 transition">
@@ -546,7 +583,7 @@ export function WorldEngineStudio() {
           </div>
         </Card>
         <Card className="flex flex-col items-center justify-center p-6 text-center" glow>
-          <AiOrb speaking={loading || speaking || synthesizing} size="md" />
+          <AiOrb speaking={loading || speaking || synthesizing || listening || transcribing} size="md" />
           <h2 className="mt-5 text-xl font-semibold text-white">AI Intelligence Narrator</h2>
           <p className="mt-2 text-sm leading-6 text-white/52">Visual reasoning with optional ElevenLabs executive briefings.</p>
           <Button variant="ghost" className="mt-5" onClick={() => setMuted((value) => !value)}>
