@@ -1,12 +1,14 @@
 "use client";
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Activity,
   BrainCircuit,
   CheckCircle2,
   DatabaseZap,
   Download,
+  ExternalLink,
   FileText,
   MonitorCog,
   Play,
@@ -235,7 +237,6 @@ export default function SettingsPage() {
         </SettingsCard>
       </div>
 
-<<<<<<< Updated upstream
       <Card className="p-5" glow>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -247,7 +248,8 @@ export default function SettingsPage() {
           </div>
           <Badge variant="violet">Local device policy</Badge>
         </div>
-=======
+      </Card>
+
       <Card className="p-6" glow>
         <h2 className="text-lg font-semibold text-white">Connection status</h2>
         <ul className="mt-5 space-y-4">
@@ -284,13 +286,11 @@ export default function SettingsPage() {
         >
           Open Bright Data control panel <ExternalLink className="h-4 w-4" />
         </Link>
->>>>>>> Stashed changes
       </Card>
     </div>
   );
 }
 
-<<<<<<< Updated upstream
 function SettingsCard({
   icon: Icon,
   title,
@@ -307,7 +307,17 @@ function SettingsCard({
       <div className="mb-5 flex items-start gap-3 border-b border-white/10 pb-5">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.08] text-sentra-cyan">
           <Icon className="h-5 w-5" />
-=======
+        </span>
+        <div>
+          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-white/46">{subtitle}</p>
+        </div>
+      </div>
+      <div className="grid gap-3">{children}</div>
+    </Card>
+  );
+}
+
 function StatusRow({ label, ok, optional }: { label: string; ok?: boolean; optional?: boolean }) {
   return (
     <li className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
@@ -318,15 +328,13 @@ function StatusRow({ label, ok, optional }: { label: string; ok?: boolean; optio
       {ok ? (
         <span className="flex items-center gap-1 text-xs text-emerald-300">
           <CheckCircle2 className="h-4 w-4" /> Ready
->>>>>>> Stashed changes
         </span>
-        <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-white/46">{subtitle}</p>
-        </div>
-      </div>
-      <div className="grid gap-3">{children}</div>
-    </Card>
+      ) : (
+        <span className="flex items-center gap-1 text-xs text-amber-300">
+          <XCircle className="h-4 w-4" /> Missing
+        </span>
+      )}
+    </li>
   );
 }
 

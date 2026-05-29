@@ -17,6 +17,7 @@ import { usePipelineLogs } from "@/hooks/use-pipeline-logs";
 import { useSpeechInput } from "@/hooks/use-speech-input";
 import { useTypewriter } from "@/hooks/use-typewriter";
 import { chatPipelineScript } from "@/lib/pipeline-log-scripts";
+import { playPipelinedVoice } from "@/lib/voice/pipelined-playback";
 import { cn } from "@/lib/utils";
 import { useSettings } from "@/settings/settings-context";
 import type { ChatMessage, ChatProvider } from "@/types/intelligence";
@@ -282,41 +283,30 @@ export function ChatInterface() {
     setVoiceStatus("loading");
 
     try {
-      const response = await fetch("/api/voice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: content }),
-        signal: abortController.signal,
-      });
+      const result = await playPipelinedVoice(
+        content,
+        { volume: settings.voice.volume, speed: settings.voice.speed },
+        abortController.signal,
+        {
+          onStatus: (status) => {
+            if (voiceRunIdRef.current !== runId) return;
+            if (status !== "idle") setVoiceStatus(status);
+          },
+        },
+      );
+
       if (abortController.signal.aborted || voiceRunIdRef.current !== runId) return;
 
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? "ElevenLabs rejected the voice request.");
-      }
-
-      if (response.headers.get("content-type")?.includes("audio")) {
-        const blob = await response.blob();
-        if (abortController.signal.aborted || voiceRunIdRef.current !== runId) return;
-
-        const audioUrl = URL.createObjectURL(blob);
-        const audio = new Audio(audioUrl);
-        audio.volume = settings.voice.volume;
-        audio.playbackRate = settings.voice.speed;
-        audioRef.current = audio;
-        audioUrlRef.current = audioUrl;
-        audio.onended = resetVoicePlayback;
-        audio.onerror = resetVoicePlayback;
-        audio.onpause = () => {
-          if (audio.ended) resetVoicePlayback();
-        };
-        setVoiceStatus("playing");
-        await audio.play();
-      } else {
+      if (result === "demo") {
         toast.message("Voice is still in demo mode", {
           description: "Restart the dev server so Next.js reloads your ElevenLabs key.",
         });
         speakingTimeoutRef.current = window.setTimeout(resetVoicePlayback, 1800);
+        return;
+      }
+
+      if (result === "completed" || result === "empty") {
+        resetVoicePlayback();
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -506,9 +496,9 @@ export function ChatInterface() {
             <h3 className="mt-6 text-xl font-semibold text-white">Voice analyst</h3>
             <p className="mt-2 text-sm leading-6 text-white/55">
               {voiceStatus === "loading"
-                ? "Generating voice audio..."
+                ? "Preparing first sentence…"
                 : voiceStatus === "playing"
-                  ? "Speaking now. Click the active voice button to stop."
+                  ? "Speaking sentence by sentence. Click the active voice button to stop."
                   : listening
                     ? "Transcript updates live in the prompt while you speak."
                     : "Use the microphone beside the prompt box to speak your request, or click a response voice button."}
