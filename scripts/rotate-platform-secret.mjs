@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Rotate a single vault key in Supabase (no app redeploy needed; cache refreshes in ~2 min).
+ * Rotate a single vault key in Supabase.
  * Usage: npm run secrets:rotate -- AIML_API_KEY your_new_key
  */
 import fs from "node:fs";
@@ -28,6 +28,8 @@ const PLATFORM_CONFIG_KEYS = [
 ];
 
 const ALL_PLATFORM_ENV_KEYS = [...PLATFORM_SECRET_KEYS, ...PLATFORM_CONFIG_KEYS];
+const STORAGE_BUCKET = "sentra-platform-secrets";
+const STORAGE_OBJECT = "platform-env.json";
 
 const [, , keyArg, ...valueParts] = process.argv;
 const value = valueParts.join(" ").trim();
@@ -77,14 +79,49 @@ const admin = createClient(url, serviceKey, {
 });
 
 const kind = PLATFORM_SECRET_KEYS.includes(key) ? "secret" : "config";
-const { error } = await admin.from("platform_env").upsert(
-  { key, value, kind, updated_at: new Date().toISOString() },
-  { onConflict: "key" },
-);
 
-if (error) {
-  console.error("Rotate failed:", error.message);
-  process.exit(1);
+async function rotateInTable() {
+  const { error } = await admin.from("platform_env").upsert(
+    { key, value, kind, updated_at: new Date().toISOString() },
+    { onConflict: "key" },
+  );
+  if (error) throw error;
+  return "platform_env table";
 }
 
-console.log(`Rotated ${key} in Supabase vault. Live servers pick it up within ~2 minutes.`);
+async function rotateInStorage() {
+  let map = {};
+  const { data, error: downloadError } = await admin.storage
+    .from(STORAGE_BUCKET)
+    .download(STORAGE_OBJECT);
+
+  if (!downloadError && data) {
+    map = JSON.parse(await data.text());
+  } else if (!/not found|does not exist/i.test(downloadError?.message ?? "")) {
+    throw downloadError;
+  }
+
+  map[key] = value;
+  const body = JSON.stringify(map, null, 2);
+  const { error: uploadError } = await admin.storage
+    .from(STORAGE_BUCKET)
+    .upload(STORAGE_OBJECT, body, { upsert: true, contentType: "application/json" });
+  if (uploadError) throw uploadError;
+  return `storage bucket ${STORAGE_BUCKET}/${STORAGE_OBJECT}`;
+}
+
+try {
+  let backend;
+  try {
+    backend = await rotateInTable();
+  } catch (tableError) {
+    if (!/does not exist|platform_env|schema cache/i.test(tableError.message)) {
+      throw tableError;
+    }
+    backend = await rotateInStorage();
+  }
+  console.log(`Rotated ${key} in Supabase (${backend}). Live servers refresh within ~2 minutes.`);
+} catch (error) {
+  console.error("Rotate failed:", error instanceof Error ? error.message : error);
+  process.exit(1);
+}

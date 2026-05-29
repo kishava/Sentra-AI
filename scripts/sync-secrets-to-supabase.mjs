@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Upload API keys from .env.local into Supabase platform_env vault.
+ * Upload API keys from .env.local into Supabase vault (platform_env table or private storage).
  * Usage: npm run secrets:sync
  */
 import fs from "node:fs";
@@ -28,6 +28,8 @@ const PLATFORM_CONFIG_KEYS = [
 ];
 
 const ALL_PLATFORM_ENV_KEYS = [...PLATFORM_SECRET_KEYS, ...PLATFORM_CONFIG_KEYS];
+const STORAGE_BUCKET = "sentra-platform-secrets";
+const STORAGE_OBJECT = "platform-env.json";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -88,22 +90,51 @@ const rows = entries.map((entry) => ({
   updated_at: new Date().toISOString(),
 }));
 
-const { error } = await admin.from("platform_env").upsert(rows, { onConflict: "key" });
+const map = Object.fromEntries(entries.map((entry) => [entry.key, entry.value]));
 
-if (error) {
-  if (/does not exist|platform_env/i.test(error.message)) {
-    console.error(
-      "platform_env table missing. Run supabase/migrations/003_platform_secrets.sql in the SQL Editor first.",
-    );
-  } else {
-    console.error("Sync failed:", error.message);
+async function syncToTable() {
+  const { error } = await admin.from("platform_env").upsert(rows, { onConflict: "key" });
+  if (error) throw error;
+  return "platform_env table";
+}
+
+async function syncToStorage() {
+  const { error: bucketError } = await admin.storage.createBucket(STORAGE_BUCKET, {
+    public: false,
+    fileSizeLimit: 102_400,
+  });
+  if (bucketError && !/already exists/i.test(bucketError.message)) {
+    throw bucketError;
   }
+
+  const body = JSON.stringify(map, null, 2);
+  const { error: uploadError } = await admin.storage
+    .from(STORAGE_BUCKET)
+    .upload(STORAGE_OBJECT, body, { upsert: true, contentType: "application/json" });
+
+  if (uploadError) throw uploadError;
+  return `storage bucket ${STORAGE_BUCKET}/${STORAGE_OBJECT}`;
+}
+
+try {
+  let backend;
+  try {
+    backend = await syncToTable();
+  } catch (tableError) {
+    if (!/does not exist|platform_env|schema cache/i.test(tableError.message)) {
+      throw tableError;
+    }
+    console.log("platform_env table not found — using private Supabase Storage vault.");
+    backend = await syncToStorage();
+  }
+
+  console.log(`Synced ${rows.length} key(s) to Supabase (${backend}):`);
+  for (const row of rows) {
+    console.log(`  • ${row.key} (${row.kind})`);
+  }
+  console.log("\nDeploy with only Supabase keys + SENTRA_APP_URL on Vercel.");
+  console.log("Rotate: npm run secrets:rotate -- KEY NEW_VALUE");
+} catch (error) {
+  console.error("Sync failed:", error instanceof Error ? error.message : error);
   process.exit(1);
 }
-
-console.log(`Synced ${rows.length} key(s) to Supabase platform_env:`);
-for (const row of rows) {
-  console.log(`  • ${row.key} (${row.kind})`);
-}
-console.log("\nFor deploy: remove provider keys from Vercel/host env — keep only Supabase + SENTRA_APP_URL.");
-console.log("Rotate keys at providers, update vault: npm run secrets:rotate -- KEY NEW_VALUE");

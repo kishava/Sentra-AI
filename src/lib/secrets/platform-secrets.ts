@@ -1,14 +1,17 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getSupabaseServiceRoleKey } from "@/lib/supabase/env";
-import { ALL_PLATFORM_ENV_KEYS, PLATFORM_CONFIG_KEYS, PLATFORM_SECRET_KEYS } from "@/lib/secrets/keys";
+import { ALL_PLATFORM_ENV_KEYS, PLATFORM_SECRET_KEYS } from "@/lib/secrets/keys";
 
 const CACHE_TTL_MS = 2 * 60 * 1000;
+const STORAGE_BUCKET = "sentra-platform-secrets";
+const STORAGE_OBJECT = "platform-env.json";
 
 let overlay: Record<string, string> = {};
 let loadedAt = 0;
 let loadPromise: Promise<void> | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
+let vaultBackend: "table" | "storage" | null = null;
 
 function shouldLoadFromSupabase() {
   return isSupabaseConfigured() && Boolean(getSupabaseServiceRoleKey());
@@ -35,19 +38,21 @@ export function getPlatformSecretsSource(): "supabase" | "env" | "mixed" {
   return "env";
 }
 
+export function getPlatformVaultBackend() {
+  return vaultBackend;
+}
+
 export function invalidatePlatformSecretsCache() {
   overlay = {};
   loadedAt = 0;
+  vaultBackend = null;
 }
 
-async function fetchFromSupabase() {
-  const admin = createAdminClient();
+async function fetchFromTable(admin: ReturnType<typeof createAdminClient>) {
   const { data, error } = await admin.from("platform_env").select("key, value");
-
   if (error) {
-    if (/does not exist|relation.*platform_env/i.test(error.message)) {
-      console.warn("[secrets] platform_env table missing — run migration 003_platform_secrets.sql");
-      return {};
+    if (/does not exist|relation.*platform_env|schema cache/i.test(error.message)) {
+      return null;
     }
     throw error;
   }
@@ -57,6 +62,44 @@ async function fetchFromSupabase() {
     if (row.key && row.value) next[row.key] = row.value;
   }
   return next;
+}
+
+async function fetchFromStorage(admin: ReturnType<typeof createAdminClient>) {
+  const { data, error } = await admin.storage.from(STORAGE_BUCKET).download(STORAGE_OBJECT);
+  if (error) {
+    if (/not found|does not exist/i.test(error.message)) return null;
+    throw error;
+  }
+
+  const text = await data.text();
+  const parsed = JSON.parse(text) as Record<string, string>;
+  const next: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value === "string" && value.trim()) next[key] = value.trim();
+  }
+  return next;
+}
+
+async function fetchFromSupabase() {
+  const admin = createAdminClient();
+  const fromTable = await fetchFromTable(admin);
+  if (fromTable && Object.keys(fromTable).length > 0) {
+    vaultBackend = "table";
+    return fromTable;
+  }
+
+  const fromStorage = await fetchFromStorage(admin);
+  if (fromStorage && Object.keys(fromStorage).length > 0) {
+    vaultBackend = "storage";
+    return fromStorage;
+  }
+
+  if (fromTable) {
+    vaultBackend = "table";
+    return fromTable;
+  }
+
+  return {};
 }
 
 export async function ensurePlatformSecrets(force = false) {
@@ -76,7 +119,7 @@ export async function ensurePlatformSecrets(force = false) {
       overlay = await fetchFromSupabase();
       loadedAt = Date.now();
     } catch (error) {
-      console.error("[secrets] Failed to load platform_env from Supabase", error);
+      console.error("[secrets] Failed to load vault from Supabase", error);
     } finally {
       loadPromise = null;
     }
@@ -96,16 +139,35 @@ export async function upsertPlatformEnvEntries(
   entries: Array<{ key: string; value: string; kind?: "secret" | "config" }>,
 ) {
   const admin = createAdminClient();
+  const map = Object.fromEntries(entries.map((entry) => [entry.key, entry.value]));
+
   const rows = entries.map((entry) => ({
     key: entry.key,
     value: entry.value,
-    kind:
-      (PLATFORM_SECRET_KEYS as readonly string[]).includes(entry.key) ? "secret" : "config",
+    kind: (PLATFORM_SECRET_KEYS as readonly string[]).includes(entry.key) ? "secret" : "config",
     updated_at: new Date().toISOString(),
   }));
 
-  const { error } = await admin.from("platform_env").upsert(rows, { onConflict: "key" });
-  if (error) throw error;
+  const { error: tableError } = await admin.from("platform_env").upsert(rows, { onConflict: "key" });
+  if (!tableError) {
+    vaultBackend = "table";
+    invalidatePlatformSecretsCache();
+    await ensurePlatformSecrets(true);
+    return;
+  }
+
+  if (!/does not exist|relation.*platform_env|schema cache/i.test(tableError.message)) {
+    throw tableError;
+  }
+
+  await admin.storage.createBucket(STORAGE_BUCKET, { public: false, fileSizeLimit: 102_400 });
+  const body = JSON.stringify(map, null, 2);
+  const { error: uploadError } = await admin.storage
+    .from(STORAGE_BUCKET)
+    .upload(STORAGE_OBJECT, body, { upsert: true, contentType: "application/json" });
+
+  if (uploadError) throw uploadError;
+  vaultBackend = "storage";
   invalidatePlatformSecretsCache();
   await ensurePlatformSecrets(true);
 }

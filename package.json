@@ -12,7 +12,8 @@
     "prepare": "node scripts/install-githooks.js",
     "db:migrate": "node scripts/apply-supabase-migrations.mjs",
     "secrets:sync": "node scripts/sync-secrets-to-supabase.mjs",
-    "secrets:rotate": "node scripts/rotate-platform-secret.mjs"
+    "secrets:rotate": "node scripts/rotate-platform-secret.mjs",
+    "secrets:verify": "node scripts/verify-vault.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
