@@ -299,7 +299,6 @@ export function InvestigationStudio() {
           <Card className="overflow-hidden p-5 md:p-7" glow>
             {!primary ? (
               <motion.button
-                whileHover={{ scale: 1.005 }}
                 type="button"
                 onClick={() => primaryInput.current?.click()}
                 onDragOver={(event) => { event.preventDefault(); setDragging(true); }}

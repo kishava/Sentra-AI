@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 
 const PARTICLE_COUNT = 12;
@@ -39,29 +39,12 @@ export function ParticleField({ lite = false }: ParticleFieldProps) {
 
   const showParticles = !lite && !reducedMotion && !pageHidden;
 
-  useEffect(() => {
-    if (reducedMotion || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-    let frame = 0;
-    const onPointerMove = (event: PointerEvent) => {
-      window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => {
-        document.documentElement.style.setProperty("--cursor-x", `${event.clientX}px`);
-        document.documentElement.style.setProperty("--cursor-y", `${event.clientY}px`);
-      });
-    };
-    window.addEventListener("pointermove", onPointerMove, { passive: true });
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("pointermove", onPointerMove);
-    };
-  }, [reducedMotion]);
-
   return (
     <div
       className={cn("pointer-events-none fixed inset-0 -z-10 overflow-hidden", pageHidden && "opacity-90")}
       aria-hidden
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(520px_circle_at_var(--cursor-x,50%)_var(--cursor-y,20%),rgba(83,244,255,.055),transparent_48%)] transition-opacity duration-500" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(520px_circle_at_50%_20%,rgba(83,244,255,.055),transparent_48%)] transition-opacity duration-500" />
       <div className="absolute inset-0 bg-aurora opacity-80" />
       <div className="particle-grid absolute inset-0 opacity-40 [mask-image:radial-gradient(circle_at_center,black,transparent_75%)]" />
       {showParticles &&
