@@ -62,6 +62,8 @@ Sentra signs users in immediately after sign-up (no inbox step). In Supabase:
 
 Enable providers under **Authentication → Providers** (Email, Google, GitHub as needed).
 
+**GitHub + Google (automated):** see **[OAUTH_SETUP.md](./OAUTH_SETUP.md)** → add OAuth keys to `.env.local` → `npm run auth:configure`.
+
 Email verification is **optional** from the profile menu (top-right avatar) when a user wants it later.
 
 ## 4. Verify in Sentra

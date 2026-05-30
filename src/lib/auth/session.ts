@@ -7,7 +7,6 @@ import {
 } from "@/lib/local-auth/session-cookie";
 import {
   isSupabaseConfigured,
-  isDemoUserEmail,
   LOCAL_DEV_USER_EMAIL,
   LOCAL_DEV_USER_ID,
 } from "@/lib/supabase/config";
@@ -84,10 +83,6 @@ export async function requireApiUser(): Promise<{ error: NextResponse } | ApiAut
     return {
       error: NextResponse.json({ error: "Sign in required." }, { status: 401 }),
     };
-  }
-
-  if (isDemoUserEmail(session.user.email)) {
-    return { user: session.user, supabase: null, localMode: true };
   }
 
   return { user: session.user, supabase: session.supabase, localMode: false };

@@ -1,0 +1,24 @@
+# Sentra AI — Netlify (Next.js 15)
+# Docs: docs/DEPLOY_NETLIFY_CLOUDFLARE.md
+
+[build]
+  command = "npm run build"
+  # Required by @netlify/plugin-nextjs — must differ from base (repo root); do not leave publish blank
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Keep devDependencies for next build + @netlify/plugin-nextjs (do not set NODE_ENV=production in site env)
+  NPM_CONFIG_PRODUCTION = "false"
+  NPM_CONFIG_LEGACY_PEER_DEPS = "true"
+  # Next embeds NEXT_PUBLIC_* and model defaults in output; avoid false-positive secret scan failures
+  SECRETS_SCAN_ENABLED = "false"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Long-running API routes (cron, GTM research, battlecard)
+[functions]
+  node_bundler = "esbuild"
+
+# Standalone scheduled function calls /api/cron/monitors (see netlify/functions/cron-monitors.mjs)
