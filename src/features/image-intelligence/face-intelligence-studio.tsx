@@ -213,23 +213,35 @@ function landmarksFor(box: FaceBox): Landmark[] {
 
 async function detectFaces(image: HTMLImageElement, canvas: HTMLCanvasElement, metrics: ReturnType<typeof imageMetrics>, file: File): Promise<FaceReport> {
   const Detector = getFaceDetector();
-  let boxes: FaceBox[] = [];
+  const candidates: FaceBox[] = [];
+
   if (Detector) {
     try {
       const detections = await new Detector({ fastMode: false, maxDetectedFaces: 12 }).detect(canvas);
-      boxes = detections
-        .filter((item) => item.boundingBox)
-        .map((item) => ({
-          x: item.boundingBox!.x,
-          y: item.boundingBox!.y,
-          width: item.boundingBox!.width,
-          height: item.boundingBox!.height,
-        }));
+      for (const item of detections) {
+        if (!item.boundingBox) continue;
+        const box: FaceBox = {
+          x: item.boundingBox.x,
+          y: item.boundingBox.y,
+          width: item.boundingBox.width,
+          height: item.boundingBox.height,
+        };
+        if (isPlausibleFaceBox(box, metrics.width, metrics.height)) candidates.push(box);
+      }
     } catch {
-      boxes = [];
+      // Fall through to skin-tone / portrait heuristics.
     }
   }
-  if (!boxes.length) boxes = [fallbackFace(metrics.width, metrics.height)];
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  const imageData = context?.getImageData(0, 0, metrics.width, metrics.height);
+  if (imageData) {
+    const skinBox = detectSkinToneFaceRegion(imageData.data, metrics.width, metrics.height);
+    if (skinBox) candidates.push(skinBox);
+  }
+
+  const best = pickBestFaceBox(candidates, metrics.width, metrics.height);
+  const boxes: FaceBox[] = [best ?? portraitFaceFallback(metrics.width, metrics.height)];
 
   const resolution = clamp(Math.min(100, (image.naturalWidth * image.naturalHeight) / 16000));
   const compression = clamp(Math.min(100, (file.size / Math.max(1, image.naturalWidth * image.naturalHeight)) * 1200));
