@@ -14,6 +14,7 @@ import { AutomationWebhookPanel } from "@/components/gtm/crm-export-button";
 import { getWorkspaceContext } from "@/lib/gtm/workspace-context";
 import { useWorkspaceSession } from "@/lib/hooks/use-workspace-session";
 import { inferMonitorIntentHeuristically } from "@/lib/monitor-intent-heuristic";
+import { readResponseJson } from "@/lib/http/read-response-json";
 import { signInFor } from "@/lib/landing/auth-links";
 import {
   buildPersonalizedSuggestions,
@@ -172,7 +173,7 @@ export function MonitorCenter() {
           fetch("/api/signals"),
           localOnly ? Promise.resolve(null) : fetch("/api/monitors"),
         ]);
-        const signalsData = (await signalsRes.json()) as { signals?: IntelligenceSignal[] };
+        const signalsData = await readResponseJson<{ signals?: IntelligenceSignal[] }>(signalsRes);
         if (signalsData.signals?.length) setSignals(signalsData.signals);
 
         if (localOnly) {
@@ -187,7 +188,7 @@ export function MonitorCenter() {
           return;
         }
 
-        const monitorsData = (await monitorsRes.json()) as {
+        const monitorsData = await readResponseJson<{
           monitors?: Array<{
             id: string;
             requirement: string;
@@ -198,7 +199,7 @@ export function MonitorCenter() {
             last_checked_at: string | null;
           }>;
           localMode?: boolean;
-        };
+        }>(monitorsRes);
 
         if (monitorsData.monitors?.length) {
           const mapped = monitorsData.monitors.map((monitor) => ({
@@ -234,7 +235,7 @@ export function MonitorCenter() {
           }
           window.localStorage.removeItem(STORAGE_KEY);
           const refreshed = await fetch("/api/monitors");
-          const refreshedData = (await refreshed.json()) as typeof monitorsData;
+          const refreshedData = await readResponseJson<typeof monitorsData>(refreshed);
           if (refreshedData.monitors?.length) {
             setMonitors(
               refreshedData.monitors.map((monitor) => ({
@@ -334,7 +335,7 @@ export function MonitorCenter() {
           signal: abortController.signal,
           body: JSON.stringify({ input }),
         });
-        const data = (await response.json()) as { intent?: MonitorIntent; error?: string };
+        const data = await readResponseJson<{ intent?: MonitorIntent; error?: string }>(response);
 
         if (response.status === 401 || response.status === 403 || !response.ok) {
           const local = enrichIntent(inferMonitorIntentHeuristically(input), input);
@@ -494,10 +495,11 @@ export function MonitorCenter() {
     try {
       const response = await fetch("/api/monitors", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(monitorPayload),
       });
-      const data = (await response.json()) as {
+      const data = await readResponseJson<{
         monitor?: {
           id: string;
           requirement: string;
@@ -508,7 +510,7 @@ export function MonitorCenter() {
         };
         localMode?: boolean;
         error?: string;
-      };
+      }>(response);
 
       if (response.ok && data.monitor) {
         monitor = {
@@ -691,14 +693,14 @@ export function MonitorCenter() {
         response = await runCheck();
       }
 
-      const data = (await response.json()) as {
+      const data = await readResponseJson<{
         signals?: IntelligenceSignal[];
         provider?: string;
         matchedCount?: number;
         report?: ExecutiveIntelligenceReport;
         detectedChanges?: DetectedChange[];
         error?: string;
-      };
+      }>(response);
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
@@ -710,6 +712,9 @@ export function MonitorCenter() {
         if (response.status === 404) {
           toast.error(data.error || "Monitor not found — refresh and try again.");
           return;
+        }
+        if (!data.error && response.status >= 500) {
+          throw new Error(`Live check failed (${response.status}). Try again in a moment.`);
         }
         throw new Error(data.error || "Check failed.");
       }
@@ -795,6 +800,10 @@ export function MonitorCenter() {
         toast.error("Session expired — sign in again to run live checks.", {
           action: { label: "Sign in", onClick: () => router.push(signInFor("/alerts")) },
         });
+        return;
+      }
+      if (/JSON|invalid response|unexpected end/i.test(message)) {
+        toast.error("Live check did not finish — tap Check now to retry.");
         return;
       }
       toast.error(message);

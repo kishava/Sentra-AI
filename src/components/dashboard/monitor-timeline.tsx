@@ -55,7 +55,8 @@ export function MonitorTimeline({ monitorId, limit = 12, className }: MonitorTim
     async function load() {
       try {
         const response = await fetch("/api/timeline", { credentials: "include" });
-        const data = (await response.json()) as { events?: MonitorTimelineEvent[] };
+        const text = await response.text();
+        const data = (text.trim() ? JSON.parse(text) : {}) as { events?: MonitorTimelineEvent[] };
         if (!cancelled) {
           const serverEvents = response.ok ? data.events ?? [] : [];
           const localEvents = loadTimelineEvents();

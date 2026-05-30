@@ -19,44 +19,52 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireApiUser();
-  if ("error" in auth) return auth.error;
+  try {
+    const auth = await requireApiUser();
+    if ("error" in auth) return auth.error;
 
-  const body = (await request.json()) as {
-    requirement?: string;
-    category?: string;
-    minimumSeverity?: Severity;
-    keywords?: string[];
-    targetUrl?: string;
-    active?: boolean;
-  };
+    const body = (await request.json().catch(() => ({}))) as {
+      requirement?: string;
+      category?: string;
+      minimumSeverity?: Severity;
+      keywords?: string[];
+      targetUrl?: string;
+      active?: boolean;
+    };
 
-  if (!body.requirement?.trim()) {
-    return NextResponse.json({ error: "Monitor requirement is required." }, { status: 400 });
-  }
+    if (!body.requirement?.trim()) {
+      return NextResponse.json({ error: "Monitor requirement is required." }, { status: 400 });
+    }
 
-  if (auth.localMode || !auth.supabase) {
-    const monitor = {
-      id: randomUUID(),
+    if (auth.localMode || !auth.supabase) {
+      const monitor = {
+        id: randomUUID(),
+        requirement: body.requirement.trim(),
+        category: body.category ?? "any",
+        minimum_severity: body.minimumSeverity ?? "medium",
+        keywords: body.keywords ?? [],
+        target_url: body.targetUrl ?? null,
+        active: body.active ?? true,
+        last_checked_at: null,
+      };
+      return NextResponse.json({ monitor, localMode: true });
+    }
+
+    const monitor = await createMonitor(auth.supabase, auth.user.id, {
       requirement: body.requirement.trim(),
       category: body.category ?? "any",
       minimum_severity: body.minimumSeverity ?? "medium",
       keywords: body.keywords ?? [],
       target_url: body.targetUrl ?? null,
       active: body.active ?? true,
-      last_checked_at: null,
-    };
-    return NextResponse.json({ monitor, localMode: true });
+    });
+
+    return NextResponse.json({ monitor });
+  } catch (error) {
+    console.error("Create monitor failed", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not save monitor." },
+      { status: 500 },
+    );
   }
-
-  const monitor = await createMonitor(auth.supabase, auth.user.id, {
-    requirement: body.requirement.trim(),
-    category: body.category ?? "any",
-    minimum_severity: body.minimumSeverity ?? "medium",
-    keywords: body.keywords ?? [],
-    target_url: body.targetUrl ?? null,
-    active: body.active ?? true,
-  });
-
-  return NextResponse.json({ monitor });
 }

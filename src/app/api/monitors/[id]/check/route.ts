@@ -8,6 +8,7 @@ import type { WorkspaceContext } from "@/lib/gtm/workspace-context";
 import type { Severity } from "@/types/intelligence";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 type LocalMonitorPayload = {
   requirement?: string;
