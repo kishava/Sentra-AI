@@ -9,6 +9,7 @@ import { WorldEngineStudio } from "@/features/world-engine/world-engine-studio";
 import { cn } from "@/lib/utils";
 import { useSettings } from "@/settings/settings-context";
 import { Card } from "@/components/ui/card";
+import { WorkspacePage, WorkspacePageHeader } from "@/components/workspace/workspace-page";
 
 type AnalystMode = "world" | "vision" | "face";
 
@@ -31,8 +32,14 @@ export function AnalystWorkspace() {
   ];
 
   return (
-    <>
-      <div className="sticky top-20 z-20 -mx-2 mb-7 flex items-center bg-sentra-ink/78 px-2 py-3 backdrop-blur-xl">
+    <WorkspacePage>
+      <WorkspacePageHeader
+        badge="AI Analyst"
+        title="Investigation workspace"
+        description="Switch between world intelligence, visual forensics, and face authenticity modules. Preferences from Settings control which modes appear here."
+      />
+
+      <div className="sticky top-[4.5rem] z-20 -mt-2 mb-2 flex items-center bg-sentra-ink/85 py-3 backdrop-blur-xl">
         <nav className="inline-flex rounded-full border border-white/10 bg-white/[0.045] p-1 shadow-[0_14px_34px_rgba(0,0,0,.22)]" aria-label="AI Analyst modes">
           {modes.map((item) => (
             <button
@@ -69,6 +76,6 @@ export function AnalystWorkspace() {
           )}
         </motion.div>
       </AnimatePresence>
-    </>
+    </WorkspacePage>
   );
 }

@@ -49,6 +49,16 @@ export function AuthShell({ mode }: AuthShellProps) {
     ? `/sign-in${nextPath !== "/dashboard" ? `?next=${encodeURIComponent(nextPath)}` : ""}`
     : `/sign-up${nextPath !== "/dashboard" ? `?next=${encodeURIComponent(nextPath)}` : ""}`;
 
+  function navigateAfterAuth(localMode: boolean) {
+    if (localMode) {
+      router.refresh();
+      router.push(nextPath);
+      return;
+    }
+    router.refresh();
+    window.location.assign(nextPath);
+  }
+
   useEffect(() => {
     if (!supabaseEnabled) return;
 
@@ -87,8 +97,7 @@ export function AuthShell({ mode }: AuthShellProps) {
           description: "Your local workspace session is active in this browser.",
         });
       }
-      router.push(nextPath);
-      router.refresh();
+      navigateAfterAuth(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Local authentication failed.");
     } finally {
@@ -137,13 +146,11 @@ export function AuthShell({ mode }: AuthShellProps) {
 
         markNewUserGuidePending();
         toast.success("Workspace created — welcome to Sentra.");
-        router.push(nextPath);
-        router.refresh();
+        navigateAfterAuth(false);
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.push(nextPath);
-        router.refresh();
+        navigateAfterAuth(false);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Authentication failed.");
@@ -242,8 +249,7 @@ export function AuthShell({ mode }: AuthShellProps) {
         password: DEMO_PASSWORD,
       });
       if (error) throw error;
-      router.push(nextPath);
-      router.refresh();
+      navigateAfterAuth(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Demo sign-in failed.");
       setLoading(false);

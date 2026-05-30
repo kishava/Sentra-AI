@@ -20,6 +20,7 @@ import {
   getFeatherlessFastModel,
   isFeatherlessConfigured,
 } from "@/lib/llm/featherless";
+import { formatWorkspaceContextForPrompt, type WorkspaceContext } from "@/lib/gtm/workspace-context";
 import { sliceDocumentForContext } from "@/lib/documents/extract-text";
 import type { ChatMessage, IntelligenceAnalysis, MonitorIntent, Severity } from "@/types/intelligence";
 
@@ -53,6 +54,7 @@ const monitorSeverities = ["low", "medium", "high", "critical"] as const;
 type ChatContext = {
   history?: Pick<ChatMessage, "role" | "content">[];
   brightDataEvidence?: string;
+  workspaceContext?: WorkspaceContext | null;
   documentEvidence?: {
     fileName: string;
     text: string;
@@ -223,6 +225,7 @@ export async function transcribeAudio(file: File, context?: string) {
 export async function generateEnterpriseAnalysis(
   query: string,
   webEvidence: string,
+  workspaceContext?: WorkspaceContext | null,
 ): Promise<IntelligenceAnalysis> {
   const inference = getAgentInferenceClient() ?? getLlmClient();
   if (!inference) {
@@ -236,6 +239,8 @@ export async function generateEnterpriseAnalysis(
     ? getFeatherlessChatModel()
     : getAnalysisModel();
 
+  const accountBlock = formatWorkspaceContextForPrompt(workspaceContext);
+
   const response = await createChatCompletion(inference, {
     model: analysisModel,
     temperature: 0.35,
@@ -244,7 +249,7 @@ export async function generateEnterpriseAnalysis(
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Query: ${query}\n\nBright Data evidence:\n${webEvidence}\n\nReturn JSON with keys: summary, risks, opportunities, recommendations, confidenceScore, signals.\nsignals must be an array of objects with keys: title, source, summary, category (competitor|market|risk|pricing|hiring|sentiment), severity (low|medium|high|critical), confidence (0-1), timestamp (short human string). Include 2-6 signals derived from the evidence only.`,
+        content: `Query: ${query}${accountBlock ? `\n\nAccount context:\n${accountBlock}` : ""}\n\nBright Data evidence:\n${webEvidence}\n\nReturn JSON with keys: summary, risks, opportunities, recommendations, confidenceScore, signals.\nsignals must be an array of objects with keys: title, source, summary, category (competitor|market|risk|pricing|hiring|sentiment), severity (low|medium|high|critical), confidence (0-1), timestamp (short human string). Include 2-6 signals derived from the evidence only.`,
       },
     ],
   });
@@ -291,6 +296,9 @@ function buildChatMessages(message: string, context?: ChatContext) {
   const systemParts = [
     CHAT_PROMPT,
     `Use ${freshnessDate.date} (${freshnessDate.timeZone}) as the current date.`,
+    formatWorkspaceContextForPrompt(context?.workspaceContext)
+      ? `Account context for this GTM workspace:\n${formatWorkspaceContextForPrompt(context?.workspaceContext)}`
+      : null,
     documentText
       ? "The user uploaded a document. Treat uploaded document text as primary evidence for document-specific questions."
       : null,

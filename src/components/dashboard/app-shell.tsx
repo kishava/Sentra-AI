@@ -20,7 +20,7 @@ import { LocalDevBanner } from "@/components/shared/local-dev-banner";
 import { ParticleField } from "@/components/shared/particle-field";
 import { NewUserGuideModal } from "@/components/dashboard/new-user-guide-modal";
 import { UserMenu } from "@/components/dashboard/user-menu";
-import { getLocalSession, repairLocalStorageQuota } from "@/lib/local-auth";
+import { getLocalSession, repairLocalSessionFromCookie, repairLocalStorageQuota } from "@/lib/local-auth";
 import { isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     repairLocalStorageQuota();
+    repairLocalSessionFromCookie();
   }, []);
 
   useEffect(() => {
@@ -93,7 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (getLocalSession()) return;
 
     const next = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
-    router.replace(`/sign-up?next=${encodeURIComponent(next)}`);
+    router.replace(`/sign-in?next=${encodeURIComponent(next)}`);
   }, [pathname, router, searchParams]);
 
   return (
@@ -148,7 +149,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <UserMenu />
           </div>
         </header>
-        <div className="px-4 py-8 md:px-8">{children}</div>
+        <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8">{children}</div>
       </section>
       <nav className="fixed inset-x-3 bottom-3 z-40 rounded-3xl border border-white/10 bg-sentra-ink/95 p-2 shadow-2xl shadow-black/40 lg:hidden">
         <div className="flex gap-1 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

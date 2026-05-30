@@ -4,6 +4,7 @@ import { getMonitor } from "@/lib/db/monitors";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { monitorCheckErrorStatus, runMonitorCheck } from "@/services/monitor-check";
+import type { WorkspaceContext } from "@/lib/gtm/workspace-context";
 import type { Severity } from "@/types/intelligence";
 
 export const runtime = "nodejs";
@@ -14,6 +15,7 @@ type LocalMonitorPayload = {
   minimumSeverity?: Severity;
   keywords?: string[];
   targetUrl?: string;
+  workspace?: WorkspaceContext;
 };
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -66,6 +68,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       supabase: auth.localMode ? undefined : auth.supabase ?? undefined,
       userId: auth.user.id,
       persist: !auth.localMode && Boolean(auth.supabase),
+      workspace: body.workspace,
     });
 
     return NextResponse.json({

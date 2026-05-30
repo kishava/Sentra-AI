@@ -38,7 +38,7 @@ function extractAudioUrl(payload: AimlTtsJson) {
   return payload.audio.url ?? null;
 }
 
-/** Fast AIML text-to-speech (replaces ElevenLabs). */
+/** AIML text-to-speech fallback when Speechmatics is unavailable. */
 export async function synthesizeAimlSpeech(text: string, playbackSpeed = 1) {
   if (!isAimlConfigured()) return null;
 

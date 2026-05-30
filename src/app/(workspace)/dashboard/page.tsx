@@ -1,22 +1,25 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { Activity, BellRing, Building2, Radar, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Radar } from "lucide-react";
 import { DashboardBriefing } from "@/components/dashboard/dashboard-briefing";
 import { LiveSignalsPanel } from "@/components/dashboard/live-signals-panel";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { RiskHeatmap } from "@/components/dashboard/risk-heatmap";
-import { AiOrb } from "@/components/shared/ai-orb";
+import { WorkspacePage, WorkspacePageHeader, WorkspaceSection } from "@/components/workspace/workspace-page";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useDashboardSignals } from "@/hooks/use-dashboard-signals";
+import dynamic from "next/dynamic";
+import { Activity, BellRing, Building2, TrendingUp } from "lucide-react";
 
 const IntelligenceCharts = dynamic(
   () => import("@/components/dashboard/intelligence-charts").then((mod) => mod.IntelligenceCharts),
   {
     ssr: false,
     loading: () => (
-      <div className="mb-8 grid h-72 animate-pulse gap-5 rounded-[28px] border border-white/10 bg-white/[0.04] xl:grid-cols-2" />
+      <div className="grid h-72 animate-pulse gap-5 rounded-[28px] border border-white/10 bg-white/[0.04] xl:grid-cols-2" />
     ),
   },
 );
@@ -61,61 +64,63 @@ export default function DashboardPage() {
   ];
 
   return (
-    <>
-      <section className="mb-8 grid gap-5 xl:grid-cols-[1fr_360px]">
-        <Card className="overflow-hidden p-5 md:p-8" glow>
-          <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <Badge variant="cyan">Enterprise intelligence OS</Badge>
-              <h1 className="type-display-lg mt-4 max-w-4xl text-white">
-                Live enterprise signals, analyzed before they become obvious.
-              </h1>
-              <p className="mt-5 max-w-2xl text-white/55">
-                Refresh your briefing to collect live web evidence with Bright Data, then monitor
-                competitors from Alerts.
-              </p>
-            </div>
-            <AiOrb speaking size="md" static className="shrink-0 self-center" />
-          </div>
-        </Card>
-        <DashboardBriefing />
-      </section>
+    <WorkspacePage>
+      <WorkspacePageHeader
+        badge="Enterprise intelligence OS"
+        title="Live enterprise signals, analyzed before they become obvious."
+        description="Refresh your briefing to collect live web evidence with Bright Data, then create monitors and run the GTM research agent from the Monitors workspace."
+        aside={<DashboardBriefing />}
+      />
 
-      <section className="mb-4 flex items-center justify-between gap-4">
-        <p className="text-xs uppercase tracking-[0.2em] text-white/35">
-          {source === "live" ? "Synchronized intelligence snapshot" : "Preview data until a live run completes"}
-        </p>
-        {lastUpdated && (
-          <p className="text-xs text-white/38">
-            Updated {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </p>
-        )}
-      </section>
-
-      <section className="mb-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
-          <MetricCard key={metric.label} {...metric} />
-        ))}
-      </section>
-
-      <section className="mb-8">
-        <IntelligenceCharts />
-      </section>
-
-      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <LiveSignalsPanel signals={signals} source={source} loading={loading} lastUpdated={lastUpdated} />
-        <div className="grid gap-5">
-          <RiskHeatmap signals={signals} source={source} loading={loading} />
-          <Card className="p-6" glow>
-            <Activity className="h-7 w-7 text-sentra-cyan" />
-            <h3 className="mt-5 text-2xl font-semibold text-white">Next step</h3>
-            <p className="mt-3 text-sm leading-6 text-white/55">
-              Open Alerts to create a monitor and run Check now - each check uses Bright Data SERP
-              or Unlocker, then matches signals to your rule.
+      <WorkspaceSection
+        title="Signal snapshot"
+        description={
+          source === "live"
+            ? "Synchronized intelligence from your latest briefing or monitor run."
+            : "Preview data until a live Bright Data collection completes."
+        }
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Badge variant={source === "live" ? "cyan" : "violet"}>
+            {source === "live" ? "Live · Bright Data" : "Preview mode"}
+          </Badge>
+          {lastUpdated && (
+            <p className="text-xs text-white/38">
+              Updated {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </p>
-          </Card>
+          )}
         </div>
-      </section>
-    </>
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {metrics.map((metric) => (
+            <MetricCard key={metric.label} {...metric} />
+          ))}
+        </div>
+      </WorkspaceSection>
+
+      <WorkspaceSection title="Market trends">
+        <IntelligenceCharts />
+      </WorkspaceSection>
+
+      <WorkspaceSection title="Live intelligence">
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <LiveSignalsPanel signals={signals} source={source} loading={loading} lastUpdated={lastUpdated} />
+          <div className="grid gap-5">
+            <RiskHeatmap signals={signals} source={source} loading={loading} />
+            <Card className="p-6" glow>
+              <Activity className="h-7 w-7 text-sentra-cyan" />
+              <h3 className="mt-5 text-2xl font-semibold text-white">GTM command center</h3>
+              <p className="mt-3 text-sm leading-6 text-white/55">
+                Account context, battlecard analysis, MCP research agent, and monitor creation live in Monitors.
+              </p>
+              <Button asChild variant="neon" className="mt-5">
+                <Link href="/alerts#gtm-workspace">
+                  Open monitors <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </Card>
+          </div>
+        </div>
+      </WorkspaceSection>
+    </WorkspacePage>
   );
 }

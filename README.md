@@ -103,8 +103,7 @@ BRIGHT_DATA_WEB_UNLOCKER_ENDPOINT=https://api.brightdata.com/request
 BRIGHT_DATA_WEB_UNLOCKER_ZONE=
 BRIGHT_DATA_SCRAPER_ENDPOINT=
 
-ELEVENLABS_API_KEY=
-ELEVENLABS_VOICE_ID=
+SPEECHMATICS_API_KEY=
 ```
 
 Without keys, Sentra AI uses polished demo intelligence so the UI and API routes

@@ -3,15 +3,15 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, BookOpen, Sparkles, X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getServiceById, sentraServices, type SentraService } from "@/data/our-services";
 import { useWorkspaceSession } from "@/lib/hooks/use-workspace-session";
 import { cn } from "@/lib/utils";
+import { WorkspacePage, WorkspacePageHeader, WorkspaceSection } from "@/components/workspace/workspace-page";
 
 function signUpUrl(next: string) {
-  return `/sign-up?next=${encodeURIComponent(next)}`;
+  return `/sign-in?next=${encodeURIComponent(next)}`;
 }
 
 export function OurServicesPage({ basePath = "/services" }: { basePath?: string }) {
@@ -57,38 +57,28 @@ export function OurServicesPage({ basePath = "/services" }: { basePath?: string 
   }
 
   return (
-    <>
-      <section className="mb-8">
-        <Card className="p-6 md:p-8" glow>
-          <Badge variant="cyan">Our services</Badge>
-          <div className="mt-4 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-end">
-            <div className="min-w-0">
-              <h1 className="type-display-lg text-white">
-                Enterprise intelligence, end to end
-              </h1>
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-white/58 md:text-base">
-                Browse every Sentra capability below — no account needed. Tap Guide on any card for a
-                walkthrough; register when you are ready to use the live workspace.
-              </p>
+    <WorkspacePage>
+      <WorkspacePageHeader
+        badge="Our services"
+        title="Enterprise intelligence, end to end"
+        description="Browse every Sentra capability below — no account needed. Tap Guide on any card for a walkthrough; register when you are ready to use the live workspace."
+        aside={
+          <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5">
+            <div className="flex items-center gap-3">
+              <Sparkles className="h-5 w-5 text-sentra-cyan" />
+              <p className="font-medium text-white">{signedIn ? "Workspace active" : "Browse freely"}</p>
             </div>
-            <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5">
-              <div className="flex items-center gap-3">
-                <Sparkles className="h-5 w-5 text-sentra-cyan" />
-                <p className="font-medium text-white">
-                  {signedIn ? "Workspace active" : "Browse freely"}
-                </p>
-              </div>
-              <p className="mt-2 text-sm leading-6 text-white/55">
-                {signedIn
-                  ? "Each Guide walks you through the service and opens the workspace when you finish."
-                  : "Summaries are always visible. Register to unlock interactive guides."}
-              </p>
-            </div>
+            <p className="mt-2 text-sm leading-6 text-white/55">
+              {signedIn
+                ? "Each Guide walks you through the service and opens the workspace when you finish."
+                : "Summaries are always visible. Register to unlock interactive guides."}
+            </p>
           </div>
-        </Card>
-      </section>
+        }
+      />
 
-      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <WorkspaceSection title="Capabilities">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {sentraServices.map((service) => (
           <Card key={service.id} className="flex min-w-0 flex-col p-5" glow>
             <div className="flex items-start gap-4">
@@ -119,12 +109,13 @@ export function OurServicesPage({ basePath = "/services" }: { basePath?: string 
             </div>
           </Card>
         ))}
-      </section>
+      </div>
+      </WorkspaceSection>
 
       {selectedService && signedIn && (
         <ServiceGuideModal service={selectedService} onClose={closeGuide} onOpenWorkspace={openWorkspace} />
       )}
-    </>
+    </WorkspacePage>
   );
 }
 

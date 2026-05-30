@@ -2,6 +2,8 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl, isSupabaseEnvConfigured } from "@/lib/supabase/env";
 
+let browserClient: SupabaseClient | null = null;
+
 export function isBrowserSupabaseConfigured() {
   return isSupabaseEnvConfigured();
 }
@@ -10,7 +12,11 @@ export function isBrowserSupabaseConfigured() {
 export function getBrowserClient(): SupabaseClient | null {
   if (!isBrowserSupabaseConfigured()) return null;
 
-  return createBrowserClient(getSupabaseUrl(), getSupabaseAnonKey());
+  if (!browserClient) {
+    browserClient = createBrowserClient(getSupabaseUrl(), getSupabaseAnonKey());
+  }
+
+  return browserClient;
 }
 
 /** @deprecated Prefer getBrowserClient() — throws if used without env configured. */

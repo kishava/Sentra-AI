@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  LOCAL_SESSION_COOKIE,
+  parseLocalSessionCookie,
+  serializeLocalSessionCookie,
+  type LocalSessionPayload,
+} from "@/lib/local-auth/session-cookie";
+
 type LocalUser = {
   id: string;
   email: string;
@@ -9,13 +16,7 @@ type LocalUser = {
 };
 
 /** Session payload — keep small (no avatars; those live in PROFILE_KEY). */
-export type LocalSession = {
-  userId: string;
-  email: string;
-  displayName?: string;
-  companyName?: string;
-  signedInAt: string;
-};
+export type LocalSession = LocalSessionPayload;
 
 const SESSION_MAX_BYTES = 4_096;
 
@@ -112,12 +113,22 @@ function parseSession(raw: string | null): LocalSession | null {
   return parsed;
 }
 
+function writeSessionCookie(session: LocalSession) {
+  const maxAge = 60 * 60 * 24 * 30;
+  document.cookie = `${LOCAL_SESSION_COOKIE}=${serializeLocalSessionCookie(session)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+}
+
+function clearSessionCookie() {
+  document.cookie = `${LOCAL_SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+}
+
 function writeSession(session: LocalSession) {
   const payload = JSON.stringify(session);
   if (payload.length > SESSION_MAX_BYTES) {
     throw new Error("Session data is too large.");
   }
   window.localStorage.setItem(SESSION_KEY, payload);
+  writeSessionCookie(session);
 }
 
 /** Moves legacy avatar blobs out of session and trims bloated storage. */
@@ -161,6 +172,26 @@ export function getLocalSession() {
 export function signOutLocalAccount() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(SESSION_KEY);
+  clearSessionCookie();
+}
+
+/** Restore localStorage from the session cookie when storage was cleared. */
+export function repairLocalSessionFromCookie() {
+  if (typeof window === "undefined") return;
+  if (getLocalSession()) return;
+
+  const match = document.cookie
+    .split("; ")
+    .find((entry) => entry.startsWith(`${LOCAL_SESSION_COOKIE}=`));
+  if (!match) return;
+
+  const value = match.slice(LOCAL_SESSION_COOKIE.length + 1);
+  const session = parseLocalSessionCookie(value);
+  if (session) {
+    writeSession(session);
+  } else {
+    clearSessionCookie();
+  }
 }
 
 export function getUserProfile(): UserProfile {

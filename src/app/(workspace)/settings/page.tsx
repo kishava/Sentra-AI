@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { BrightDataControlCenter } from "@/components/settings/bright-data-control-center";
+import { WorkspacePage, WorkspacePageHeader } from "@/components/workspace/workspace-page";
 import { type SentraSettings, type VoiceMode, useSettings } from "@/settings/settings-context";
 
 type IntegrationStatus = {
@@ -40,9 +41,9 @@ type IntegrationStatus = {
     provider: "aiml" | "openai" | null;
     models: Record<string, string> | null;
   };
-  elevenlabs: boolean;
   aimlVoice?: boolean;
   speechmaticsVoice?: boolean;
+  speechmaticsStt?: boolean;
   featherless?: boolean;
   featherlessModels?: { chat: string; vision: string } | null;
   brightData: {
@@ -138,43 +139,42 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-6">
-      <header className="grid gap-5 xl:grid-cols-[1fr_360px]">
-        <Card className="relative overflow-hidden p-6 md:p-8" glow>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_5%,rgba(83,244,255,.1),transparent_32%),radial-gradient(circle_at_90%_30%,rgba(168,85,247,.12),transparent_34%)]" />
-          <div className="relative">
-            <Badge variant="cyan">Sentra Control Center</Badge>
-            <h1 className="mt-4 text-4xl font-semibold text-white md:text-5xl">Settings</h1>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-white/58 md:text-base">
-              Configure voice, AI analyst behavior, visual forensics, Bright Data routing, privacy guardrails, and command-center experience from one enterprise control surface.
+    <WorkspacePage>
+      <WorkspacePageHeader
+        badge="Sentra Control Center"
+        title="Settings"
+        description="Configure voice, AI analyst behavior, visual forensics, Bright Data routing, privacy guardrails, and command-center experience from one enterprise control surface."
+        aside={
+          <Card className="grid content-center gap-4 p-6" glow>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-white/42">System status</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">Enterprise readiness</h2>
+              </div>
+              <StatusDot ok={brightDataReady} />
+            </div>
+            <div className="grid gap-2">
+              <StatusLine label="AI/ML API (LLM)" ok={status?.aiml || status?.llm?.ready} />
+              <StatusLine label="Speechmatics voice (TTS)" ok={status?.speechmaticsVoice ?? status?.aimlVoice} />
+              <StatusLine label="Speechmatics STT" ok={status?.speechmaticsStt ?? status?.speechmaticsVoice} />
+              <StatusLine label="Bright Data API" ok={status?.brightData.apiKey} />
+              <StatusLine label="Workspace database" ok={status?.supabaseSchema} />
+            </div>
+            <p className="text-xs leading-5 text-white/42">
+              Last sync: {settings.brightData.lastSync ? new Date(settings.brightData.lastSync).toLocaleString() : "Not tested yet"}
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button variant="neon" onClick={() => toast.success("Preferences saved locally")}>
-                <CheckCircle2 className="h-4 w-4" /> Save preferences
-              </Button>
-              <Button variant="ghost" onClick={resetAll}>
-                <RotateCcw className="h-4 w-4" /> Reset defaults
-              </Button>
-            </div>
-          </div>
-        </Card>
-        <Card className="grid content-center gap-4 p-6" glow>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-white/42">System status</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Enterprise readiness</h2>
-            </div>
-            <StatusDot ok={brightDataReady} />
-          </div>
-          <div className="grid gap-2">
-            <StatusLine label="AI/ML API (LLM)" ok={status?.aiml || status?.llm?.ready} />
-            <StatusLine label="Speechmatics voice (TTS)" ok={status?.speechmaticsVoice ?? status?.aimlVoice ?? status?.elevenlabs} />
-            <StatusLine label="Bright Data API" ok={status?.brightData.apiKey} />
-            <StatusLine label="Workspace database" ok={status?.supabaseSchema} />
-          </div>
-          <p className="text-xs leading-5 text-white/42">Last sync: {settings.brightData.lastSync ? new Date(settings.brightData.lastSync).toLocaleString() : "Not tested yet"}</p>
-        </Card>
-      </header>
+          </Card>
+        }
+      />
+
+      <div className="flex flex-wrap gap-3">
+        <Button variant="neon" onClick={() => toast.success("Preferences saved locally")}>
+          <CheckCircle2 className="h-4 w-4" /> Save preferences
+        </Button>
+        <Button variant="ghost" onClick={resetAll}>
+          <RotateCcw className="h-4 w-4" /> Reset defaults
+        </Button>
+      </div>
 
       <div className="grid items-start gap-6 xl:grid-cols-2">
         <SettingsCard icon={Volume2} title="Voice Settings" subtitle="Control response playback, microphones, and analyst voice behavior.">
@@ -272,7 +272,8 @@ export default function SettingsPage() {
           />
           <StatusRow label="AI/ML API (LLM)" ok={status?.aiml || status?.llm?.ready} />
           <StatusRow label="Featherless (open models)" ok={status?.featherless} optional />
-          <StatusRow label="Speechmatics voice (TTS)" ok={status?.speechmaticsVoice ?? status?.aimlVoice ?? status?.elevenlabs} />
+          <StatusRow label="Speechmatics voice (TTS)" ok={status?.speechmaticsVoice ?? status?.aimlVoice} />
+          <StatusRow label="Speechmatics STT" ok={status?.speechmaticsStt ?? status?.speechmaticsVoice} />
           <StatusRow label="Bright Data API key" ok={status?.brightData?.apiKey} />
           <StatusRow label="Bright Data SERP zone" ok={status?.brightData?.serpZone} />
           <StatusRow label="Bright Data Unlocker zone" ok={status?.brightData?.unlockerZone} />
@@ -308,7 +309,7 @@ export default function SettingsPage() {
           Open Bright Data control panel <ExternalLink className="h-4 w-4" />
         </Link>
       </Card>
-    </div>
+    </WorkspacePage>
   );
 }
 

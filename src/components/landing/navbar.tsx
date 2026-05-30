@@ -35,7 +35,7 @@ export function Navbar() {
             <Link href="/sign-up">Register</Link>
           </Button>
           <Button asChild variant="neon">
-            <Link href="/dashboard">Launch OS</Link>
+            <Link href="/sign-in?next=%2Fdashboard">Launch OS</Link>
           </Button>
         </div>
       </div>

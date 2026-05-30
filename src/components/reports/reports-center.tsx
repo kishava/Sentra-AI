@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, ExternalLink, FileCheck2, Search, ShieldCh
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { WorkspacePage, WorkspacePageHeader, WorkspaceSection } from "@/components/workspace/workspace-page";
 import type { ExecutiveIntelligenceReport } from "@/types/intelligence";
 
 const REPORTS_STORAGE_KEY = "sentra-intelligence-reports";
@@ -90,12 +91,20 @@ export function ReportsCenter() {
   const selected = filtered.find((report) => report.id === selectedId) ?? filtered[0];
 
   return (
-    <section className="grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
+    <WorkspacePage>
+      <WorkspacePageHeader
+        badge="Reports center"
+        title="Verified intelligence reports"
+        description="Executive briefs generated from monitor checks and Bright Data evidence. Search by verdict, monitor requirement, or risk score."
+      />
+
+      <WorkspaceSection>
+    <div className="grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
       <Card className="p-5 md:p-6" glow>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <Badge variant="cyan">Reports Center</Badge>
-            <h1 className="mt-3 text-3xl font-semibold text-white">Verified intelligence reports</h1>
+            <p className="text-sm font-medium text-white">Report library</p>
+            <p className="mt-1 text-xs text-white/45">{filtered.length} report{filtered.length === 1 ? "" : "s"}</p>
           </div>
           <FileCheck2 className="h-7 w-7 text-sentra-cyan" />
         </div>
@@ -251,7 +260,9 @@ export function ReportsCenter() {
           </div>
         )}
       </Card>
-    </section>
+    </div>
+      </WorkspaceSection>
+    </WorkspacePage>
   );
 }
 

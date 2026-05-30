@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { UserResponse } from "@supabase/supabase-js";
-import { getLocalSession } from "@/lib/local-auth";
+import { getLocalSession, repairLocalSessionFromCookie } from "@/lib/local-auth";
 import { getBrowserClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 
 /** True when the user can access workspace routes (Supabase session or local account). */
@@ -13,6 +13,7 @@ export function useWorkspaceSession() {
   useEffect(() => {
     if (!isBrowserSupabaseConfigured()) {
       const timeout = window.setTimeout(() => {
+        repairLocalSessionFromCookie();
         setSignedIn(Boolean(getLocalSession()));
         setReady(true);
       }, 0);
