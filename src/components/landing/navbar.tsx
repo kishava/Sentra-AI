@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { LandingAuthLink } from "@/components/landing/landing-auth-link";
 import { BrandLogo } from "@/components/shared/brand-mark";
 import { Button } from "@/components/ui/button";
-import { SENTRA_HOME, signInFor } from "@/lib/landing/auth-links";
+import { SENTRA_HOME } from "@/lib/landing/auth-links";
 
 export function Navbar() {
   const links = [
@@ -31,11 +32,8 @@ export function Navbar() {
           )}
         </nav>
         <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" className="hidden sm:inline-flex">
-            <Link href={signInFor(SENTRA_HOME)}>Sign in</Link>
-          </Button>
           <Button asChild variant="neon">
-            <Link href={signInFor(SENTRA_HOME)}>Launch OS</Link>
+            <LandingAuthLink href={SENTRA_HOME}>Launch OS</LandingAuthLink>
           </Button>
         </div>
       </div>
