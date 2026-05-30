@@ -92,9 +92,6 @@ AIML_MODEL_VISION=gpt-4o
 AIML_MODEL_TRANSCRIBE=whisper-1
 SENTRA_TIMEZONE=Asia/Colombo
 
-# Optional direct OpenAI fallback
-OPENAI_API_KEY=
-
 BRIGHT_DATA_API_KEY=
 BRIGHT_DATA_CACHE_TTL_SECONDS=900
 BRIGHT_DATA_SERP_ENDPOINT=https://api.brightdata.com/request

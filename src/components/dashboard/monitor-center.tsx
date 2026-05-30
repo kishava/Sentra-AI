@@ -822,8 +822,16 @@ export function MonitorCenter() {
                       <Badge variant="cyan">{monitorIntent.category}</Badge>
                       <Badge variant="risk">{monitorIntent.minimumSeverity}+ severity</Badge>
                       <Badge variant="default">{Math.round(monitorIntent.confidence * 100)}% confidence</Badge>
-                      <Badge variant={monitorIntent.provider === "openai" ? "success" : "default"}>
-                        {monitorIntent.provider === "openai" ? "AI interpreted" : "Local fallback"}
+                      <Badge
+                        variant={
+                          monitorIntent.provider === "aiml" || monitorIntent.provider === "featherless"
+                            ? "success"
+                            : "default"
+                        }
+                      >
+                        {monitorIntent.provider === "aiml" || monitorIntent.provider === "featherless"
+                          ? "AI interpreted"
+                          : "Local fallback"}
                       </Badge>
                     </div>
                     {monitorIntent.keywords.length > 0 && (

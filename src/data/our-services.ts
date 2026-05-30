@@ -133,15 +133,15 @@ export const sentraServices: SentraService[] = [
     tagline: "Live web collection",
     summary: "SERP and Web Unlocker power live briefings, chat evidence, and monitor checks.",
     description:
-      "SERP and Web Unlocker zones feed chat, briefings, monitor checks, and alert reports. Configure zones in Bright Data, then .env.local.",
+      "SERP and Web Unlocker zones feed chat, briefings, monitor checks, and alert reports. Configure zones in Bright Data, then sync keys to the Supabase vault.",
     href: "/settings",
     icon: DatabaseZap,
     highlights: ["SERP search", "Web Unlocker", "MCP tools", "Live vs sample badges"],
     steps: [
       "Create SERP and/or Web Unlocker zones in the Bright Data control panel.",
-      "Add BRIGHT_DATA_API_KEY and zone names to .env.local.",
+      "Add BRIGHT_DATA_API_KEY and zone names to .env.local, then run npm run secrets:sync.",
       "Restart npm run dev and confirm green status on Settings.",
-      "Trigger collection via Dashboard Refresh, Chat, or Alerts Check now.",
+      "Trigger collection via Dashboard Refresh, Chat, or Alerts Check now (monitors also run on the cron schedule).",
     ],
   },
   {
@@ -156,9 +156,9 @@ export const sentraServices: SentraService[] = [
     highlights: ["Integration status", "Bright Data zones", "Local dev mode", "Deploy checklist"],
     steps: [
       "Open Settings from the header or sidebar.",
-      "Verify AI/ML API and Bright Data show Ready before a hackathon demo.",
-      "Add missing keys to .env.local on each developer machine.",
-      "Add Supabase keys only when you are ready for cloud auth and persistence.",
+      "Verify AI/ML API and Bright Data show Ready before a live demo.",
+      "Add missing keys to .env.local, then npm run secrets:sync so the vault stays merged.",
+      "Add Supabase keys when you are ready for cloud auth and persistence.",
     ],
   },
 ];

@@ -14,7 +14,7 @@ const HeroVisual = dynamic(
 );
 
 const cards = [
-  { icon: Radar, label: "Monitor", value: "24/7", detail: "competitor and market watch" },
+  { icon: Radar, label: "Monitor", value: "Scheduled", detail: "cron checks + manual Check now" },
   { icon: ShieldAlert, label: "Verify", value: "Source", detail: "claim-level evidence checks" },
   { icon: FileCheck2, label: "Report", value: "Board", detail: "executive action briefings" },
 ];
@@ -80,11 +80,9 @@ export function Hero() {
             </p>
           </Card>
           <Card className="absolute right-3 top-16 w-52 p-5 md:right-10 xl:right-7" data-float>
-            <p className="text-sm text-white/60">Confidence</p>
-            <p className="mt-2 text-4xl font-semibold text-white">94%</p>
-            <div className="mt-4 h-2 rounded-full bg-white/10">
-              <div className="h-2 w-[94%] rounded-full bg-gradient-to-r from-sentra-cyan to-sentra-violet" />
-            </div>
+            <p className="text-sm text-white/60">Evidence</p>
+            <p className="mt-2 text-xl font-semibold leading-snug text-white">SERP + Unlocker</p>
+            <p className="mt-2 text-xs text-white/45">Live vs Sample labeled in the product</p>
           </Card>
         </motion.div>
       </div>

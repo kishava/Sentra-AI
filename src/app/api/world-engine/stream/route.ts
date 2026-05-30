@@ -71,6 +71,8 @@ export async function POST(request: Request) {
       );
       const llmConfigured = isLlmConfigured();
       const aimlConfigured = isAimlConfigured();
+      const llmSource = !llmConfigured ? "Demo" : aimlConfigured ? "AI/ML API" : "Featherless";
+      const llmSearchLabel = `${llmSource} search`;
       const observedSourceIds = new Set<string>();
 
       try {
@@ -82,7 +84,7 @@ export async function POST(request: Request) {
         logs.log({
           category: "ROUTER",
           stage: "Pipeline routing",
-          message: `Selecting intelligence pipelines: ${brightDataConfigured ? "Bright Data SERP + " : ""}${llmConfigured ? (aimlConfigured ? "AI/ML API search model" : "OpenAI live search") : "illustrative demo model"}.`,
+          message: `Selecting intelligence pipelines: ${brightDataConfigured ? "Bright Data SERP + " : ""}${llmConfigured ? `${llmSource} search model` : "illustrative demo model"}.`,
         });
 
         if (brightDataConfigured) {
@@ -138,9 +140,9 @@ export async function POST(request: Request) {
 
         logs.log({
           category: "SOCIAL",
-          stage: "Social monitoring",
-          message: "Monitoring X, Reddit, LinkedIn, and Instagram for narrative velocity and sentiment drift.",
-          source: "Social graph",
+          stage: "Narrative correlation",
+          message: "Correlating narrative themes from SERP results and collected page evidence.",
+          source: "Sentra graph engine",
         });
 
         const collectionStartedAt = performance.now();
@@ -211,14 +213,14 @@ export async function POST(request: Request) {
         if (llmConfigured) {
           logs.source({
             id: aimlConfigured ? "aiml-live-search" : "openai-live-search",
-            name: aimlConfigured ? "AI/ML API search" : "OpenAI Web Search",
+            name: llmSearchLabel,
             channel: "api",
             status: "connecting",
             detail: "Submitting intelligence model request",
           });
           logs.log({
             category: "AI",
-            source: aimlConfigured ? "AI/ML API" : "OpenAI Responses",
+            source: llmSource,
             stage: "Model invocation",
             message: aimlConfigured
               ? "Synthesizing world-intelligence report via AI/ML API search-capable model."
@@ -252,7 +254,7 @@ export async function POST(request: Request) {
                 onResponseCreated: () => {
                   logs.log({
                     category: "AI",
-                    source: aimlConfigured ? "AI/ML API" : "OpenAI Responses",
+                    source: llmSource,
                     stage: "Model invocation",
                     message: "Model response stream established.",
                     level: "success",
@@ -261,14 +263,14 @@ export async function POST(request: Request) {
                 onWebSearchStarted: () => {
                   logs.source({
                     id: aimlConfigured ? "aiml-live-search" : "openai-live-search",
-                    name: aimlConfigured ? "AI/ML API search" : "OpenAI Web Search",
+                    name: llmSearchLabel,
                     channel: "api",
                     status: "active",
                     detail: "Web-search tool call active",
                   });
                   logs.log({
                     category: "SERP",
-                    source: aimlConfigured ? "AI/ML API" : "OpenAI Web Search",
+                    source: llmSource,
                     stage: "Source discovery",
                     message: "Live web-search tool call initiated.",
                   });
@@ -276,7 +278,7 @@ export async function POST(request: Request) {
                 onWebSearchSearching: () => {
                   logs.log({
                     category: "SOURCE",
-                    source: aimlConfigured ? "AI/ML API" : "OpenAI Web Search",
+                    source: llmSource,
                     stage: "Source discovery",
                     message: "Searching for corroborating current sources.",
                   });
@@ -284,7 +286,7 @@ export async function POST(request: Request) {
                 onWebSearchCompleted: (latencyMs) => {
                   logs.source({
                     id: aimlConfigured ? "aiml-live-search" : "openai-live-search",
-                    name: aimlConfigured ? "AI/ML API search" : "OpenAI Web Search",
+                    name: llmSearchLabel,
                     channel: "api",
                     status: "success",
                     detail: "Web-search tool call completed",
@@ -292,7 +294,7 @@ export async function POST(request: Request) {
                   });
                   logs.log({
                     category: "SOURCE",
-                    source: aimlConfigured ? "AI/ML API" : "OpenAI Web Search",
+                    source: llmSource,
                     stage: "Source discovery",
                     message: "Live source discovery completed.",
                     level: "success",
@@ -302,7 +304,7 @@ export async function POST(request: Request) {
                 onSynthesisStarted: () => {
                   logs.log({
                     category: "AI",
-                    source: aimlConfigured ? "AI/ML API" : "OpenAI Responses",
+                    source: llmSource,
                     stage: "Intelligence synthesis",
                     message: "Synthesizing structured intelligence model from gathered evidence.",
                   });
@@ -383,7 +385,7 @@ export async function POST(request: Request) {
         if (llmConfigured) {
           logs.source({
             id: aimlConfigured ? "aiml-live-search" : "openai-live-search",
-            name: aimlConfigured ? "AI/ML API search" : "OpenAI Web Search",
+            name: llmSearchLabel,
             channel: "api",
             status: "error",
             detail: "Intelligence model request failed",

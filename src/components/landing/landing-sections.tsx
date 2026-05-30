@@ -30,7 +30,7 @@ const features = [
   {
     icon: Globe2,
     title: "Live web operating layer",
-    body: "Bright Data-powered collection monitors SERPs, competitor sites, pricing pages, hiring signals, and market chatter.",
+    body: "Bright Data SERP, Web Unlocker, Scraping Browser, and MCP tools collect competitor pages, pricing signals, and market evidence.",
   },
   {
     icon: Bot,
@@ -40,7 +40,7 @@ const features = [
   {
     icon: BellRing,
     title: "Autonomous alert center",
-    body: "Animated severity queues surface launches, sentiment shifts, pricing changes, and strategic movements as they happen.",
+    body: "Severity queues surface launches, sentiment shifts, and pricing changes when monitors run on schedule or you click Check now.",
   },
   {
     icon: Mic2,
@@ -57,7 +57,7 @@ const pillars = [
 ];
 
 const integrations = [
-  { name: "Bright Data", detail: "Live SERP, Web Unlocker, Scraping Browser, MCP agent tools" },
+  { name: "Bright Data", detail: "SERP, Web Unlocker, Scraping Browser, MCP (Unlocker used when no scraper zone)" },
   { name: "AI/ML API", detail: "GTM chat, monitor analysis, and live web search models" },
   { name: "Supabase", detail: "Authentication, persistence, and encrypted API key storage" },
   { name: "Featherless", detail: "Optional open-model path for document Q&A and OCR" },
