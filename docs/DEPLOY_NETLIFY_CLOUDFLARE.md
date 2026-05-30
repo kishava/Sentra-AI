@@ -5,7 +5,7 @@ Sentra is a **Next.js 15** app with Node.js API routes, middleware, and SSE. Thi
 1. **Netlify** — recommended host (config in repo root).
 2. **Cloudflare** — DNS/CDN in front of Netlify, plus an optional **cron Worker** when you are not using Vercel/Netlify scheduled jobs.
 
-For **Vercel**, use `vercel.json` (built-in cron). See [USER_SETUP.md](./USER_SETUP.md).
+For **Vercel**, use `vercel.json` (built-in cron, daily on Hobby). See [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md).
 
 ---
 
@@ -147,4 +147,4 @@ Hosting the full Next.js app on **Cloudflare Pages** requires an adapter (e.g. O
 | `netlify.toml` | Netlify build + Next plugin |
 | `netlify/functions/cron-monitors.mjs` | Scheduled monitor ping |
 | `cloudflare/cron-worker/` | Optional Cloudflare cron Worker |
-| `vercel.json` | Vercel-only cron (unchanged) |
+| `vercel.json` | Vercel cron — daily on Hobby (`0 9 * * *`) |

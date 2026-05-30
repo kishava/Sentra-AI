@@ -36,6 +36,8 @@ If any API key was pasted in chat or committed, rotate in the provider dashboard
 
 ## 5. Vercel production
 
+Full steps: [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md) (Hobby-safe daily cron in `vercel.json`).
+
 Set in Vercel project settings:
 
 ```env

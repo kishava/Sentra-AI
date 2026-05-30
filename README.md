@@ -171,7 +171,7 @@ Bright Data promo: `unlocked` on [brightdata.com](https://brightdata.com).
 ### Production GTM rules
 
 - On Vercel/production, **sample Bright Data fallback is disabled** unless `SENTRA_ALLOW_DEMO_FALLBACK=true`.
-- Active monitors are checked every **30 minutes** via `/api/cron/monitors` (see `vercel.json`).
+- Active monitors are checked on a schedule via `/api/cron/monitors` (daily on Vercel Hobby; see `vercel.json` and [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md)).
 
 ## Production Notes
 

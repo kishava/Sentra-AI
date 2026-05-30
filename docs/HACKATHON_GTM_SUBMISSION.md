@@ -99,7 +99,7 @@ CRON_SECRET=[random long secret]
 
 Provider keys: `npm run secrets:sync` from machine with keys in `.env.local` (do not add AIML/BD to Vercel after sync).
 
-**Cron:** `vercel.json` runs `GET /api/cron/monitors` every 30 minutes. Vercel sends `Authorization: Bearer $CRON_SECRET`.
+**Cron:** `vercel.json` runs `GET /api/cron/monitors` once daily (09:00 UTC) on Vercel Hobby; use `*/30 * * * *` on Pro or external cron (see [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md)). Vercel sends `Authorization: Bearer $CRON_SECRET`.
 
 **Bright Data in production:** Sample fallback is **off** when `NODE_ENV=production` or `VERCEL=1`. Set `SENTRA_ALLOW_DEMO_FALLBACK=true` only for emergency demos.
 
