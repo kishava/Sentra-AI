@@ -11,7 +11,7 @@ const LIMITS: Record<string, RateLimitConfig> = {
   chat: { action: "chat", limit: 30, windowMs: 60 * 60 * 1000 },
   intelligence: { action: "intelligence", limit: 15, windowMs: 24 * 60 * 60 * 1000 },
   monitor_check: { action: "monitor_check", limit: 20, windowMs: 24 * 60 * 60 * 1000 },
-  transcribe: { action: "transcribe", limit: 40, windowMs: 60 * 60 * 1000 },
+  transcribe: { action: "transcribe", limit: 100, windowMs: 60 * 60 * 1000 },
   voice: { action: "voice", limit: 40, windowMs: 60 * 60 * 1000 },
 };
 

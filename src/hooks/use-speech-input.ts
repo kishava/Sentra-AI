@@ -70,11 +70,15 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
   const modeRef = useRef<"speech-api" | "media-recorder" | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const recognitionActiveRef = useRef(false);
+  const fallbackInProgressRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaMimeTypeRef = useRef("audio/webm");
   const audioChunksRef = useRef<Blob[]>([]);
   const languageRef = useRef(language);
+  const startMediaRecorderRef = useRef<(options?: { preserveTranscript?: boolean }) => Promise<boolean>>(
+    async () => false,
+  );
 
   useEffect(() => {
     valueRef.current = value;
@@ -115,6 +119,7 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
   }, []);
 
   const stopSpeechInput = useCallback(() => {
+    fallbackInProgressRef.current = false;
     recognitionActiveRef.current = false;
     cleanupRecognition();
     cleanupMedia();
@@ -133,7 +138,7 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
         if (!result.ok) {
           if (result.status === 429) {
             toast.error("Voice transcription limit reached.", {
-              description: "Wait a few minutes, type your prompt, or use Chrome live speech if available.",
+              description: "Wait a few minutes or type your prompt.",
             });
           } else {
             toast.error(result.error ?? "Could not transcribe your voice.");
@@ -153,6 +158,29 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
     },
     [getContext, mergeIntoField],
   );
+
+  const fallbackToMediaRecorder = useCallback(async () => {
+    if (fallbackInProgressRef.current) return;
+    fallbackInProgressRef.current = true;
+
+    const partial = committedRef.current.trim();
+    cleanupRecognition();
+    modeRef.current = null;
+
+    toast.message("Using server transcription", {
+      description: "Keep speaking, then tap Stop when finished.",
+    });
+
+    const started = await startMediaRecorderRef.current({ preserveTranscript: Boolean(partial) });
+    fallbackInProgressRef.current = false;
+
+    if (!started) {
+      setListening(false);
+      setLiveTranscript("");
+      if (partial) mergeIntoField(partial, "");
+      toast.error("Voice input unavailable.", { description: "Type your prompt instead." });
+    }
+  }, [cleanupRecognition, mergeIntoField]);
 
   const startSpeechApi = useCallback(() => {
     const Ctor = getSpeechRecognitionCtor();
@@ -184,95 +212,112 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
     recognition.onerror = (event) => {
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         toast.error("Microphone permission was denied.");
-      } else if (event.error !== "aborted" && event.error !== "no-speech") {
-        toast.error("Live speech recognition failed.", {
-          description: "Falling back may require stopping and trying again.",
-        });
+        stopSpeechInput();
+        return;
       }
-      stopSpeechInput();
+      if (event.error === "aborted" || event.error === "no-speech") return;
+
+      void fallbackToMediaRecorder();
     };
 
     recognition.onend = () => {
-      if (!recognitionActiveRef.current) return;
+      if (!recognitionActiveRef.current || fallbackInProgressRef.current) return;
       try {
         recognition.start();
       } catch {
-        stopSpeechInput();
+        void fallbackToMediaRecorder();
       }
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      return false;
+    }
+
     setListening(true);
     toast.message("Listening", { description: "Tap the microphone again when you are done speaking." });
     return true;
-  }, [mergeIntoField, stopSpeechInput]);
+  }, [fallbackToMediaRecorder, mergeIntoField, stopSpeechInput]);
 
-  const startMediaRecorder = useCallback(async () => {
-    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-      toast.error("Microphone access needs a secure page.", {
-        description: "Open the app on localhost or HTTPS, then allow microphone access.",
+  const startMediaRecorder = useCallback(
+    async (options?: { preserveTranscript?: boolean }) => {
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+        toast.error("Microphone access needs a secure page.", {
+          description: "Open the app on localhost or HTTPS, then allow microphone access.",
+        });
+        return false;
+      }
+      if (!window.MediaRecorder) {
+        toast.error("Audio recording is not supported in this browser.");
+        return false;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
       });
-      return false;
-    }
-    if (!window.MediaRecorder) {
-      toast.error("Audio recording is not supported in this browser.");
-      return false;
-    }
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-    });
+      const supportedType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) =>
+        MediaRecorder.isTypeSupported(type),
+      );
+      if (!supportedType) {
+        stream.getTracks().forEach((track) => track.stop());
+        toast.error("Your browser does not provide a supported audio recording format.");
+        return false;
+      }
 
-    const supportedType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) =>
-      MediaRecorder.isTypeSupported(type),
-    );
-    if (!supportedType) {
-      stream.getTracks().forEach((track) => track.stop());
-      toast.error("Your browser does not provide a supported audio recording format.");
-      return false;
-    }
+      if (!options?.preserveTranscript) {
+        baseValueRef.current = valueRef.current;
+        committedRef.current = "";
+      }
 
-    baseValueRef.current = valueRef.current;
-    committedRef.current = "";
-    modeRef.current = "media-recorder";
-    mediaStreamRef.current = stream;
-    audioChunksRef.current = [];
-
-    const recorder = new MediaRecorder(stream, { mimeType: supportedType });
-    mediaRecorderRef.current = recorder;
-    mediaMimeTypeRef.current = supportedType;
-
-    recorder.ondataavailable = (event) => {
-      if (!event.data.size) return;
-      audioChunksRef.current.push(event.data);
-    };
-    recorder.onerror = () => {
-      stopSpeechInput();
-      toast.error("Could not record microphone audio.");
-    };
-    recorder.onstop = () => {
-      const chunks = audioChunksRef.current;
+      modeRef.current = "media-recorder";
+      mediaStreamRef.current = stream;
       audioChunksRef.current = [];
-      mediaRecorderRef.current = null;
-      stream.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-      setListening(false);
-      setLiveTranscript("");
 
-      const blob = chunks.length ? new Blob(chunks, { type: mediaMimeTypeRef.current }) : null;
-      void (async () => {
-        const transcribed = blob ? await transcribeRecording(blob) : false;
-        if (transcribed) {
-          toast.success("Voice prompt ready", { description: "Review the transcript, then submit." });
-        }
-      })();
-    };
+      const recorder = new MediaRecorder(stream, { mimeType: supportedType });
+      mediaRecorderRef.current = recorder;
+      mediaMimeTypeRef.current = supportedType;
 
-    recorder.start();
-    setListening(true);
-    toast.message("Listening", { description: "Tap Stop or the microphone again when you are done speaking." });
-    return true;
-  }, [stopSpeechInput, transcribeRecording]);
+      recorder.ondataavailable = (event) => {
+        if (!event.data.size) return;
+        audioChunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        stopSpeechInput();
+        toast.error("Could not record microphone audio.");
+      };
+      recorder.onstop = () => {
+        const chunks = audioChunksRef.current;
+        audioChunksRef.current = [];
+        mediaRecorderRef.current = null;
+        stream.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        setListening(false);
+        setLiveTranscript("");
+
+        const blob = chunks.length ? new Blob(chunks, { type: mediaMimeTypeRef.current }) : null;
+        void (async () => {
+          const transcribed = blob ? await transcribeRecording(blob) : false;
+          if (transcribed) {
+            toast.success("Voice prompt ready", { description: "Review the transcript, then submit." });
+          }
+        })();
+      };
+
+      recorder.start();
+      setListening(true);
+      if (!options?.preserveTranscript) {
+        toast.message("Listening", { description: "Tap Stop or the microphone again when you are done speaking." });
+      }
+      return true;
+    },
+    [stopSpeechInput, transcribeRecording],
+  );
+
+  useEffect(() => {
+    startMediaRecorderRef.current = startMediaRecorder;
+  }, [startMediaRecorder]);
 
   const toggleSpeechInput = useCallback(async () => {
     if (listening) {
@@ -292,14 +337,14 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
     }
 
     try {
-      const speechStarted = startSpeechApi();
-      if (speechStarted) return;
-
       const recorderStarted = await startMediaRecorder();
       if (recorderStarted) return;
+
+      const speechStarted = startSpeechApi();
+      if (speechStarted) return;
     } catch (error) {
-      const recorderStarted = await startMediaRecorder().catch(() => false);
-      if (recorderStarted) return;
+      const speechStarted = startSpeechApi();
+      if (speechStarted) return;
 
       const denied =
         error instanceof DOMException &&
