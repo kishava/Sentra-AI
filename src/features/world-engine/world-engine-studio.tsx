@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   AudioLines,
   BrainCircuit,
+  ChevronDown,
   Download,
   Expand,
   Eye,
@@ -19,14 +20,14 @@ import {
   RadioTower,
   ScrollText,
   Send,
-  Share2,
   Sparkles,
   TerminalSquare,
   Volume2,
   VolumeX,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { AIActivityConsole } from "@/features/activity-console/ai-activity-console";
 import { StudioModal } from "@/features/world-engine/studio-modal";
@@ -65,21 +66,129 @@ const prompts = [
   "Map current AI, cybersecurity, and market risks",
   "What happens if AI replaces 40% of jobs?",
 ];
-const domains: Array<WorldDomain | "all"> = ["all", "geopolitics", "ai", "finance", "cybersecurity", "climate", "markets"];
-const analystSections = [
-  ["analyst-overview", "Overview"],
-  ["analyst-map", "Globe"],
-  ["analyst-radar", "Signal radar"],
-  ["analyst-reasoning", "Reasoning"],
-  ["analyst-graph", "Graph"],
-  ["analyst-forecast", "Forecasts"],
-  ["analyst-regional", "Regional pulse"],
-  ["analyst-narrator", "Narrator"],
-  ["analyst-scenario", "Scenario"],
-  ["analyst-verification", "Verification"],
-  ["analyst-activity", "Activity logs"],
-] as const;
 
+function SuggestedPromptsMenu({
+  prompts: items,
+  onSelect,
+  disabled,
+}: {
+  prompts: string[];
+  onSelect: (prompt: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 288 });
+  const triggerRef = useRef<HTMLDivElement>(null);
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.min(352, Math.max(rect.width, 288));
+    const maxLeft = window.innerWidth - width - 16;
+    setMenuPosition({
+      top: rect.bottom + 8,
+      left: Math.max(16, Math.min(rect.left, maxLeft)),
+      width,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updateMenuPosition();
+    const handlePointer = (event: MouseEvent) => {
+      if (triggerRef.current?.contains(event.target as Node)) return;
+      const menu = document.getElementById("world-engine-suggested-menu");
+      if (menu?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
+    const handleLayout = () => updateMenuPosition();
+    document.addEventListener("mousedown", handlePointer);
+    window.addEventListener("resize", handleLayout);
+    window.addEventListener("scroll", handleLayout, true);
+    return () => {
+      document.removeEventListener("mousedown", handlePointer);
+      window.removeEventListener("resize", handleLayout);
+      window.removeEventListener("scroll", handleLayout, true);
+    };
+  }, [open, updateMenuPosition]);
+
+  const menu =
+    typeof document !== "undefined"
+      ? createPortal(
+          <AnimatePresence>
+            {open ? (
+            <motion.div
+              key="suggested-menu"
+              id="world-engine-suggested-menu"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              style={{
+                position: "fixed",
+                top: menuPosition.top,
+                left: menuPosition.left,
+                width: menuPosition.width,
+                zIndex: 200,
+              }}
+              className="overflow-hidden rounded-2xl border border-white/10 bg-sentra-ink shadow-2xl ring-1 ring-white/10"
+              role="listbox"
+              aria-label="Suggested intelligence questions"
+            >
+              <div className="border-b border-white/8 px-4 py-3">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/38">Quick prompts</p>
+                <p className="mt-1 text-xs text-white/48">Pick one to run the World Engine.</p>
+              </div>
+              <ul className="max-h-64 overflow-y-auto py-1">
+                {items.map((suggestion) => (
+                  <li key={suggestion}>
+                    <button
+                      type="button"
+                      role="option"
+                      className="sentra-focus w-full px-4 py-3 text-left text-sm leading-6 text-white/72 transition hover:bg-cyan-300/10 hover:text-cyan-50"
+                      onClick={() => {
+                        setOpen(false);
+                        onSelect(suggestion);
+                      }}
+                    >
+                      {suggestion}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+            ) : null}
+          </AnimatePresence>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <div ref={triggerRef} className="relative z-10">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={disabled}
+        onClick={() => {
+          setOpen((value) => {
+            const next = !value;
+            if (next) window.requestAnimationFrame(updateMenuPosition);
+            return next;
+          });
+        }}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        <Sparkles className="h-4 w-4 text-sentra-cyan" />
+        Suggested questions
+        <ChevronDown className={cn("h-4 w-4 transition", open && "rotate-180")} />
+      </Button>
+      {menu}
+    </div>
+  );
+}
+const domains: Array<WorldDomain | "all"> = ["all", "geopolitics", "ai", "finance", "cybersecurity", "climate", "markets"];
 function getAnalystTakeaways(summary: string) {
   return summary
     .trim()
@@ -142,36 +251,6 @@ function VerdictStrip({ report }: { report: WorldEngineReport }) {
       </div>
       <div className="mt-5 border-t border-white/10 pt-5">
         <p className="text-sm leading-6 text-white/64"><strong className="text-white">Strategic action:</strong> {report.recommendation}</p>
-      </div>
-    </Card>
-  );
-}
-
-function AnalystQuickAccess({ report }: { report: WorldEngineReport }) {
-  const visibleSections = analystSections.filter(([id]) => {
-    if (id === "analyst-radar") return report.visualizations.includes("radar");
-    if (id === "analyst-graph") return report.visualizations.includes("network");
-    if (id === "analyst-forecast") return report.visualizations.includes("forecast");
-    if (id === "analyst-regional") return report.visualizations.includes("sentiment");
-    if (id === "analyst-scenario") return report.scenarioMode && report.scenario.length;
-    return true;
-  });
-
-  return (
-    <Card className="sticky top-3 z-20 p-3" glow>
-      <div className="flex flex-col gap-3 md:flex-row md:items-center">
-        <p className="shrink-0 text-[10px] uppercase tracking-[0.22em] text-cyan-100/48">Quick access</p>
-        <nav className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0" aria-label="AI analyst sections">
-          {visibleSections.map(([id, label]) => (
-            <a
-              key={id}
-              href={`#${id}`}
-              className="sentra-focus shrink-0 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-xs text-white/58 transition"
-            >
-              {label}
-            </a>
-          ))}
-        </nav>
       </div>
     </Card>
   );
@@ -369,6 +448,9 @@ export function WorldEngineStudio() {
   const [thoughts, setThoughts] = useState<WorldEngineReport["reasoning"]>([]);
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [insightModalOpen, setInsightModalOpen] = useState(false);
+  const [viewPanel, setViewPanel] = useState<
+    null | "insight" | "globe" | "signals" | "analytics" | "sources" | "narrator"
+  >(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activityRequestRef = useRef<AbortController | null>(null);
   const narrationAbortRef = useRef<AbortController | null>(null);
@@ -592,17 +674,6 @@ export function WorldEngineStudio() {
     }
   }
 
-  async function shareSnapshot() {
-    if (!report) return;
-    const snapshot = `${report.headline}\nRisk index: ${report.riskIndex}% | Confidence: ${report.confidence}%\n${report.executiveSummary}`;
-    if (navigator.share) {
-      await navigator.share({ title: "Sentra AI World Engine Snapshot", text: snapshot }).catch(() => undefined);
-    } else {
-      await navigator.clipboard.writeText(snapshot);
-      toast.success("Intelligence snapshot copied.");
-    }
-  }
-
   return (
     <>
       <section className="mb-7 grid gap-5 xl:grid-cols-[1fr_360px]">
@@ -651,36 +722,38 @@ export function WorldEngineStudio() {
               </Button>
             )}
           </div>
-          <div className="relative mt-4 flex flex-wrap gap-2">
-            {prompts.map((suggestion) => (
-              <button key={suggestion} type="button" onClick={() => void runWorldEngine(suggestion)} className="sentra-focus rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-xs text-white/58 transition">
-                {suggestion}
-              </button>
-            ))}
-          </div>
-          <div className="relative mt-6 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-white/38">Observed evidence and modeled forecasts are explicitly separated in each brief.</p>
-            <div className="flex flex-wrap gap-2">
+          <div className="relative z-20 mt-6 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <SuggestedPromptsMenu
+                prompts={prompts}
+                disabled={loading || !settings.analyst.worldIntelligence}
+                onSelect={(suggestion) => void runWorldEngine(suggestion)}
+              />
               {(loading || logs.length > 0) && settings.analyst.liveLogs && (
-                <Button variant="ghost" onClick={() => setLogModalOpen(true)}>
+                <Button variant="ghost" size="sm" onClick={() => setLogModalOpen(true)}>
                   <TerminalSquare className="h-4 w-4" />
                   {loading ? "Live log" : "Activity log"}
                 </Button>
               )}
               {report && (
                 <>
-                  <Button variant="ghost" onClick={() => setInsightModalOpen(true)}>
+                  <Button variant="ghost" size="sm" onClick={() => setInsightModalOpen(true)}>
                     <Eye className="h-4 w-4" /> View insight
                   </Button>
-                  <Button variant="ghost" onClick={() => downloadWorldReport(report, "markdown")}>
+                  <Button variant="ghost" size="sm" onClick={() => downloadWorldReport(report, "markdown")}>
                     <Download className="h-4 w-4" /> Download
                   </Button>
                 </>
               )}
-              <Button variant="neon" onClick={() => void runWorldEngine()} disabled={loading || !prompt.trim() || !settings.analyst.worldIntelligence}>
-                <Send className="h-4 w-4" /> {loading ? "Running…" : "Launch World Engine"}
-              </Button>
             </div>
+            <Button
+              variant="neon"
+              className="w-full sm:w-fit sm:self-end"
+              onClick={() => void runWorldEngine()}
+              disabled={loading || !prompt.trim() || !settings.analyst.worldIntelligence}
+            >
+              <Send className="h-4 w-4" /> {loading ? "Running…" : "Launch World Engine"}
+            </Button>
           </div>
         </Card>
         <Card className="flex flex-col items-center justify-center p-6 text-center" glow>
@@ -732,142 +805,64 @@ export function WorldEngineStudio() {
       )}
 
       {!loading && report && (
-        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="grid gap-5" aria-label="AI World Engine report">
-          <section id="analyst-overview" className="scroll-mt-24">
-            <VerdictStrip report={report} />
-          </section>
-          <AnalystQuickAccess report={report} />
-          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-            <div className="flex flex-wrap items-center gap-2" aria-label="Signal filters">
-              <Filter className="mr-1 h-4 w-4 text-white/40" />
-              {domains.map((item) => (
-                <button key={item} type="button" onClick={() => setDomain(item)} className={cn("sentra-focus rounded-full border px-3 py-1.5 text-xs capitalize transition", domain === item ? "border-cyan-200/30 bg-cyan-300/10 text-cyan-50" : "border-white/10 text-white/52")}>
-                  {item}
-                </button>
+        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} aria-label="AI World Engine report">
+          <Card className="p-6 md:p-8" glow>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="success">Intelligence ready</Badge>
+              <Badge variant={report.provider === "demo" ? "violet" : "cyan"}>
+                {report.provider === "demo" ? "Demo model" : "Live synthesis"}
+              </Badge>
+            </div>
+            <h2 className="mt-4 text-2xl font-semibold text-white md:text-3xl">{report.headline}</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-white/58">{report.executiveSummary}</p>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                ["Risk", `${report.riskIndex}%`, "text-rose-200"],
+                ["Confidence", `${report.confidence}%`, "text-cyan-100"],
+                ["Signals", String(report.signals.length), "text-white"],
+                ["Sources", String(report.sources.length), "text-white"],
+              ].map(([label, value, color]) => (
+                <div key={String(label)} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/38">{label}</p>
+                  <p className={cn("mt-1 text-xl font-semibold", String(color))}>{value}</p>
+                </div>
               ))}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setPulseMode(true)} disabled={!report.signals.length}><Expand className="h-4 w-4" /> World Pulse</Button>
-              <Button variant="ghost" size="sm" onClick={() => void shareSnapshot()}><Share2 className="h-4 w-4" /> Snapshot</Button>
-              <Button variant="ghost" size="sm" onClick={() => window.print()}><Download className="h-4 w-4" /> Report PDF</Button>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-white/42">
-            <Sparkles className="h-4 w-4 text-sentra-cyan" />
-            AI-selected visualization stack:
-            {report.visualizations.map((visualization) => <Badge key={visualization} variant="violet">{visualization}</Badge>)}
-          </div>
-          <div className="grid items-start gap-5 xl:grid-cols-[1.15fr_.85fr]">
-            <section id="analyst-map" className="scroll-mt-24">
-              <WorldMapPanel signals={displaySignals} selected={activeSignal} onSelect={(signal) => { setSelectedSignal(signal); soundPing(); }} onFullscreen={() => setPulseMode(true)} />
-            </section>
-            <div className="grid gap-5">
-              {settings.analyst.automaticVisualizations && report.visualizations.includes("radar") && (
-                <section id="analyst-radar" className="scroll-mt-24">
-                  <SignalRadar report={report} />
-                </section>
+            <p className="mt-6 text-xs text-white/40">
+              Everything is generated — open a view below. The main page stays clean.
+            </p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Button variant="neon" className="justify-start" onClick={() => setInsightModalOpen(true)}>
+                <Eye className="h-4 w-4" /> View full insight
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("globe")}>
+                <Globe2 className="h-4 w-4" /> Globe map ({report.signals.length})
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("signals")}>
+                <Sparkles className="h-4 w-4" /> Radar & reasoning
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("analytics")}>
+                <BrainCircuit className="h-4 w-4" /> Forecasts & graph
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("sources")}>
+                <AlertTriangle className="h-4 w-4" /> Sources ({report.sources.length})
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("narrator")}>
+                <AudioLines className="h-4 w-4" /> Brief me (voice)
+              </Button>
+              {settings.analyst.liveLogs && (
+                <Button variant="ghost" className="justify-start" onClick={() => setLogModalOpen(true)}>
+                  <TerminalSquare className="h-4 w-4" /> Activity log
+                </Button>
               )}
-              {settings.analyst.reasoningSummaries && <section id="analyst-reasoning" className="scroll-mt-24">
-                <ReasoningTimeline report={report} />
-              </section>}
+              <Button variant="ghost" className="justify-start" onClick={() => downloadWorldReport(report, "markdown")}>
+                <FileText className="h-4 w-4" /> Download brief
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => setPulseMode(true)} disabled={!report.signals.length}>
+                <Expand className="h-4 w-4" /> World Pulse mode
+              </Button>
             </div>
-          </div>
-          <div className="grid items-start gap-5 xl:grid-cols-2">
-            {settings.analyst.automaticVisualizations && report.visualizations.includes("network") && (
-              <section id="analyst-graph" className="scroll-mt-24">
-                <IntelligenceGraph report={report} />
-              </section>
-            )}
-            {settings.analyst.automaticVisualizations && report.visualizations.includes("forecast") && (
-              <section id="analyst-forecast" className="scroll-mt-24">
-                <ForecastEngine report={report} />
-              </section>
-            )}
-          </div>
-          <div className="grid items-start gap-5 xl:grid-cols-[.7fr_1.3fr]">
-            {settings.analyst.automaticVisualizations && report.visualizations.includes("sentiment") && (
-              <section id="analyst-regional" className="scroll-mt-24">
-                <SentimentSystem report={report} />
-              </section>
-            )}
-            <section id="analyst-narrator" className="scroll-mt-24">
-              <Card className="p-5 md:p-6" glow>
-                <p className="flex items-center gap-2 text-xs uppercase tracking-[0.23em] text-white/38"><AudioLines className="h-4 w-4 text-sentra-cyan" /> Brief Me</p>
-                <h3 className="mt-3 text-xl font-semibold text-white">AI Intelligence Narrator</h3>
-                <p className="mt-3 text-sm leading-7 text-white/57">{report.outlook}</p>
-                <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                  {[
-                    ["quick", "30-second briefing"],
-                    ["executive", "2-minute executive"],
-                    ["deep", "Deep analyst mode"],
-                  ].map(([mode, label]) => (
-                    <button
-                      key={mode}
-                      type="button"
-                    disabled={!settings.voice.enabled || (synthesizing && activeNarrationMode !== mode)}
-                      onClick={() => void narrate(mode as "quick" | "executive" | "deep")}
-                      className={cn(
-                        "sentra-focus rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left text-sm text-white/68 transition disabled:cursor-wait disabled:opacity-50",
-                        activeNarrationMode === mode && (speaking || synthesizing) && "border-cyan-200/30 bg-cyan-300/[0.08] text-cyan-50",
-                      )}
-                    >
-                      {activeNarrationMode === mode && (speaking || synthesizing) ? (
-                        <VolumeX className="mb-3 h-4 w-4 text-rose-200" />
-                      ) : (
-                        <Play className="mb-3 h-4 w-4 text-sentra-cyan" />
-                      )}
-                      {activeNarrationMode === mode && synthesizing ? "Stop preparing" : activeNarrationMode === mode && speaking ? "Stop audio" : label}
-                    </button>
-                  ))}
-                </div>
-                {narrationUrl && (
-                  <div className="mt-5 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.045] p-4">
-                    <p className="mb-3 text-xs uppercase tracking-[0.2em] text-cyan-100/58">{narrationLabel} ready</p>
-                    <audio
-                      ref={audioRef}
-                      src={narrationUrl}
-                      controls
-                      className="w-full accent-cyan-300"
-                      onPlay={() => setSpeaking(true)}
-                      onPause={() => setSpeaking(false)}
-                      onEnded={() => {
-                        setSpeaking(false);
-                        setActiveNarrationMode(null);
-                      }}
-                    />
-                  </div>
-                )}
-              </Card>
-            </section>
-          </div>
-          {report.visualizations.includes("scenario") && (
-            <section id="analyst-scenario" className="scroll-mt-24">
-              <ScenarioEngine report={report} />
-            </section>
-          )}
-          <section id="analyst-verification" className="scroll-mt-24">
-            <Card className="p-5" glow>
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.23em] text-white/42">
-                <BrainCircuit className="h-4 w-4 text-sentra-cyan" /> Verification layer
-              </div>
-              {report.sources.length ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {report.sources.map((source, index) => (
-                    <a key={`${source.url}-${index}`} className="sentra-focus rounded-full border border-white/10 px-3 py-2 text-xs text-cyan-100 transition" href={source.url} target="_blank" rel="noreferrer">
-                      {source.title}
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-4 text-sm text-white/50">No live sources are attached in demo mode. Configure data integrations before treating signals as current facts.</p>
-              )}
-              <div className="mt-4 grid gap-2 md:grid-cols-2">
-                {report.limitations.map((limitation, index) => (
-                  <p key={`${limitation}-${index}`} className="flex gap-2 text-xs leading-5 text-amber-100/60"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{limitation}</p>
-                ))}
-              </div>
-            </Card>
-          </section>
+          </Card>
         </motion.div>
       )}
 
@@ -879,6 +874,175 @@ export function WorldEngineStudio() {
         className="max-w-6xl"
       >
         <AIActivityConsole logs={logs} sources={sources} thoughts={thoughts} health={health} running={loading} />
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "globe" && Boolean(report)}
+        title="Global activity map"
+        description="Regional signals on the intelligence globe."
+        onClose={() => setViewPanel(null)}
+        className="max-w-6xl"
+      >
+        {report ? (
+          <>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <Filter className="h-4 w-4 text-white/40" />
+              {domains.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setDomain(item)}
+                  className={cn(
+                    "sentra-focus rounded-full border px-3 py-1.5 text-xs capitalize transition",
+                    domain === item ? "border-cyan-200/30 bg-cyan-300/10 text-cyan-50" : "border-white/10 text-white/52",
+                  )}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+            <WorldMapPanel
+              signals={displaySignals}
+              selected={activeSignal}
+              onSelect={(signal) => {
+                setSelectedSignal(signal);
+                soundPing();
+              }}
+              onFullscreen={() => {
+                setViewPanel(null);
+                setPulseMode(true);
+              }}
+            />
+          </>
+        ) : null}
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "signals" && Boolean(report)}
+        title="Signals & reasoning"
+        description="Pulse radar and AI reasoning timeline."
+        onClose={() => setViewPanel(null)}
+        className="max-w-6xl"
+      >
+        {report ? (
+          <div className="grid gap-5 lg:grid-cols-2">
+            <SignalRadar report={report} />
+            <ReasoningTimeline report={report} />
+          </div>
+        ) : null}
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "analytics" && Boolean(report)}
+        title="Forecasts & intelligence graph"
+        description="Relationship map, forecasts, sentiment, and scenario modeling."
+        onClose={() => setViewPanel(null)}
+        className="max-w-6xl"
+      >
+        {report ? (
+          <div className="grid gap-5">
+            {report.visualizations.includes("network") && <IntelligenceGraph report={report} />}
+            {report.visualizations.includes("forecast") && <ForecastEngine report={report} />}
+            {report.visualizations.includes("sentiment") && <SentimentSystem report={report} />}
+            {report.scenarioMode && report.scenario.length > 0 && <ScenarioEngine report={report} />}
+          </div>
+        ) : null}
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "sources" && Boolean(report)}
+        title="Verification & sources"
+        description="Corroborating links and model limitations."
+        onClose={() => setViewPanel(null)}
+      >
+        {report ? (
+          <Card className="p-5" glow>
+            {report.sources.length ? (
+              <div className="flex flex-wrap gap-2">
+                {report.sources.map((source, index) => (
+                  <a
+                    key={`${source.url}-${index}`}
+                    className="sentra-focus rounded-full border border-white/10 px-3 py-2 text-xs text-cyan-100 transition"
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {source.title}
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-white/50">No verified source URLs were attached to this run.</p>
+            )}
+            <div className="mt-4 grid gap-2">
+              {report.limitations.map((limitation, index) => (
+                <p key={`${limitation}-${index}`} className="flex gap-2 text-xs leading-5 text-amber-100/60">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  {limitation}
+                </p>
+              ))}
+            </div>
+          </Card>
+        ) : null}
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "narrator" && Boolean(report)}
+        title="Brief me"
+        description="Listen to executive intelligence briefings."
+        onClose={() => setViewPanel(null)}
+      >
+        {report ? (
+          <Card className="p-5 md:p-6" glow>
+            <p className="text-sm leading-7 text-white/57">{report.outlook}</p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {[
+                ["quick", "30-second briefing"],
+                ["executive", "2-minute executive"],
+                ["deep", "Deep analyst mode"],
+              ].map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  disabled={!settings.voice.enabled || (synthesizing && activeNarrationMode !== mode)}
+                  onClick={() => void narrate(mode as "quick" | "executive" | "deep")}
+                  className={cn(
+                    "sentra-focus rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left text-sm text-white/68 transition disabled:cursor-wait disabled:opacity-50",
+                    activeNarrationMode === mode && (speaking || synthesizing) && "border-cyan-200/30 bg-cyan-300/[0.08] text-cyan-50",
+                  )}
+                >
+                  {activeNarrationMode === mode && (speaking || synthesizing) ? (
+                    <VolumeX className="mb-3 h-4 w-4 text-rose-200" />
+                  ) : (
+                    <Play className="mb-3 h-4 w-4 text-sentra-cyan" />
+                  )}
+                  {activeNarrationMode === mode && synthesizing
+                    ? "Stop preparing"
+                    : activeNarrationMode === mode && speaking
+                      ? "Stop audio"
+                      : label}
+                </button>
+              ))}
+            </div>
+            {narrationUrl && (
+              <div className="mt-5 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.045] p-4">
+                <p className="mb-3 text-xs uppercase tracking-[0.2em] text-cyan-100/58">{narrationLabel} ready</p>
+                <audio
+                  ref={audioRef}
+                  src={narrationUrl}
+                  controls
+                  className="w-full accent-cyan-300"
+                  onPlay={() => setSpeaking(true)}
+                  onPause={() => setSpeaking(false)}
+                  onEnded={() => {
+                    setSpeaking(false);
+                    setActiveNarrationMode(null);
+                  }}
+                />
+              </div>
+            )}
+          </Card>
+        ) : null}
       </StudioModal>
 
       <StudioModal
