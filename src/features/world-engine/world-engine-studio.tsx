@@ -633,7 +633,7 @@ export function WorldEngineStudio() {
                 variant={listening ? "neon" : "ghost"}
                 size="sm"
                 onClick={() => void toggleSpeechInput()}
-                disabled={transcribing || loading}
+                disabled={!listening && (transcribing || loading)}
                 aria-label={listening ? "Stop voice input" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
               >
                 {listening ? <MicOff className="h-4 w-4 text-rose-200" /> : <Mic className="h-4 w-4" />}

@@ -612,12 +612,17 @@ export function ChatInterface() {
                     type="button"
                     variant={listening ? "neon" : "ghost"}
                     size="icon"
-                    className="h-14 w-full shrink-0 sm:h-16 sm:w-16"
+                    className={cn(
+                      "h-14 w-full shrink-0 sm:h-16 sm:w-16",
+                      listening && "ring-2 ring-rose-400/70 ring-offset-2 ring-offset-sentra-ink",
+                    )}
                     onClick={() => void toggleSpeechInput()}
-                    disabled={transcribing}
+                    disabled={!listening && transcribing}
+                    aria-pressed={listening}
                     aria-label={listening ? "Stop voice recording" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
+                    title={listening ? "Stop recording" : transcribing ? "Transcribing…" : "Start voice input"}
                   >
-                    {transcribing ? (
+                    {transcribing && !listening ? (
                       <Sparkles className="h-5 w-5 animate-pulse" />
                     ) : listening ? (
                       <MicOff className="h-5 w-5" />
@@ -642,13 +647,34 @@ export function ChatInterface() {
               {listening
                 ? liveTranscript
                   ? `Listening: ${liveTranscript}`
-                  : "Listening — transcript appears as you speak."
+                  : "Listening — tap the mic again or Stop below when you are done."
                 : !settings.voice.microphone
                   ? "Microphone input is disabled in Settings."
                   : transcribing
                   ? "Refining transcript..."
                   : "Attach PDF, DOCX, TXT, or images (smart OCR). Include a URL or monitor/competitor keywords for Bright Data."}
             </p>
+            {listening && settings.voice.microphone && (
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-rose-300/25 bg-rose-400/10 px-4 py-3">
+                <div className="flex items-center gap-2 text-sm text-rose-100">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-400" />
+                  </span>
+                  Recording…
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="border border-rose-300/30 bg-rose-400/10 text-rose-50 hover:bg-rose-400/20"
+                  onClick={() => void toggleSpeechInput()}
+                >
+                  <MicOff className="h-4 w-4" />
+                  Stop
+                </Button>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -662,9 +688,20 @@ export function ChatInterface() {
                 : voiceStatus === "playing"
                   ? "Speaking sentence by sentence. Click the active voice button to stop."
                   : listening
-                    ? "Transcript updates live in the prompt while you speak."
+                    ? "Tap Stop below or the mic button again when you are done speaking."
                     : "Use the microphone beside the prompt box to speak your request, or click a response voice button."}
             </p>
+            {listening && settings.voice.microphone && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-4 w-full border border-rose-300/30 bg-rose-400/10 text-rose-50 hover:bg-rose-400/20"
+                onClick={() => void toggleSpeechInput()}
+              >
+                <MicOff className="h-4 w-4" />
+                Stop listening
+              </Button>
+            )}
             <VoiceLanguageSelector
               className="mt-5 w-full"
               compact

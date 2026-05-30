@@ -189,7 +189,7 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
 
     recognition.start();
     setListening(true);
-    toast.message("Listening", { description: "Speak — your words appear in the prompt as you talk." });
+    toast.message("Listening", { description: "Tap the microphone again when you are done speaking." });
     return true;
   }, [mergeIntoField, stopSpeechInput]);
 
@@ -252,7 +252,7 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
 
     recorder.start(1800);
     setListening(true);
-    toast.message("Listening", { description: "Speak now. Transcript updates every few seconds while you talk." });
+    toast.message("Listening", { description: "Tap Stop or the microphone again when you are done speaking." });
     return true;
   }, [stopSpeechInput, transcribeChunk]);
 
