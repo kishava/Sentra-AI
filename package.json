@@ -15,6 +15,7 @@
     "env:check": "node scripts/check-env.mjs",
     "secrets:sync": "node scripts/sync-secrets-to-supabase.mjs",
     "secrets:restore": "node scripts/restore-vault-now.mjs",
+    "secrets:patch-missing": "node scripts/patch-vault-missing.mjs",
     "secrets:rotate": "node scripts/rotate-platform-secret.mjs",
     "secrets:verify": "node scripts/verify-vault.mjs"
   },

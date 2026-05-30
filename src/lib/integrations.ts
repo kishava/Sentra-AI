@@ -61,7 +61,9 @@ export function getIntegrationStatus() {
   const brightDataKey = Boolean(getPlatformEnv("BRIGHT_DATA_API_KEY"));
   const serpZone = Boolean(getPlatformEnv("BRIGHT_DATA_SERP_ZONE"));
   const unlockerZone = Boolean(getPlatformEnv("BRIGHT_DATA_WEB_UNLOCKER_ZONE"));
-  const scraperZone = Boolean(getPlatformEnv("BRIGHT_DATA_SCRAPER_ZONE"));
+  const scraperZone =
+    Boolean(getPlatformEnv("BRIGHT_DATA_SCRAPER_ZONE")) ||
+    Boolean(getPlatformEnv("BRIGHT_DATA_WEB_UNLOCKER_ZONE"));
   const browserZone = Boolean(getPlatformEnv("BRIGHT_DATA_BROWSER_ZONE"));
   const mcpReady = brightDataKey && isBrightDataMcpEnabled();
   const llmReady = isLlmConfigured();
@@ -120,15 +122,19 @@ export async function getIntegrationStatusWithDiscovery() {
   await ensurePlatformSecrets();
   const base = getIntegrationStatus();
   const apiKey = getPlatformEnv("BRIGHT_DATA_API_KEY");
-  if (!apiKey || (base.brightData.serpZone && base.brightData.unlockerZone)) {
+  if (!apiKey) {
     return base;
   }
 
   const discovered = await discoverBrightDataZones(apiKey);
   const serpZone = base.brightData.serpZone || Boolean(discovered.serp);
   const unlockerZone = base.brightData.unlockerZone || Boolean(discovered.unlocker);
+  const scraperZone =
+    base.brightData.scraperZone ||
+    Boolean(getPlatformEnv("BRIGHT_DATA_SCRAPER_ZONE")) ||
+    Boolean(discovered.scraper);
   const brightData = buildBrightDataStatus(serpZone, unlockerZone, base.brightData.apiKey, {
-    scraperZone: base.brightData.scraperZone || Boolean(discovered.scraper),
+    scraperZone,
     browserZone: base.brightData.browserZone || Boolean(discovered.browser),
     mcpReady: base.brightData.mcpReady,
   });

@@ -13,19 +13,26 @@ type BrightDataZone = { name: string; type: string };
 let cachedZones: ResolvedBrightDataZones | null = null;
 
 function mapZoneTypes(zones: BrightDataZone[]): ResolvedBrightDataZones {
+  const unlocker = zones.find((z) => z.type === "unblocker" || z.type === "unlocker")?.name;
   return {
     serp: zones.find((z) => z.type === "serp")?.name,
-    unlocker: zones.find((z) => z.type === "unblocker" || z.type === "unlocker")?.name,
-    scraper: zones.find(
-      (z) =>
-        z.type === "dc" ||
-        z.type === "scraper" ||
-        z.type === "web_scraper" ||
-        z.type === "dca" ||
-        z.type === "dataset",
-    )?.name,
+    unlocker,
+    scraper:
+      zones.find(
+        (z) =>
+          z.type === "dc" ||
+          z.type === "scraper" ||
+          z.type === "web_scraper" ||
+          z.type === "dca" ||
+          z.type === "dataset" ||
+          z.type === "res_rotating",
+      )?.name || unlocker,
     browser: zones.find(
-      (z) => z.type === "browser" || z.type === "scr_browser" || z.type === "scraping_browser",
+      (z) =>
+        z.type === "browser" ||
+        z.type === "browser_api" ||
+        z.type === "scr_browser" ||
+        z.type === "scraping_browser",
     )?.name,
   };
 }
@@ -65,10 +72,11 @@ export async function resolveAllBrightDataZones(force = false): Promise<Resolved
     }
   }
 
+  const unlocker = fromEnv.unlocker || discovered.unlocker;
   cachedZones = {
     serp: fromEnv.serp || discovered.serp,
-    unlocker: fromEnv.unlocker || discovered.unlocker,
-    scraper: fromEnv.scraper || discovered.scraper,
+    unlocker,
+    scraper: fromEnv.scraper || discovered.scraper || unlocker,
     browser: fromEnv.browser || discovered.browser,
   };
 
