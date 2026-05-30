@@ -12,6 +12,7 @@ import {
 } from "@/services/bright-data";
 import { planGtmCollection } from "@/lib/bright-data/router";
 import { bundleToLegacyEvidence, collectFromPlan, runGtmResearch } from "@/services/gtm-research";
+import { formatInferenceError, isLlmAuthError } from "@/lib/llm/inference";
 import { generateChatResponse, resolveDocumentChatProvider } from "@/services/openai";
 import type { ChatDocumentEvidence, ChatMessage, ChatProvider } from "@/types/intelligence";
 
@@ -189,8 +190,16 @@ export async function POST(request: Request) {
     if (error instanceof BrightDataCollectionError) {
       return NextResponse.json({ error: error.message }, { status: 502 });
     }
-    const message =
-      error instanceof Error ? error.message : "Sentra AI could not generate a response";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message = formatInferenceError(error);
+    const status = isLlmAuthError(error) ? 502 : 500;
+    return NextResponse.json(
+      {
+        error: message,
+        hint: isLlmAuthError(error)
+          ? "Your Sentra login is fine — the AIML or Featherless API key needs to be updated."
+          : undefined,
+      },
+      { status },
+    );
   }
 }

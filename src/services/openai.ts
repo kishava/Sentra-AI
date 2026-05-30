@@ -117,18 +117,6 @@ function normalizeMonitorIntent(input: string, parsed: Partial<MonitorIntent>): 
   };
 }
 
-function getEvidenceInference() {
-  const featherless = getFeatherlessClient();
-  if (featherless) {
-    return { client: featherless, model: getFeatherlessChatModel(), provider: "featherless" as const };
-  }
-  const aiml = getLlmClient();
-  if (aiml) {
-    return { client: aiml, model: getChatModel(), provider: "aiml" as const };
-  }
-  return null;
-}
-
 export async function analyzeMonitorIntent(input: string): Promise<MonitorIntent> {
   const trimmed = input.trim();
   if (!trimmed) {
@@ -331,53 +319,85 @@ function buildChatMessages(message: string, context?: ChatContext) {
   return messages;
 }
 
-async function generateChatWithEvidence(
-  client: NonNullable<ReturnType<typeof getLlmClient>>,
-  message: string,
-  context?: ChatContext,
-  model?: string,
-) {
-  const response = await createChatCompletion(client, {
-    model: model ?? getChatModel(),
-    temperature: 0.35,
-    messages: buildChatMessages(message, context),
-  });
+async function generateChatWithEvidence(message: string, context?: ChatContext) {
+  const { response, provider } = await createChatCompletionWithFallback(
+    {
+      temperature: 0.35,
+      messages: buildChatMessages(message, context),
+    },
+    {
+      aimlModel: getChatModel(),
+      featherlessModel: getFeatherlessChatModel(),
+      preferFeatherless: isFeatherlessConfigured(),
+    },
+  );
 
   const text = response.choices[0]?.message?.content?.trim();
   if (!text) {
     throw new Error("The model returned an empty answer.");
   }
 
+  const client = provider === "featherless" ? getFeatherlessClient() : getLlmClient();
   return repairHowToDeflection(client, message, text, context);
 }
 
-async function generateChatWithSearch(client: ReturnType<typeof getLlmClient>, message: string, context?: ChatContext) {
+async function generateChatWithSearch(message: string, context?: ChatContext) {
   const messages = buildChatMessages(message, context);
-  const candidates = [getSearchModel(), getSearchFallbackModel(), getChatModel()].filter(
-    (model, index, list) => list.indexOf(model) === index,
-  );
+  const aiml = getLlmClient();
 
-  let lastError: unknown;
-  for (const model of candidates) {
-    try {
-      const response = model.toLowerCase().includes("search")
-        ? await createLiveSearchChatCompletion(client!, { model, messages })
-        : await createChatCompletion(client!, {
-            model,
-            temperature: 0.35,
-            messages,
-          });
+  if (aiml && isAimlConfigured()) {
+    const candidates = [getSearchModel(), getSearchFallbackModel(), getChatModel()].filter(
+      (model, index, list) => list.indexOf(model) === index,
+    );
 
-      const text = response.choices[0]?.message?.content?.trim();
-      if (!text) throw new Error("Live search returned an empty answer.");
-      return repairHowToDeflection(client, message, text, context);
-    } catch (error) {
-      lastError = error;
-      console.warn(`AIML chat model "${model}" failed, trying next`, error);
+    let lastError: unknown;
+    for (const model of candidates) {
+      try {
+        const response = model.toLowerCase().includes("search")
+          ? await createLiveSearchChatCompletion(aiml, { model, messages })
+          : await createChatCompletion(aiml, {
+              model,
+              temperature: 0.35,
+              messages,
+            });
+
+        const text = response.choices[0]?.message?.content?.trim();
+        if (!text) throw new Error("Live search returned an empty answer.");
+        return repairHowToDeflection(aiml, message, text, context);
+      } catch (error) {
+        lastError = error;
+        if (isLlmAuthError(error)) {
+          console.warn("[llm] AIML search auth failed, falling back to alternate provider");
+          break;
+        }
+        console.warn(`AIML chat model "${model}" failed, trying next`, error);
+      }
+    }
+
+    if (lastError && !isLlmAuthError(lastError)) {
+      throw lastError instanceof Error ? lastError : new Error("AIML live chat could not complete.");
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("AIML live chat could not complete.");
+  const { response, provider } = await createChatCompletionWithFallback(
+    {
+      temperature: 0.35,
+      messages,
+    },
+    {
+      aimlModel: getChatModel(),
+      featherlessModel: getFeatherlessChatModel(),
+      preferFeatherless: true,
+    },
+  );
+
+  const text = response.choices[0]?.message?.content?.trim();
+  if (!text) {
+    throw new Error("The model returned an empty answer.");
+  }
+
+  const client = provider === "featherless" ? getFeatherlessClient() : getLlmClient();
+  return repairHowToDeflection(client, message, text, context);
 }
 
 function isHowToDeflection(text: string) {
@@ -429,20 +449,15 @@ async function repairHowToDeflection(
 }
 
 export async function generateChatResponse(message: string, context?: ChatContext) {
+  if (!isLlmConfigured()) {
+    throw new Error("Configure AIML_API_KEY or FEATHERLESS_API_KEY in .env.local for chat.");
+  }
+
   if (context?.documentEvidence || context?.brightDataEvidence) {
-    const inference = getEvidenceInference();
-    if (!inference) {
-      throw new Error("Configure FEATHERLESS_API_KEY or AIML_API_KEY for document analysis.");
-    }
-    return generateChatWithEvidence(inference.client, message, context, inference.model);
+    return generateChatWithEvidence(message, context);
   }
 
-  const client = getLlmClient();
-  if (!client || !isAimlConfigured()) {
-    throw new Error("Configure AIML_API_KEY for live web search chat.");
-  }
-
-  return generateChatWithSearch(client, message, context);
+  return generateChatWithSearch(message, context);
 }
 
 export function resolveDocumentChatProvider(hasBrightData: boolean) {

@@ -336,6 +336,9 @@ export function ChatInterface() {
         if (response.status === 401) {
           throw new Error(data.hint ? `${data.error ?? "Sign in required."} ${data.hint}` : data.error ?? "Sign in required.");
         }
+        if (response.status === 502 && data.hint) {
+          throw new Error(`${data.error ?? "AI provider error."} ${data.hint}`);
+        }
         throw new Error(data.error || "Sentra returned an empty response.");
       }
 
