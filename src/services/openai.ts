@@ -30,7 +30,7 @@ import {
   buildMonitorSearchQuery,
   inferMonitorIntentHeuristically,
 } from "@/lib/monitor-intent-heuristic";
-import { sliceDocumentForContext } from "@/lib/documents/extract-text";
+import { AimlSttError, transcribeAimlAudio } from "@/services/aiml-stt";
 import type { ChatMessage, IntelligenceAnalysis, MonitorIntent, Severity } from "@/types/intelligence";
 
 const SYSTEM_PROMPT = `You are Sentra AI, an enterprise intelligence analyst.
@@ -168,31 +168,41 @@ export async function analyzeMonitorIntent(input: string): Promise<MonitorIntent
 }
 
 export async function transcribeAudio(file: File, context?: string) {
-  const client = getLlmClient();
-  if (!client) {
-    throw new Error("Configure AIML_API_KEY in .env.local to use microphone transcription.");
+  if (!isAimlConfigured()) {
+    throw new Error("Configure AIML_API_KEY in the Supabase vault to use microphone transcription.");
   }
 
   try {
-    const response = await client.audio.transcriptions.create({
-      file,
-      model: getTranscribeModel(),
-      prompt: [
-        "The user is dictating a business intelligence prompt for Sentra AI.",
-        "Terms may include Sentra AI, Bright Data, competitors, pricing, market signals, risk analysis, and company names.",
-        context ? `Existing typed context: ${context.slice(0, 500)}` : null,
-      ]
-        .filter(Boolean)
-        .join(" "),
-    });
-
-    return response.text.trim();
+    const text = await transcribeAimlAudio(file, context);
+    if (text) return text;
   } catch (error) {
-    console.error("Transcription failed", error);
-    throw new Error(
-      "Speech transcription is not available with the current AIML model. Type your prompt or set AIML_MODEL_TRANSCRIBE in .env.local.",
-    );
+    if (error instanceof AimlSttError) throw error;
+    console.error("AIML STT failed", error);
   }
+
+  const client = getLlmClient();
+  if (client) {
+    try {
+      const response = await client.audio.transcriptions.create({
+        file,
+        model: getTranscribeModel(),
+        prompt: [
+          "The user is dictating a business intelligence prompt for Sentra AI.",
+          "Terms may include Sentra AI, Bright Data, competitors, pricing, market signals, risk analysis, and company names.",
+          context ? `Existing typed context: ${context.slice(0, 500)}` : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      });
+
+      const legacyText = response.text?.trim();
+      if (legacyText) return legacyText;
+    } catch (error) {
+      console.error("Legacy OpenAI-compatible transcription failed", error);
+    }
+  }
+
+  throw new Error("Speech transcription failed. Check AIML_MODEL_TRANSCRIBE in .env.local.");
 }
 
 export async function generateEnterpriseAnalysis(

@@ -80,7 +80,7 @@ export function getVisionModel() {
 }
 
 export function getTranscribeModel() {
-  return process.env.AIML_MODEL_TRANSCRIBE?.trim() || "whisper-1";
+  return process.env.AIML_MODEL_TRANSCRIBE?.trim() || "#g1_whisper-medium";
 }
 
 /** Search / reasoning models on AIML often reject temperature and other sampling params. */

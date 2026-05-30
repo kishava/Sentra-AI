@@ -3,7 +3,8 @@ import { requireApiUser } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { transcribeAudio } from "@/services/openai";
-import { isSpeechmaticsSttConfigured, transcribeSpeechmaticsAudio } from "@/services/speechmatics-stt";
+import { AimlSttError } from "@/services/aiml-stt";
+import { isSpeechmaticsSttConfigured, transcribeSpeechmaticsAudio, SpeechmaticsSttError } from "@/services/speechmatics-stt";
 
 export const runtime = "nodejs";
 
@@ -55,6 +56,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ text, provider });
   } catch (error) {
     console.error("Transcription route failed", error);
+    if (error instanceof SpeechmaticsSttError || error instanceof AimlSttError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Unable to transcribe microphone audio",
