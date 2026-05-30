@@ -69,9 +69,34 @@ export function matchesMonitor(monitor: MonitorRule, signal: IntelligenceSignal)
 
   const matchedTokens = tokens.filter((token) => tokenMatches(haystack, token));
   if (tokens.length === 1) return matchedTokens.length === 1;
+  if (tokens.length === 2) return matchedTokens.length >= 1;
   return matchedTokens.length >= 2;
 }
 
 export function filterSignalsForMonitor(monitor: MonitorRule, signals: IntelligenceSignal[]) {
-  return signals.filter((signal) => matchesMonitor(monitor, signal));
+  const strict = signals.filter((signal) => matchesMonitor(monitor, signal));
+  if (strict.length) return strict;
+
+  const haystackSignals = signals.map((signal) => ({
+    signal,
+    haystack: `${signal.title} ${signal.summary} ${signal.source}`.toLowerCase(),
+  }));
+
+  const tokens = (
+    monitor.keywords?.length
+      ? monitor.keywords.map((token) => token.toLowerCase())
+      : tokenize(monitor.requirement)
+  ).filter((token) => token.length >= 3 && !STOP_WORDS.has(token));
+
+  if (tokens.length) {
+    const soft = haystackSignals
+      .filter(({ haystack }) => tokens.some((token) => tokenMatches(haystack, token)))
+      .map(({ signal }) => signal);
+    if (soft.length) return soft.slice(0, 6);
+  }
+
+  // Show top analysis signals when strict keyword matching finds nothing.
+  return signals
+    .filter((signal) => severityRank[signal.severity] >= severityRank[monitor.minimumSeverity])
+    .slice(0, 4);
 }

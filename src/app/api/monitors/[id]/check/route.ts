@@ -12,6 +12,7 @@ export const maxDuration = 120;
 
 type LocalMonitorPayload = {
   requirement?: string;
+  searchQuery?: string;
   category?: string;
   minimumSeverity?: Severity;
   keywords?: string[];
@@ -64,11 +65,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       userId: auth.user.id,
       persist: Boolean(stored && auth.supabase),
       workspace: body.workspace,
+      searchQuery: body.searchQuery?.trim(),
+      targetUrl: body.targetUrl ?? monitor.target_url,
     });
 
     return NextResponse.json({
       provider: result.provider,
+      searchQuery: result.searchQuery,
       matchedCount: result.matchedCount,
+      signalCount: result.signalCount,
       signals: result.signals,
       analysis: result.analysis,
       report: result.report,

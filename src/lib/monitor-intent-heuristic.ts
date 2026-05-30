@@ -1,6 +1,28 @@
 import { plainEnglishMonitorSummary } from "@/lib/monitor-history";
 import type { MonitorIntent, Severity } from "@/types/intelligence";
 
+function extractTargetUrl(input: string) {
+  const match = input.match(/https?:\/\/[^\s<>()\]]+/i)?.[0]?.replace(/[.,;!?]+$/, "");
+  if (!match) return undefined;
+  try {
+    return new URL(match).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+export function buildMonitorSearchQuery(requirement: string, keywords: string[]) {
+  const meaningful = keywords.filter((token) => token.length >= 2).slice(0, 6);
+  if (meaningful.length >= 2) return meaningful.join(" ");
+  const cleaned = requirement
+    .replace(/^alert me when\s+/i, "")
+    .replace(/^notify me when\s+/i, "")
+    .replace(/^watch\s+/i, "")
+    .replace(/^monitor\s+/i, "")
+    .trim();
+  return cleaned.slice(0, 120) || requirement.trim().slice(0, 120);
+}
+
 /** Client-safe fallback when monitor-intent API is unavailable. */
 export function inferMonitorIntentHeuristically(input: string): MonitorIntent {
   const lower = input.toLowerCase();
@@ -34,8 +56,11 @@ export function inferMonitorIntentHeuristically(input: string): MonitorIntent {
   );
 
   const normalizedRequirement = input.trim();
+  const searchQuery = buildMonitorSearchQuery(normalizedRequirement, keywords);
   return {
     normalizedRequirement,
+    searchQuery,
+    targetUrl: extractTargetUrl(input),
     category,
     minimumSeverity,
     keywords,

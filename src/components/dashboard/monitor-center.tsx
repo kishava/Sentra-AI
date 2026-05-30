@@ -13,6 +13,7 @@ import { signalStream } from "@/data/mock-intelligence";
 import { AutomationWebhookPanel } from "@/components/gtm/crm-export-button";
 import { getWorkspaceContext } from "@/lib/gtm/workspace-context";
 import { useWorkspaceSession } from "@/lib/hooks/use-workspace-session";
+import { fetchMonitorIntent } from "@/lib/monitor-intent-client";
 import { inferMonitorIntentHeuristically } from "@/lib/monitor-intent-heuristic";
 import { readResponseJson } from "@/lib/http/read-response-json";
 import { signInFor } from "@/lib/landing/auth-links";
@@ -41,15 +42,21 @@ type SignalCategory = IntelligenceSignal["category"];
 type Monitor = {
   id: string;
   requirement: string;
+  searchQuery?: string;
+  plainSummary?: string;
   category: "any" | SignalCategory;
   minimumSeverity: Severity;
   active: boolean;
   createdAt: string;
   lastCheckedAt?: string;
   lastMatchedCount?: number;
+  lastSignalCount?: number;
+  lastSummary?: string;
+  lastSearchQuery?: string;
   lastMatchTitle?: string;
   lastProvider?: string;
   keywords?: string[];
+  targetUrl?: string;
   alertedSignalIds: string[];
 };
 
@@ -101,16 +108,22 @@ function saveLocalReport(report: ExecutiveIntelligenceReport) {
 
 function buildLocalMonitor(input: {
   requirement: string;
+  searchQuery?: string;
+  plainSummary?: string;
   category: Monitor["category"];
   minimumSeverity: Severity;
   keywords?: string[];
+  targetUrl?: string;
 }): Monitor {
   return {
     id: crypto.randomUUID(),
     requirement: input.requirement,
+    searchQuery: input.searchQuery,
+    plainSummary: input.plainSummary,
     category: input.category,
     minimumSeverity: input.minimumSeverity,
     keywords: input.keywords ?? [],
+    targetUrl: input.targetUrl,
     active: true,
     createdAt: new Date().toISOString(),
     alertedSignalIds: [],
@@ -146,6 +159,7 @@ export function MonitorCenter() {
     typeof window !== "undefined" ? loadDetectedChanges() : [],
   );
   const [demoLoading, setDemoLoading] = useState(false);
+  const [creatingMonitor, setCreatingMonitor] = useState(false);
   const [timelineKey, setTimelineKey] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
@@ -386,7 +400,16 @@ export function MonitorCenter() {
 
   function updateMonitorCheckState(
     monitorId: string,
-    patch: Pick<Monitor, "lastCheckedAt" | "lastMatchedCount" | "lastMatchTitle" | "lastProvider">,
+    patch: Pick<
+      Monitor,
+      | "lastCheckedAt"
+      | "lastMatchedCount"
+      | "lastSignalCount"
+      | "lastSummary"
+      | "lastSearchQuery"
+      | "lastMatchTitle"
+      | "lastProvider"
+    >,
   ) {
     setMonitors((current) => {
       const next = current.map((item) => (item.id === monitorId ? { ...item, ...patch } : item));
@@ -489,18 +512,36 @@ export function MonitorCenter() {
       return;
     }
 
-    const interpretedRequirement = cleanMonitorRequirement(
-      monitorIntent?.normalizedRequirement?.trim() || trimmed,
-    );
+    setCreatingMonitor(true);
+    let resolvedIntent: MonitorIntent;
+    try {
+      resolvedIntent = monitorIntent && !intentLoading
+        ? enrichIntent(monitorIntent, trimmed)
+        : enrichIntent(await fetchMonitorIntent(trimmed), trimmed);
+      setMonitorIntent(resolvedIntent);
+      setCategory(resolvedIntent.category);
+      setMinimumSeverity(resolvedIntent.minimumSeverity);
+    } catch (error) {
+      setCreatingMonitor(false);
+      toast.error(error instanceof Error ? error.message : "Could not interpret your monitor.");
+      return;
+    }
+
+    const interpretedRequirement = cleanMonitorRequirement(resolvedIntent.normalizedRequirement);
+    const searchQuery = resolvedIntent.searchQuery?.trim() || interpretedRequirement;
     if (interpretedRequirement.length < 3) {
+      setCreatingMonitor(false);
       toast.error("Describe what you want to watch in a few words.");
       return;
     }
     const monitorPayload = {
       requirement: interpretedRequirement,
-      category,
-      minimumSeverity,
-      keywords: monitorIntent?.keywords ?? [],
+      searchQuery,
+      plainSummary: resolvedIntent.plainSummary,
+      category: resolvedIntent.category,
+      minimumSeverity: resolvedIntent.minimumSeverity,
+      keywords: resolvedIntent.keywords ?? [],
+      targetUrl: resolvedIntent.targetUrl,
       active: true,
     };
 
@@ -530,9 +571,12 @@ export function MonitorCenter() {
         monitor = {
           id: data.monitor.id,
           requirement: data.monitor.requirement,
+          searchQuery,
+          plainSummary: resolvedIntent.plainSummary,
           category: data.monitor.category as Monitor["category"],
           minimumSeverity: data.monitor.minimum_severity,
           keywords: data.monitor.keywords,
+          targetUrl: resolvedIntent.targetUrl,
           active: data.monitor.active,
           createdAt: new Date().toISOString(),
           alertedSignalIds: [],
@@ -546,12 +590,16 @@ export function MonitorCenter() {
       if (error instanceof Error && /401|sign in|unauthorized/i.test(error.message)) {
         monitor = buildLocalMonitor(monitorPayload);
       } else {
+        setCreatingMonitor(false);
         toast.error(error instanceof Error ? error.message : "Could not create monitor.");
         return;
       }
     }
 
-    if (!monitor) return;
+    if (!monitor) {
+      setCreatingMonitor(false);
+      return;
+    }
 
     recordMonitorHistory({ requirement: monitor.requirement, category: monitor.category });
 
@@ -570,6 +618,8 @@ export function MonitorCenter() {
       await checkMonitorNow(savedMonitor.id, { monitor: savedMonitor });
     } catch {
       toast.message("Monitor saved — tap Check now to run the live scan.", { duration: 5000 });
+    } finally {
+      setCreatingMonitor(false);
     }
   }
 
@@ -704,9 +754,11 @@ export function MonitorCenter() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             requirement: monitor.requirement,
+            searchQuery: monitor.searchQuery ?? monitor.requirement,
             category: monitor.category,
             minimumSeverity: monitor.minimumSeverity,
             keywords: monitor.keywords ?? [],
+            targetUrl: monitor.targetUrl,
             workspace: getWorkspaceContext(),
           }),
         });
@@ -720,7 +772,10 @@ export function MonitorCenter() {
       const data = await readResponseJson<{
         signals?: IntelligenceSignal[];
         provider?: string;
+        searchQuery?: string;
         matchedCount?: number;
+        signalCount?: number;
+        analysis?: { summary?: string; signals?: IntelligenceSignal[] };
         report?: ExecutiveIntelligenceReport;
         detectedChanges?: DetectedChange[];
         error?: string;
@@ -745,15 +800,30 @@ export function MonitorCenter() {
 
       const matched = data.signals ?? [];
       const topMatch = matched[0];
+      const allSignals = data.analysis?.signals ?? matched;
+      const summary = data.analysis?.summary ?? data.report?.executiveSummary;
 
       updateMonitorCheckState(monitorId, {
         lastCheckedAt: new Date().toISOString(),
         lastMatchedCount: data.matchedCount ?? matched.length,
-        lastMatchTitle: topMatch?.title,
+        lastSignalCount: data.signalCount ?? allSignals.length,
+        lastSummary: summary?.slice(0, 280),
+        lastSearchQuery: data.searchQuery ?? monitor.searchQuery,
+        lastMatchTitle: topMatch?.title ?? allSignals[0]?.title,
         lastProvider: data.provider,
       });
 
-      if (matched.length) {
+      if (allSignals.length) {
+        setSignals((current) => {
+          const merged = [...allSignals, ...matched, ...current];
+          const seen = new Set<string>();
+          return merged.filter((signal) => {
+            if (seen.has(signal.id)) return false;
+            seen.add(signal.id);
+            return true;
+          });
+        });
+      } else if (matched.length) {
         setSignals((current) => {
           const merged = [...matched, ...current];
           const seen = new Set<string>();
@@ -783,9 +853,10 @@ export function MonitorCenter() {
       if (data.report) {
         setReportsByMonitor((current) => ({ ...current, [monitorId]: data.report! }));
         saveLocalReport(data.report);
+        const displaySignal = matched[0] ?? allSignals[0];
         toast.success("Evidence-backed report ready", {
           description: data.report.verdict,
-          action: { label: "Open", onClick: () => openReport(monitor, matched[0], data.report) },
+          action: { label: "Open", onClick: () => openReport(monitor, displaySignal, data.report) },
         });
       }
       matched.forEach((signal) => {
@@ -807,8 +878,8 @@ export function MonitorCenter() {
       toast.message("Check complete", {
         description:
           data.provider === "bright-data"
-            ? `${data.matchedCount ?? 0} matches from live Bright Data evidence.`
-            : `${data.matchedCount ?? 0} matches (illustrative evidence - configure Bright Data zones).`,
+            ? `${data.signalCount ?? allSignals.length} signals from live web · ${data.matchedCount ?? matched.length} highlighted`
+            : `${data.matchedCount ?? matched.length} matches (illustrative evidence — configure Bright Data zones).`,
       });
 
       if (options?.automated && data.report && monitor) {
@@ -943,6 +1014,11 @@ export function MonitorCenter() {
                               minimumSeverity: monitorIntent.minimumSeverity,
                             })}
                         </p>
+                        {monitorIntent.searchQuery && (
+                          <p className="text-xs text-white/40">
+                            Bright Data search: {monitorIntent.searchQuery}
+                          </p>
+                        )}
                         <div className="flex flex-wrap gap-2">
                           <Badge variant="cyan">{monitorIntent.category}</Badge>
                           <Badge variant="risk">{monitorIntent.minimumSeverity}+ priority</Badge>
@@ -1064,9 +1140,9 @@ export function MonitorCenter() {
                 ? "No active monitors yet"
                 : `${activeMonitorCount} active monitor${activeMonitorCount === 1 ? "" : "s"}`}
             </p>
-            <Button variant="neon" onClick={createMonitor} className="sm:min-w-[200px]">
+            <Button variant="neon" onClick={createMonitor} disabled={creatingMonitor || intentLoading} className="sm:min-w-[200px]">
               <Radar className="h-4 w-4" />
-              Start monitoring
+              {creatingMonitor ? "Starting…" : intentLoading ? "Understanding…" : "Start monitoring"}
             </Button>
           </div>
         </Card>
@@ -1077,6 +1153,7 @@ export function MonitorCenter() {
             {monitors.map((monitor) => {
               const report = reportsByMonitor[monitor.id];
               const matchCount = monitor.lastMatchedCount ?? 0;
+              const signalCount = monitor.lastSignalCount ?? matchCount;
               const lastChecked = monitor.lastCheckedAt
                 ? new Date(monitor.lastCheckedAt).toLocaleString()
                 : null;
@@ -1090,7 +1167,7 @@ export function MonitorCenter() {
                         {monitor.active ? "Active" : "Paused"}
                       </Badge>
                       <span className="text-xs text-white/40">
-                        {matchCount} match{matchCount === 1 ? "" : "es"} from last check · {monitor.category}
+                        {signalCount} signal{signalCount === 1 ? "" : "s"} · {matchCount} highlighted · {monitor.category}
                       </span>
                       {monitor.lastProvider && (
                         <span className="text-xs text-white/30">
@@ -1098,11 +1175,27 @@ export function MonitorCenter() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-2 text-sm font-medium leading-6 text-white">{monitor.requirement}</p>
+                    <p className="mt-2 text-sm font-medium leading-6 text-white">
+                      {monitor.plainSummary ?? monitor.requirement}
+                    </p>
+                    {monitor.searchQuery && monitor.searchQuery !== monitor.requirement && (
+                      <p className="mt-1 text-xs text-white/35">Search: {monitor.lastSearchQuery ?? monitor.searchQuery}</p>
+                    )}
                     {lastChecked && (
                       <p className="mt-1 text-xs text-white/35">Last checked {lastChecked}</p>
                     )}
-                    {monitor.lastMatchTitle ? (
+                    {monitor.lastSummary && (
+                      <p className="mt-2 text-xs leading-5 text-white/50 line-clamp-3">{monitor.lastSummary}</p>
+                    )}
+                    {report ? (
+                      <button
+                        type="button"
+                        className="sentra-focus mt-2 text-left text-xs font-medium text-cyan-100/80 hover:text-cyan-100"
+                        onClick={() => openReport(monitor, undefined, report)}
+                      >
+                        View full report →
+                      </button>
+                    ) : monitor.lastMatchTitle ? (
                       <button
                         type="button"
                         className="sentra-focus mt-1 text-left text-xs text-cyan-100/80 hover:text-cyan-100"
@@ -1111,7 +1204,7 @@ export function MonitorCenter() {
                         Latest finding: {monitor.lastMatchTitle}
                       </button>
                     ) : lastChecked ? (
-                      <p className="mt-1 text-xs text-white/40">No matching signals on the last check.</p>
+                      <p className="mt-1 text-xs text-white/40">Live scan complete — open the report for evidence details.</p>
                     ) : (
                       <p className="mt-1 text-xs text-white/40">Tap Check now to run the first live scan.</p>
                     )}

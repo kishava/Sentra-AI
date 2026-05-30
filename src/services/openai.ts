@@ -26,6 +26,10 @@ import {
   isFeatherlessConfigured,
 } from "@/lib/llm/featherless";
 import { formatWorkspaceContextForPrompt, type WorkspaceContext } from "@/lib/gtm/workspace-context";
+import {
+  buildMonitorSearchQuery,
+  inferMonitorIntentHeuristically,
+} from "@/lib/monitor-intent-heuristic";
 import { sliceDocumentForContext } from "@/lib/documents/extract-text";
 import type { ChatMessage, IntelligenceAnalysis, MonitorIntent, Severity } from "@/types/intelligence";
 
@@ -77,48 +81,6 @@ function getFreshnessDate() {
   return { date, timeZone };
 }
 
-function inferMonitorIntentHeuristically(input: string): MonitorIntent {
-  const lower = input.toLowerCase();
-  const category = lower.match(/price|pricing|discount|incentive|lease|cost|billing/)
-    ? "pricing"
-    : lower.match(/hire|hiring|role|jobs|recruit/)
-      ? "hiring"
-      : lower.match(/sentiment|complaint|social|negative|positive|review/)
-        ? "sentiment"
-        : lower.match(/competitor|launch|product|rival|battlecard/)
-          ? "competitor"
-          : lower.match(/risk|regulat|lawsuit|outage|security|critical/)
-            ? "risk"
-            : lower.match(/market|trend|demand|industry/)
-              ? "market"
-              : "any";
-  const minimumSeverity: Severity = lower.match(/urgent|critical|immediate|severe|crisis/)
-    ? "critical"
-    : lower.match(/important|major|high|escalate/)
-      ? "high"
-      : lower.match(/minor|low|FYI/i)
-        ? "low"
-        : "medium";
-  const keywords = Array.from(
-    new Set(
-      lower
-        .split(/[^a-z0-9]+/i)
-        .filter((token) => token.length >= 3)
-        .slice(0, 8),
-    ),
-  );
-
-  return {
-    normalizedRequirement: input.trim(),
-    category,
-    minimumSeverity,
-    keywords,
-    rationale: "Interpreted locally from keywords because AI intent analysis is not configured.",
-    confidence: 0.58,
-    provider: "heuristic",
-  };
-}
-
 function normalizeMonitorIntent(input: string, parsed: Partial<MonitorIntent>): MonitorIntent {
   const category = monitorCategories.includes(parsed.category as (typeof monitorCategories)[number])
     ? parsed.category!
@@ -136,6 +98,10 @@ function normalizeMonitorIntent(input: string, parsed: Partial<MonitorIntent>): 
 
   return {
     normalizedRequirement: parsed.normalizedRequirement?.trim() || input.trim(),
+    searchQuery:
+      parsed.searchQuery?.trim() ||
+      buildMonitorSearchQuery(parsed.normalizedRequirement?.trim() || input.trim(), keywords),
+    targetUrl: parsed.targetUrl?.trim() || undefined,
     category,
     minimumSeverity,
     keywords,
@@ -184,7 +150,7 @@ export async function analyzeMonitorIntent(input: string): Promise<MonitorIntent
       },
       {
         role: "user",
-        content: `Input: ${trimmed}\n\nReturn JSON with keys: normalizedRequirement, category, minimumSeverity, keywords, rationale, plainSummary, confidence.\nplainSummary must be one friendly sentence explaining what Sentra will watch (no jargon).\ncategory must be one of: any, competitor, market, risk, pricing, hiring, sentiment.\nminimumSeverity must be one of: low, medium, high, critical.\nkeywords must be short tokens or phrases that should match future signals.`,
+        content: `Input: ${trimmed}\n\nReturn JSON with keys: normalizedRequirement, searchQuery, targetUrl, category, minimumSeverity, keywords, rationale, plainSummary, confidence.\nsearchQuery must be a concise Google search query (4-12 words) optimized for finding live web evidence about this monitor.\ntargetUrl is optional — only include when the user supplied an HTTPS URL to watch.\nplainSummary must be one friendly sentence explaining what Sentra will watch (no jargon).\ncategory must be one of: any, competitor, market, risk, pricing, hiring, sentiment.\nminimumSeverity must be one of: low, medium, high, critical.\nkeywords must be short tokens or phrases that should match future signals.`,
       },
     ],
   });

@@ -180,6 +180,9 @@ export type MonitorCategory = IntelligenceSignal["category"];
 
 export type MonitorIntent = {
   normalizedRequirement: string;
+  /** Optimized query sent to Bright Data SERP / collection APIs */
+  searchQuery?: string;
+  targetUrl?: string;
   category: "any" | MonitorCategory;
   minimumSeverity: Severity;
   keywords: string[];

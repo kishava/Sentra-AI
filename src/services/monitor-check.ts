@@ -31,7 +31,9 @@ export type MonitorCheckInput = {
 
 export type MonitorCheckResult = {
   provider: "bright-data" | "demo";
+  searchQuery: string;
   matchedCount: number;
+  signalCount: number;
   signals: ReturnType<typeof filterSignalsForMonitor>;
   analysis: Awaited<ReturnType<typeof generateEnterpriseAnalysis>>;
   report: ReturnType<typeof createExecutiveReport>;
@@ -45,13 +47,16 @@ export async function runMonitorCheck(
     userId?: string;
     persist?: boolean;
     workspace?: WorkspaceContext | null;
+    searchQuery?: string;
+    targetUrl?: string | null;
   },
 ): Promise<MonitorCheckResult> {
+  const collectionQuery = options?.searchQuery?.trim() || monitor.requirement;
+  const targetUrl = options?.targetUrl ?? monitor.target_url;
   const enrichedRequirement = enrichQueryWithWorkspace(monitor.requirement, options?.workspace);
+  const enrichedSearchQuery = enrichQueryWithWorkspace(collectionQuery, options?.workspace);
   const plan = planGtmCollection(
-    monitor.target_url
-      ? `${enrichedRequirement} ${monitor.target_url}`
-      : enrichedRequirement,
+    targetUrl ? `${enrichedSearchQuery} ${targetUrl}` : enrichedSearchQuery,
     { preferMcp: true },
   );
 
@@ -168,7 +173,9 @@ export async function runMonitorCheck(
 
   return {
     provider: webEvidence.provider,
+    searchQuery: collectionQuery,
     matchedCount: matched.length,
+    signalCount: mergedSignals.length,
     signals: matched,
     analysis: { ...analysis, signals: mergedSignals },
     report,
