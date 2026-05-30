@@ -21,8 +21,9 @@ function getAsrBaseUrl() {
   return process.env.SPEECHMATICS_ASR_URL?.trim() || DEFAULT_ASR_URL;
 }
 
-async function waitForJob(apiKey: string, jobId: string, timeoutMs = 45_000) {
+async function waitForJob(apiKey: string, jobId: string, timeoutMs = 30_000) {
   const started = Date.now();
+  let delayMs = 250;
 
   while (Date.now() - started < timeoutMs) {
     const response = await fetch(`${getAsrBaseUrl()}/jobs/${jobId}`, {
@@ -36,22 +37,26 @@ async function waitForJob(apiKey: string, jobId: string, timeoutMs = 45_000) {
     }
 
     const payload = (await response.json()) as { job?: { status?: string } };
-    const status = payload.job?.status;
+    const status = payload.job?.status?.toLowerCase();
 
     if (status === "done") return;
     if (status === "rejected" || status === "deleted") {
       throw new SpeechmaticsSttError("Speechmatics rejected the transcription job.", 422);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    delayMs = Math.min(delayMs * 1.4, 1200);
   }
 
   throw new SpeechmaticsSttError("Speechmatics transcription timed out.", 504);
 }
 
 function extractTranscript(payload: unknown) {
-  const results = (payload as { results?: Array<{ alternatives?: Array<{ content?: string }> }> })?.results ?? [];
+  const results =
+    (payload as { results?: Array<{ type?: string; alternatives?: Array<{ content?: string }> }> })?.results ?? [];
+
   return results
+    .filter((item) => !item.type || item.type === "word" || item.type === "punctuation")
     .map((item) => item.alternatives?.[0]?.content ?? "")
     .join(" ")
     .replace(/\s+/g, " ")
@@ -67,7 +72,7 @@ export async function transcribeSpeechmaticsAudio(file: File, context?: string, 
     type: "transcription",
     transcription_config: {
       language,
-      operating_point: "enhanced",
+      operating_point: "standard",
       additional_vocab: [
         { content: "Sentra" },
         { content: "Bright Data" },
@@ -85,7 +90,7 @@ export async function transcribeSpeechmaticsAudio(file: File, context?: string, 
 
   const formData = new FormData();
   formData.append("config", JSON.stringify(config));
-  formData.append("data_file", file, file.name || "recording.webm");
+  formData.append("data_file", file, file.name || "recording.wav");
 
   const createResponse = await fetch(`${getAsrBaseUrl()}/jobs`, {
     method: "POST",

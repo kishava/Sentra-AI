@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { pickRecordingBlob, prepareTranscriptionFile } from "@/lib/voice/audio-encoding";
 import { resolveSpeechRecognitionLanguage, resolveSttLanguage } from "@/lib/voice/languages";
 
 type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
@@ -40,16 +41,22 @@ function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
   return win.SpeechRecognition ?? win.webkitSpeechRecognition ?? null;
 }
 
-async function transcribeBlob(blob: Blob, context?: string, language?: string) {
-  const extension = blob.type.includes("mp4") ? "mp4" : "webm";
+async function transcribeBlob(blob: Blob, context?: string, language?: string, mimeType?: string) {
+  const prepared = await prepareTranscriptionFile(blob, mimeType || blob.type);
   const formData = new FormData();
-  formData.append("audio", new File([blob], `speech.${extension}`, { type: blob.type }));
+  formData.append("audio", prepared);
   if (context?.trim()) formData.append("context", context.trim());
   if (language) formData.append("language", resolveSttLanguage(language));
 
   const response = await fetch("/api/transcribe", { method: "POST", body: formData });
-  const data = (await response.json()) as { text?: string; error?: string };
-  return { ok: response.ok, status: response.status, text: data.text?.trim(), error: data.error };
+  const data = (await response.json()) as { text?: string; error?: string; provider?: string };
+  return {
+    ok: response.ok,
+    status: response.status,
+    text: data.text?.trim(),
+    error: data.error,
+    provider: data.provider,
+  };
 }
 
 type UseSpeechInputOptions = {
@@ -67,18 +74,19 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
   const valueRef = useRef(value);
   const baseValueRef = useRef("");
   const committedRef = useRef("");
-  const modeRef = useRef<"speech-api" | "media-recorder" | null>(null);
+  const modeRef = useRef<"speech-api" | "media-recorder" | "hybrid" | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const recognitionActiveRef = useRef(false);
   const fallbackInProgressRef = useRef(false);
+  const skipBackupTranscriptionRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaMimeTypeRef = useRef("audio/webm");
   const audioChunksRef = useRef<Blob[]>([]);
   const languageRef = useRef(language);
-  const startMediaRecorderRef = useRef<(options?: { preserveTranscript?: boolean }) => Promise<boolean>>(
-    async () => false,
-  );
+  const startMediaRecorderRef = useRef<
+    (options?: { preserveTranscript?: boolean; backupOnly?: boolean }) => Promise<boolean>
+  >(async () => false);
 
   useEffect(() => {
     valueRef.current = value;
@@ -100,9 +108,9 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
     [onChange],
   );
 
-  const cleanupMedia = useCallback(() => {
+  const cleanupMedia = useCallback((skipTranscription = false) => {
+    skipBackupTranscriptionRef.current = skipTranscription;
     if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.requestData();
       mediaRecorderRef.current.stop();
       return;
     }
@@ -122,19 +130,19 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
     fallbackInProgressRef.current = false;
     recognitionActiveRef.current = false;
     cleanupRecognition();
-    cleanupMedia();
+    cleanupMedia(false);
     modeRef.current = null;
     setListening(false);
     setLiveTranscript("");
   }, [cleanupMedia, cleanupRecognition]);
 
   const transcribeRecording = useCallback(
-    async (blob: Blob) => {
+    async (blob: Blob, mimeType: string) => {
       if (!blob.size) return false;
       setTranscribing(true);
       try {
         const context = `${baseValueRef.current} ${committedRef.current}`.trim() || getContext?.() || valueRef.current;
-        const result = await transcribeBlob(blob, context, languageRef.current);
+        const result = await transcribeBlob(blob, context, languageRef.current, mimeType);
         if (!result.ok) {
           if (result.status === 429) {
             toast.error("Voice transcription limit reached.", {
@@ -151,6 +159,12 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
         }
         committedRef.current = `${committedRef.current} ${result.text}`.trim();
         mergeIntoField(committedRef.current, "");
+        toast.success("Voice prompt ready", {
+          description:
+            result.provider === "speechmatics"
+              ? "Transcribed with Speechmatics. Review, then submit."
+              : "Review the transcript, then submit.",
+        });
         return true;
       } finally {
         setTranscribing(false);
@@ -165,7 +179,7 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
 
     const partial = committedRef.current.trim();
     cleanupRecognition();
-    modeRef.current = null;
+    modeRef.current = "media-recorder";
 
     toast.message("Using server transcription", {
       description: "Keep speaking, then tap Stop when finished.",
@@ -236,20 +250,24 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
     }
 
     setListening(true);
-    toast.message("Listening", { description: "Tap the microphone again when you are done speaking." });
+    toast.message("Listening", { description: "Speak now — text appears as you talk. Tap Stop when done." });
     return true;
   }, [fallbackToMediaRecorder, mergeIntoField, stopSpeechInput]);
 
   const startMediaRecorder = useCallback(
-    async (options?: { preserveTranscript?: boolean }) => {
+    async (options?: { preserveTranscript?: boolean; backupOnly?: boolean }) => {
       if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-        toast.error("Microphone access needs a secure page.", {
-          description: "Open the app on localhost or HTTPS, then allow microphone access.",
-        });
+        if (!options?.backupOnly) {
+          toast.error("Microphone access needs a secure page.", {
+            description: "Open the app on localhost or HTTPS, then allow microphone access.",
+          });
+        }
         return false;
       }
       if (!window.MediaRecorder) {
-        toast.error("Audio recording is not supported in this browser.");
+        if (!options?.backupOnly) {
+          toast.error("Audio recording is not supported in this browser.");
+        }
         return false;
       }
 
@@ -262,7 +280,9 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
       );
       if (!supportedType) {
         stream.getTracks().forEach((track) => track.stop());
-        toast.error("Your browser does not provide a supported audio recording format.");
+        if (!options?.backupOnly) {
+          toast.error("Your browser does not provide a supported audio recording format.");
+        }
         return false;
       }
 
@@ -271,7 +291,7 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
         committedRef.current = "";
       }
 
-      modeRef.current = "media-recorder";
+      modeRef.current = options?.backupOnly ? "hybrid" : "media-recorder";
       mediaStreamRef.current = stream;
       audioChunksRef.current = [];
 
@@ -293,21 +313,36 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
         mediaRecorderRef.current = null;
         stream.getTracks().forEach((track) => track.stop());
         mediaStreamRef.current = null;
-        setListening(false);
-        setLiveTranscript("");
 
-        const blob = chunks.length ? new Blob(chunks, { type: mediaMimeTypeRef.current }) : null;
-        void (async () => {
-          const transcribed = blob ? await transcribeRecording(blob) : false;
-          if (transcribed) {
+        const skipTranscription = skipBackupTranscriptionRef.current;
+        skipBackupTranscriptionRef.current = false;
+
+        if (modeRef.current === "hybrid" || modeRef.current === "speech-api") {
+          setListening(false);
+          setLiveTranscript("");
+          modeRef.current = null;
+        }
+
+        if (skipTranscription || committedRef.current.trim()) {
+          if (committedRef.current.trim() && !skipTranscription) {
             toast.success("Voice prompt ready", { description: "Review the transcript, then submit." });
           }
+          return;
+        }
+
+        setListening(false);
+        setLiveTranscript("");
+        modeRef.current = null;
+
+        const blob = pickRecordingBlob(chunks, mediaMimeTypeRef.current);
+        void (async () => {
+          if (blob) await transcribeRecording(blob, mediaMimeTypeRef.current);
         })();
       };
 
       recorder.start();
-      setListening(true);
-      if (!options?.preserveTranscript) {
+      if (!options?.backupOnly) {
+        setListening(true);
         toast.message("Listening", { description: "Tap Stop or the microphone again when you are done speaking." });
       }
       return true;
@@ -321,14 +356,20 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
 
   const toggleSpeechInput = useCallback(async () => {
     if (listening) {
-      if (modeRef.current === "speech-api") {
+      if (modeRef.current === "speech-api" || modeRef.current === "hybrid") {
         recognitionActiveRef.current = false;
         cleanupRecognition();
         setListening(false);
         setLiveTranscript("");
-        if (committedRef.current.trim()) {
+
+        const hasLiveText = committedRef.current.trim();
+        if (hasLiveText) {
+          cleanupMedia(true);
           toast.success("Voice prompt ready", { description: "Review the transcript, then submit." });
+        } else {
+          cleanupMedia(false);
         }
+
         modeRef.current = null;
         return;
       }
@@ -337,14 +378,17 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
     }
 
     try {
+      const speechStarted = startSpeechApi();
+      if (speechStarted) {
+        void startMediaRecorder({ preserveTranscript: true, backupOnly: true });
+        return;
+      }
+
       const recorderStarted = await startMediaRecorder();
       if (recorderStarted) return;
-
-      const speechStarted = startSpeechApi();
-      if (speechStarted) return;
     } catch (error) {
-      const speechStarted = startSpeechApi();
-      if (speechStarted) return;
+      const recorderStarted = await startMediaRecorder().catch(() => false);
+      if (recorderStarted) return;
 
       const denied =
         error instanceof DOMException &&
@@ -355,12 +399,12 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
           : "Check your microphone device and try again.",
       });
     }
-  }, [cleanupRecognition, listening, startMediaRecorder, startSpeechApi, stopSpeechInput]);
+  }, [cleanupRecognition, cleanupMedia, listening, startMediaRecorder, startSpeechApi, stopSpeechInput]);
 
   useEffect(() => () => {
     recognitionActiveRef.current = false;
     cleanupRecognition();
-    cleanupMedia();
+    cleanupMedia(true);
   }, [cleanupMedia, cleanupRecognition]);
 
   return {

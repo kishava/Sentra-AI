@@ -54,9 +54,10 @@ function extractAimlTranscript(payload: unknown): string | null {
   return null;
 }
 
-async function pollAimlStt(apiKey: string, generationId: string, timeoutMs = 60_000) {
+async function pollAimlStt(apiKey: string, generationId: string, timeoutMs = 45_000) {
   const started = Date.now();
   const baseUrl = getAimlBaseUrl();
+  let delayMs = 350;
 
   while (Date.now() - started < timeoutMs) {
     const response = await fetch(`${baseUrl}/stt/${generationId}`, {
@@ -79,7 +80,8 @@ async function pollAimlStt(apiKey: string, generationId: string, timeoutMs = 60_
       throw new AimlSttError("AIML STT rejected the audio.", 422, payload);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    delayMs = Math.min(delayMs * 1.35, 1500);
   }
 
   throw new AimlSttError("AIML STT timed out.", 504);

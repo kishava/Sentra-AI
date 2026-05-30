@@ -2,13 +2,33 @@ import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
-import { transcribeAudio } from "@/services/openai";
-import { AimlSttError } from "@/services/aiml-stt";
+import { prepareTranscriptionFile } from "@/lib/voice/audio-encoding";
+import { transcribeAimlAudio, AimlSttError } from "@/services/aiml-stt";
 import { isSpeechmaticsSttConfigured, transcribeSpeechmaticsAudio, SpeechmaticsSttError } from "@/services/speechmatics-stt";
 
 export const runtime = "nodejs";
 
 const MAX_AUDIO_SIZE = 25 * 1024 * 1024;
+
+async function transcribeUploadedAudio(file: File, contextText?: string, language = "en") {
+  const prepared = await prepareTranscriptionFile(file, file.type);
+
+  if (isSpeechmaticsSttConfigured()) {
+    try {
+      const text = await transcribeSpeechmaticsAudio(prepared, contextText, language);
+      if (text) return { text, provider: "speechmatics" as const };
+    } catch (error) {
+      console.warn("Speechmatics STT failed, falling back to AIML", error);
+    }
+  }
+
+  const text = await transcribeAimlAudio(prepared, contextText);
+  if (!text) {
+    throw new Error("Speech transcription failed.");
+  }
+
+  return { text, provider: "aiml" as const };
+}
 
 export async function POST(request: Request) {
   try {
@@ -36,24 +56,14 @@ export async function POST(request: Request) {
     const contextText = typeof context === "string" ? context.trim() : undefined;
     const languageRaw = formData.get("language");
     const language = typeof languageRaw === "string" && languageRaw.trim() ? languageRaw.trim() : "en";
-    let provider: "speechmatics" | "aiml" = "aiml";
-    let text: string | null = null;
 
-    if (isSpeechmaticsSttConfigured()) {
-      text = await transcribeSpeechmaticsAudio(audio, contextText, language);
-      if (text) provider = "speechmatics";
-    }
+    const result = await transcribeUploadedAudio(audio, contextText, language);
 
-    if (!text) {
-      text = await transcribeAudio(audio, contextText);
-      provider = "aiml";
-    }
-
-    if (!text) {
+    if (!result.text) {
       return NextResponse.json({ error: "No speech detected in the recording" }, { status: 422 });
     }
 
-    return NextResponse.json({ text, provider });
+    return NextResponse.json({ text: result.text, provider: result.provider });
   } catch (error) {
     console.error("Transcription route failed", error);
     if (error instanceof SpeechmaticsSttError || error instanceof AimlSttError) {
