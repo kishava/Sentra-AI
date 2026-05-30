@@ -136,7 +136,7 @@ export const sentraServices: SentraService[] = [
       "SERP and Web Unlocker zones feed chat, briefings, monitor checks, and alert reports. Configure zones in Bright Data, then .env.local.",
     href: "/settings",
     icon: DatabaseZap,
-    highlights: ["SERP search", "Web Unlocker", "Cached responses", "Hackathon-ready"],
+    highlights: ["SERP search", "Web Unlocker", "MCP tools", "Live vs sample badges"],
     steps: [
       "Create SERP and/or Web Unlocker zones in the Bright Data control panel.",
       "Add BRIGHT_DATA_API_KEY and zone names to .env.local.",

@@ -5,7 +5,7 @@ import {
   ArrowRight,
   BellRing,
   Bot,
-  Building2,
+  DatabaseZap,
   Globe2,
   Mic2,
   Radar,
@@ -49,14 +49,19 @@ const features = [
   },
 ];
 
-const stats = [
-  ["8.2k", "sources scanned / hour"],
-  ["94%", "analysis confidence"],
-  ["3.8x", "faster executive briefings"],
-  ["24/7", "autonomous monitoring"],
+const pillars = [
+  ["Bright Data", "SERP, Unlocker, browser & MCP"],
+  ["AI/ML API", "search, analysis & vision"],
+  ["Supabase", "auth, workspace data & vault"],
+  ["Speechmatics", "voice briefings"],
 ];
 
-const partners = ["Apex Cloud", "Northstar Capital", "VantaGrid", "Ion Labs", "HelioWorks"];
+const integrations = [
+  { name: "Bright Data", detail: "Live SERP, Web Unlocker, Scraping Browser, MCP agent tools" },
+  { name: "AI/ML API", detail: "GTM chat, monitor analysis, and live web search models" },
+  { name: "Supabase", detail: "Authentication, persistence, and encrypted API key storage" },
+  { name: "Featherless", detail: "Optional open-model path for document Q&A and OCR" },
+];
 
 export function LandingSections() {
   return (
@@ -150,34 +155,38 @@ export function LandingSections() {
 
       <MotionSection className="container py-20">
         <div className="grid gap-5 md:grid-cols-4">
-          {stats.map(([value, label]) => (
+          {pillars.map(([title, label]) => (
             <Card key={label} className="p-6 text-center">
-              <p className="text-4xl font-semibold text-white">{value}</p>
-              <p className="mt-2 text-sm uppercase tracking-[0.24em] text-white/40">{label}</p>
+              <p className="text-lg font-semibold text-sentra-cyan">{title}</p>
+              <p className="mt-2 text-sm leading-6 text-white/50">{label}</p>
             </Card>
           ))}
         </div>
       </MotionSection>
 
-      <MotionSection id="voice-ai" className="container py-20">
+      <MotionSection id="integrations" className="container py-20">
         <div className="grid gap-5 lg:grid-cols-3">
           <Card className="lg:col-span-2 p-8 md:p-10" glow>
-            <Building2 className="h-9 w-9 text-sentra-cyan" />
+            <DatabaseZap className="h-9 w-9 text-sentra-cyan" />
             <h2 className="type-heading-lg mt-8 text-white">
-              Trusted by teams that move before the market does.
+              Built on live APIs, not placeholder logos.
             </h2>
             <p className="mt-5 text-lg leading-8 text-white/55">
-              “Sentra feels less like a dashboard and more like a strategic analyst that never
-              sleeps. It surfaced a pricing move our team would have missed for days.”
+              Sentra connects real Bright Data collection, AI/ML reasoning, and Supabase-backed
+              workspaces. What you see in Settings reflects actual provider readiness — no fake
+              customer quotes or partner lists.
             </p>
-            <p className="mt-7 text-sm font-semibold text-white">Maya Chen, VP Strategy at Apex Cloud</p>
+            <p className="mt-7 text-sm text-white/45">
+              Sign in, open Settings, and confirm integrations before you run a demo or deploy.
+            </p>
           </Card>
           <Card className="p-8">
-            <p className="text-sm uppercase tracking-[0.3em] text-white/40">Enterprise partners</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-white/40">Stack</p>
             <div className="mt-8 grid gap-4">
-              {partners.map((partner) => (
-                <div key={partner} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white/65">
-                  {partner}
+              {integrations.map((item) => (
+                <div key={item.name} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                  <p className="font-medium text-white">{item.name}</p>
+                  <p className="mt-1 text-xs leading-5 text-white/45">{item.detail}</p>
                 </div>
               ))}
             </div>
@@ -189,7 +198,7 @@ export function LandingSections() {
         <Card className="relative overflow-hidden p-10 text-center md:p-16" glow>
           <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/10 via-violet-500/10 to-pink-400/10" />
           <div className="relative">
-            <Badge variant="success">Hackathon ready</Badge>
+            <Badge variant="cyan">GTM intelligence platform</Badge>
             <h2 className="type-display-lg mx-auto mt-5 max-w-4xl text-white">
               Build the enterprise intelligence muscle your competitors cannot see.
             </h2>
