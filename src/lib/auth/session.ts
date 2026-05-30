@@ -1,5 +1,10 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import {
+  LOCAL_SESSION_COOKIE,
+  parseLocalSessionCookie,
+} from "@/lib/local-auth/session-cookie";
 import {
   isSupabaseConfigured,
   isDemoUserEmail,
@@ -58,6 +63,16 @@ export async function requireApiUser(): Promise<{ error: NextResponse } | ApiAut
   }
 
   if (!session.user || !session.supabase) {
+    const cookieStore = await cookies();
+    const localSession = parseLocalSessionCookie(cookieStore.get(LOCAL_SESSION_COOKIE)?.value);
+    if (localSession) {
+      return {
+        user: { id: localSession.userId, email: localSession.email },
+        supabase: null,
+        localMode: true,
+      };
+    }
+
     return {
       error: NextResponse.json({ error: "Sign in required." }, { status: 401 }),
     };

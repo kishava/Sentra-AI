@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, BellRing, Bot, CheckCircle2, Pause, Play, Radar, ShieldCheck, Sparkles, TimerReset, Trash2, X, Zap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
@@ -12,6 +12,9 @@ import { Input } from "@/components/ui/input";
 import { signalStream } from "@/data/mock-intelligence";
 import { AutomationWebhookPanel } from "@/components/gtm/crm-export-button";
 import { getWorkspaceContext } from "@/lib/gtm/workspace-context";
+import { useWorkspaceSession } from "@/lib/hooks/use-workspace-session";
+import { inferMonitorIntentHeuristically } from "@/lib/monitor-intent-heuristic";
+import { signInFor } from "@/lib/landing/auth-links";
 import { MonitorPromptField } from "@/components/dashboard/monitor-prompt-field";
 import { getAlertWebhookUrl, getAutomationWebhookUrl, saveAlertWebhookUrl, saveAutomationWebhookUrl } from "@/lib/webhooks";
 import { WorkspaceSection } from "@/components/workspace/workspace-page";
@@ -114,8 +117,28 @@ function getMatches(monitor: Monitor, signals: IntelligenceSignal[]) {
   return signals.filter((signal) => matchesRequirement(monitor, signal));
 }
 
+function buildLocalMonitor(input: {
+  requirement: string;
+  category: Monitor["category"];
+  minimumSeverity: Severity;
+  keywords?: string[];
+}): Monitor {
+  return {
+    id: crypto.randomUUID(),
+    requirement: input.requirement,
+    category: input.category,
+    minimumSeverity: input.minimumSeverity,
+    keywords: input.keywords ?? [],
+    active: true,
+    createdAt: new Date().toISOString(),
+    alertedSignalIds: [],
+  };
+}
+
 export function MonitorCenter() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const { ready: sessionReady, signedIn } = useWorkspaceSession();
   const aiAbortRef = useRef<AbortController | null>(null);
   const intentAbortRef = useRef<AbortController | null>(null);
   const checkMonitorNowRef = useRef<((monitorId: string, options?: { automated?: boolean }) => Promise<void>) | null>(null);
@@ -166,6 +189,12 @@ export function MonitorCenter() {
         }
 
         if (!monitorsRes) return;
+
+        if (monitorsRes.status === 401 || monitorsRes.status === 403) {
+          setMonitors(loadMonitors());
+          return;
+        }
+
         const monitorsData = (await monitorsRes.json()) as {
           monitors?: Array<{
             id: string;
@@ -180,19 +209,19 @@ export function MonitorCenter() {
         };
 
         if (monitorsData.monitors?.length) {
-          setMonitors(
-            monitorsData.monitors.map((monitor) => ({
-              id: monitor.id,
-              requirement: monitor.requirement,
-              category: monitor.category as Monitor["category"],
-              minimumSeverity: monitor.minimum_severity,
-              keywords: monitor.keywords,
-              active: monitor.active,
-              createdAt: monitor.last_checked_at ?? new Date().toISOString(),
-              lastCheckedAt: monitor.last_checked_at ?? undefined,
-              alertedSignalIds: [],
-            })),
-          );
+          const mapped = monitorsData.monitors.map((monitor) => ({
+            id: monitor.id,
+            requirement: monitor.requirement,
+            category: monitor.category as Monitor["category"],
+            minimumSeverity: monitor.minimum_severity,
+            keywords: monitor.keywords,
+            active: monitor.active,
+            createdAt: monitor.last_checked_at ?? new Date().toISOString(),
+            lastCheckedAt: monitor.last_checked_at ?? undefined,
+            alertedSignalIds: [] as string[],
+          }));
+          setMonitors(mapped);
+          if (monitorsData.localMode) saveMonitors(mapped);
           return;
         }
 
@@ -229,6 +258,11 @@ export function MonitorCenter() {
               })),
             );
           }
+          return;
+        }
+
+        if (legacy.length) {
+          setMonitors(legacy);
         }
       } catch {
         setMonitors(loadMonitors());
@@ -297,13 +331,16 @@ export function MonitorCenter() {
         });
         const data = (await response.json()) as { intent?: MonitorIntent; error?: string };
 
-        if (response.status === 401 || response.status === 403) {
-          setMonitorIntent(null);
+        if (response.status === 401 || response.status === 403 || !response.ok) {
+          const local = inferMonitorIntentHeuristically(input);
+          setMonitorIntent(local);
+          setCategory(local.category);
+          setMinimumSeverity(local.minimumSeverity);
           setIntentError("");
           return;
         }
 
-        if (!response.ok || !data.intent) {
+        if (!data.intent) {
           throw new Error(data.error || "Sentra could not understand this monitor yet.");
         }
 
@@ -312,13 +349,11 @@ export function MonitorCenter() {
         setMinimumSeverity(data.intent.minimumSeverity);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        setMonitorIntent(null);
-        const message = error instanceof Error ? error.message : "Intent analysis failed.";
-        if (/401|signed in|unauthorized/i.test(message)) {
-          setIntentError("");
-          return;
-        }
-        setIntentError(message);
+        const local = inferMonitorIntentHeuristically(input);
+        setMonitorIntent(local);
+        setCategory(local.category);
+        setMinimumSeverity(local.minimumSeverity);
+        setIntentError("");
       } finally {
         if (!abortController.signal.aborted) {
           setIntentLoading(false);
@@ -427,22 +462,31 @@ export function MonitorCenter() {
   async function createMonitor() {
     const trimmed = requirement.trim();
     if (!trimmed) {
-      toast.error("Describe the signal you want Sentra to monitor.");
+      toast.error("Describe what you want Sentra to watch.");
       return;
     }
+
+    if (sessionReady && !signedIn) {
+      router.push(signInFor("/alerts"));
+      return;
+    }
+
     const interpretedRequirement = monitorIntent?.normalizedRequirement?.trim() || trimmed;
+    const monitorPayload = {
+      requirement: interpretedRequirement,
+      category,
+      minimumSeverity,
+      keywords: monitorIntent?.keywords ?? [],
+      active: true,
+    };
+
+    let monitor: Monitor | null = null;
 
     try {
       const response = await fetch("/api/monitors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requirement: interpretedRequirement,
-          category,
-          minimumSeverity,
-          keywords: monitorIntent?.keywords ?? [],
-          active: true,
-        }),
+        body: JSON.stringify(monitorPayload),
       });
       const data = (await response.json()) as {
         monitor?: {
@@ -453,37 +497,46 @@ export function MonitorCenter() {
           keywords: string[];
           active: boolean;
         };
+        localMode?: boolean;
         error?: string;
       };
 
-      if (!response.ok || !data.monitor) {
+      if (response.ok && data.monitor) {
+        monitor = {
+          id: data.monitor.id,
+          requirement: data.monitor.requirement,
+          category: data.monitor.category as Monitor["category"],
+          minimumSeverity: data.monitor.minimum_severity,
+          keywords: data.monitor.keywords,
+          active: data.monitor.active,
+          createdAt: new Date().toISOString(),
+          alertedSignalIds: [],
+        };
+      } else if (response.status === 401 || response.status === 403) {
+        monitor = buildLocalMonitor(monitorPayload);
+      } else {
         throw new Error(data.error || "Could not save monitor.");
       }
-
-      const monitor: Monitor = {
-        id: data.monitor.id,
-        requirement: data.monitor.requirement,
-        category: data.monitor.category as Monitor["category"],
-        minimumSeverity: data.monitor.minimum_severity,
-        keywords: data.monitor.keywords,
-        active: data.monitor.active,
-        createdAt: new Date().toISOString(),
-        alertedSignalIds: [],
-      };
-
-      setMonitors((current) => {
-        const next = [monitor, ...current];
-        if (!isBrowserSupabaseConfigured()) saveMonitors(next);
-        return next;
-      });
-      setRequirement("");
-      setMonitorIntent(null);
-      toast.success("Monitor saved", {
-        description: "Run Check now to collect live Bright Data evidence.",
-      });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not create monitor.");
+      if (error instanceof Error && /401|sign in|unauthorized/i.test(error.message)) {
+        monitor = buildLocalMonitor(monitorPayload);
+      } else {
+        toast.error(error instanceof Error ? error.message : "Could not create monitor.");
+        return;
+      }
     }
+
+    if (!monitor) return;
+
+    setMonitors((current) => {
+      const next = [monitor!, ...current.filter((item) => item.id !== monitor!.id)];
+      saveMonitors(next);
+      return next;
+    });
+    setRequirement("");
+    setMonitorIntent(null);
+    toast.success("Monitor started", { description: "Running a live check now…" });
+    await checkMonitorNow(monitor.id);
   }
 
   async function sendAutomationTrigger(report: ExecutiveIntelligenceReport, monitorId?: string) {
@@ -608,17 +661,13 @@ export function MonitorCenter() {
       const response = await fetch(`/api/monitors/${monitorId}/check`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          isBrowserSupabaseConfigured()
-            ? {}
-            : {
-                requirement: monitor.requirement,
-                category: monitor.category,
-                minimumSeverity: monitor.minimumSeverity,
-                keywords: monitor.keywords,
-                workspace: getWorkspaceContext(),
-              },
-        ),
+        body: JSON.stringify({
+          requirement: monitor.requirement,
+          category: monitor.category,
+          minimumSeverity: monitor.minimumSeverity,
+          keywords: monitor.keywords ?? [],
+          workspace: getWorkspaceContext(),
+        }),
       });
       const data = (await response.json()) as {
         signals?: IntelligenceSignal[];
@@ -766,6 +815,18 @@ export function MonitorCenter() {
   return (
     <>
       <WorkspaceSection id="create-signal-monitor">
+        {sessionReady && !signedIn && (
+          <div className="mb-4 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+            Sign in to save monitors and run live checks.{" "}
+            <button
+              type="button"
+              className="sentra-focus font-medium underline underline-offset-2"
+              onClick={() => router.push(signInFor("/alerts"))}
+            >
+              Sign in
+            </button>
+          </div>
+        )}
         <Card className="p-5 md:p-6" glow>
           <Badge variant="cyan">New monitor</Badge>
           <h2 className="mt-3 text-2xl font-semibold text-white">What should we watch?</h2>
