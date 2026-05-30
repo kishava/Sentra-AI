@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { getIntegrationStatusWithDiscovery } from "@/lib/integrations";
+import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  await ensurePlatformSecrets(true);
   const status = await getIntegrationStatusWithDiscovery();
   let supabaseSchema = false;
 
