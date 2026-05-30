@@ -50,6 +50,15 @@ export async function getSessionUser() {
     user = session?.user ?? null;
   }
 
+  if (!user) {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (!error) user = data.session?.user ?? null;
+    } catch {
+      // Session refresh is best-effort; local cookie may still authorize API calls.
+    }
+  }
+
   return {
     user,
     supabaseConfigured: true as const,
@@ -58,30 +67,42 @@ export async function getSessionUser() {
   };
 }
 
+async function getLocalSessionFromCookies() {
+  const cookieStore = await cookies();
+  return parseLocalSessionCookie(cookieStore.get(LOCAL_SESSION_COOKIE)?.value);
+}
+
 export async function requireApiUser(): Promise<{ error: NextResponse } | ApiAuthContext> {
   const session = await getSessionUser();
+  const localSession = await getLocalSessionFromCookies();
 
   if (!session.supabaseConfigured || session.localMode) {
     return {
-      user: { id: LOCAL_DEV_USER_ID, email: LOCAL_DEV_USER_EMAIL },
+      user: localSession
+        ? { id: localSession.userId, email: localSession.email }
+        : { id: LOCAL_DEV_USER_ID, email: LOCAL_DEV_USER_EMAIL },
+      supabase: null,
+      localMode: true,
+    };
+  }
+
+  if (localSession) {
+    return {
+      user: { id: localSession.userId, email: localSession.email },
       supabase: null,
       localMode: true,
     };
   }
 
   if (!session.user || !session.supabase) {
-    const cookieStore = await cookies();
-    const localSession = parseLocalSessionCookie(cookieStore.get(LOCAL_SESSION_COOKIE)?.value);
-    if (localSession) {
-      return {
-        user: { id: localSession.userId, email: localSession.email },
-        supabase: null,
-        localMode: true,
-      };
-    }
-
     return {
-      error: NextResponse.json({ error: "Sign in required." }, { status: 401 }),
+      error: NextResponse.json(
+        {
+          error: "Sign in required.",
+          hint: "Sign in again from the account menu, or use a local workspace account so your session cookie is set.",
+        },
+        { status: 401 },
+      ),
     };
   }
 

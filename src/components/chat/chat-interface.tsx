@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import { motion } from "framer-motion";
-import { Bot, FileText, Mic2, MicOff, Paperclip, Radar, Send, Sparkles, Volume2, X } from "lucide-react";
+import { Bot, FileText, Mic2, MicOff, Paperclip, Radar, Send, Sparkles, TerminalSquare, Volume2, X } from "lucide-react";
 import { toast } from "sonner";
 import { AiOrb } from "@/components/shared/ai-orb";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { LiveAgentLogs } from "@/features/activity-console/ai-activity-console";
+import { StudioModal } from "@/features/world-engine/studio-modal";
+import { repairLocalSessionFromCookie, syncLocalSessionToCookie } from "@/lib/local-auth";
 import { usePipelineLogs } from "@/hooks/use-pipeline-logs";
 import { useSpeechInput } from "@/hooks/use-speech-input";
 import { useTypewriter } from "@/hooks/use-typewriter";
@@ -117,6 +119,7 @@ export function ChatInterface() {
   );
   const speaking = voiceStatus !== "idle";
   const pipeline = usePipelineLogs(chatPipelineScript);
+  const [logModalOpen, setLogModalOpen] = useState(false);
   const {
     listening,
     transcribing,
@@ -156,6 +159,11 @@ export function ChatInterface() {
     abortVoiceController(controller);
     finishVoicePlayback();
   }
+
+  useEffect(() => {
+    repairLocalSessionFromCookie();
+    syncLocalSessionToCookie();
+  }, []);
 
   useEffect(() => {
     fetch("/api/health/integrations")
@@ -286,29 +294,48 @@ export function ChatInterface() {
     pipeline.start();
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: displayContent,
-          history: messages,
-          threadId,
-          brightData: settings.brightData,
-          document: document ?? undefined,
-          workspace: getWorkspaceContext(),
-          useGtmAgent,
-        }),
-      });
+      const payload = {
+        message: displayContent,
+        history: messages,
+        threadId,
+        brightData: settings.brightData,
+        document: document ?? undefined,
+        workspace: getWorkspaceContext(),
+        useGtmAgent,
+      };
+
+      const postChat = () =>
+        fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+
+      repairLocalSessionFromCookie();
+      syncLocalSessionToCookie();
+
+      let response = await postChat();
+      if (response.status === 401) {
+        repairLocalSessionFromCookie();
+        syncLocalSessionToCookie();
+        response = await postChat();
+      }
+
       const data = (await response.json()) as {
         message?: string;
         provider?: ChatProvider;
         threadId?: string;
         error?: string;
+        hint?: string;
       };
 
       if (data.threadId) setThreadId(data.threadId);
 
       if (!response.ok || typeof data.message !== "string" || !data.message.trim()) {
+        if (response.status === 401) {
+          throw new Error(data.hint ? `${data.error ?? "Sign in required."} ${data.hint}` : data.error ?? "Sign in required.");
+        }
         throw new Error(data.error || "Sentra returned an empty response.");
       }
 
@@ -426,7 +453,7 @@ export function ChatInterface() {
           <code className="font-mono text-xs">npm run dev</code>.
         </p>
       )}
-      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
         <Card className="flex min-h-[calc(100svh-11rem)] min-w-0 flex-col overflow-hidden md:min-h-[calc(100vh-9rem)]" glow>
           <div className="border-b border-white/10 px-5 py-4 md:px-6">
             <p className="text-sm text-white/50">Account context from Monitors is applied automatically to each request.</p>
@@ -540,6 +567,18 @@ export function ChatInterface() {
                 <Radar className="h-4 w-4" />
                 {useGtmAgent ? "GTM agent on" : "Run GTM agent"}
               </Button>
+              {settings.analyst.liveLogs && (loading || pipeline.logs.length > 0) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={() => setLogModalOpen(true)}
+                >
+                  <TerminalSquare className="h-4 w-4" />
+                  {loading ? "Live log" : "Activity log"}
+                </Button>
+              )}
               {prompts.map((prompt) => (
                 <button
                   key={prompt}
@@ -678,18 +717,20 @@ export function ChatInterface() {
           </div>
         </Card>
 
-        <aside className="grid min-w-0 content-start gap-5">
-          <Card className="p-6 text-center" glow>
-            <AiOrb speaking={speaking || listening || transcribing} size="md" className="mx-auto" />
+        <aside className="min-w-0">
+          <Card className="p-6 text-center xl:sticky xl:top-24" glow>
+            <AiOrb speaking={speaking || listening || transcribing || loading} size="md" className="mx-auto" />
             <h3 className="mt-6 text-xl font-semibold text-white">Voice analyst</h3>
             <p className="mt-2 text-sm leading-6 text-white/55">
-              {voiceStatus === "loading"
-                ? "Preparing first sentence…"
-                : voiceStatus === "playing"
-                  ? "Speaking sentence by sentence. Click the active voice button to stop."
-                  : listening
-                    ? "Tap Stop below or the mic button again when you are done speaking."
-                    : "Use the microphone beside the prompt box to speak your request, or click a response voice button."}
+              {loading
+                ? "Collecting live evidence and synthesizing your briefing…"
+                : voiceStatus === "loading"
+                  ? "Preparing first sentence…"
+                  : voiceStatus === "playing"
+                    ? "Speaking sentence by sentence. Click the active voice button to stop."
+                    : listening
+                      ? "Tap Stop below or the mic button again when you are done speaking."
+                      : "Use the microphone beside the prompt box to speak your request, or click a response voice button."}
             </p>
             {listening && settings.voice.microphone && (
               <Button
@@ -715,7 +756,7 @@ export function ChatInterface() {
             />
             <Button
               variant="ghost"
-              className="mt-5"
+              className="mt-5 w-full"
               onClick={() => {
                 const latestAssistant = [...messages]
                   .reverse()
@@ -738,29 +779,22 @@ export function ChatInterface() {
               {speaking ? "Stop voice" : "Voice controls"}
             </Button>
           </Card>
-          {settings.analyst.liveLogs && (loading || pipeline.logs.length > 0) && (
-            <Card className="overflow-hidden p-0" glow>
-              <div className="border-b border-white/10 px-5 py-4">
-                <p className="text-sm font-semibold text-white">Live intelligence terminal</p>
-                <p className="mt-1 text-xs text-white/42">Bright Data + AI pipeline telemetry</p>
-              </div>
-              <div className="terminal-panel">
-                <LiveAgentLogs logs={pipeline.logs} running={pipeline.running} />
-              </div>
-            </Card>
-          )}
-          <Card className="p-6" glow>
-            <p className="text-sm uppercase tracking-[0.24em] text-white/35">Intelligence modes</p>
-            <div className="mt-5 grid gap-3">
-              {["Competitor monitor", "Market scout", "Risk analyst", "Pricing tracker"].map((mode) => (
-                <div key={mode} className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 text-sm text-white/62">
-                  {mode}
-                </div>
-              ))}
-            </div>
-          </Card>
         </aside>
       </div>
+
+      <StudioModal
+        open={logModalOpen && settings.analyst.liveLogs}
+        title="Intelligence activity log"
+        description="Bright Data collection, AIML synthesis, and pipeline telemetry for this request."
+        onClose={() => setLogModalOpen(false)}
+        className="max-w-6xl"
+      >
+        <LiveAgentLogs
+          logs={pipeline.logs}
+          running={pipeline.running}
+          className="h-[clamp(360px,60vh,640px)] rounded-2xl border border-cyan-300/[0.08] bg-black/10"
+        />
+      </StudioModal>
     </WorkspacePage>
   );
 }
