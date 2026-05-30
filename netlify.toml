@@ -3,6 +3,8 @@
 
 [build]
   command = "npm run build"
+  # Required by @netlify/plugin-nextjs — must differ from base (repo root); do not leave publish blank
+  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"

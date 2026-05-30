@@ -129,7 +129,8 @@ Hosting the full Next.js app on **Cloudflare Pages** requires an adapter (e.g. O
 
 | Issue | Fix |
 |-------|-----|
-| **Build failed (exit code 2)** | Clear **Publish directory** in Netlify UI (leave blank). Remove `NODE_ENV=production` from site env vars. Redeploy. |
+| **Plugin: publish = base directory** | Set **Publish directory** to `.next` in Netlify UI (or use `netlify.toml` in repo). Do not leave publish blank. |
+| **Build failed (exit code 2)** | Remove `NODE_ENV=production` from site env vars. Redeploy. |
 | Auth redirect loop | Add exact production URL `/auth/callback` in Supabase |
 | Cron 401 | `CRON_SECRET` must match on host and cron caller |
 | Cron 503 Supabase | Set all three Supabase env vars on Netlify |
