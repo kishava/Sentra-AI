@@ -24,7 +24,7 @@ export function Hero() {
   return (
     <section className="relative overflow-hidden pb-16 pt-28 md:pb-24 md:pt-36 lg:pb-20 lg:pt-40">
       <div className="container flex flex-col gap-12 lg:gap-14 xl:gap-16">
-        <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-12 xl:grid-cols-[0.92fr_1.08fr] xl:gap-20">
+        <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[0.92fr_1.08fr] xl:gap-14">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -59,7 +59,7 @@ export function Hero() {
           </motion.div>
 
           <motion.div
-            className="relative mx-auto aspect-[5/6] w-full max-w-[400px] overflow-hidden rounded-[1.5rem] sm:aspect-[4/5] sm:max-w-[440px] lg:mx-0 lg:max-w-[420px] lg:justify-self-end xl:aspect-square xl:max-h-[440px] xl:max-w-[460px]"
+            className="relative mx-auto aspect-[5/6] w-full max-w-[400px] overflow-hidden rounded-[1.5rem] sm:aspect-[4/5] sm:max-w-[440px] lg:mx-0 lg:max-w-[420px] lg:justify-self-start lg:pl-2 xl:aspect-square xl:max-h-[440px] xl:max-w-[460px] xl:pl-6 xl:-translate-x-2"
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1, delay: 0.1 }}
