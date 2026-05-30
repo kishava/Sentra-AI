@@ -72,8 +72,8 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
   const recognitionActiveRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaMimeTypeRef = useRef("audio/webm");
   const audioChunksRef = useRef<Blob[]>([]);
-  const transcriptionQueueRef = useRef(Promise.resolve());
   const languageRef = useRef(language);
 
   useEffect(() => {
@@ -123,16 +123,30 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
     setLiveTranscript("");
   }, [cleanupMedia, cleanupRecognition]);
 
-  const transcribeChunk = useCallback(
+  const transcribeRecording = useCallback(
     async (blob: Blob) => {
-      if (!blob.size) return;
+      if (!blob.size) return false;
       setTranscribing(true);
       try {
         const context = `${baseValueRef.current} ${committedRef.current}`.trim() || getContext?.() || valueRef.current;
         const result = await transcribeBlob(blob, context, languageRef.current);
-        if (!result.ok || !result.text) return;
+        if (!result.ok) {
+          if (result.status === 429) {
+            toast.error("Voice transcription limit reached.", {
+              description: "Wait a few minutes, type your prompt, or use Chrome live speech if available.",
+            });
+          } else {
+            toast.error(result.error ?? "Could not transcribe your voice.");
+          }
+          return false;
+        }
+        if (!result.text) {
+          toast.message("No speech detected", { description: "Try speaking closer to the microphone." });
+          return false;
+        }
         committedRef.current = `${committedRef.current} ${result.text}`.trim();
         mergeIntoField(committedRef.current, "");
+        return true;
       } finally {
         setTranscribing(false);
       }
@@ -226,35 +240,39 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
 
     const recorder = new MediaRecorder(stream, { mimeType: supportedType });
     mediaRecorderRef.current = recorder;
+    mediaMimeTypeRef.current = supportedType;
 
     recorder.ondataavailable = (event) => {
       if (!event.data.size) return;
       audioChunksRef.current.push(event.data);
-      transcriptionQueueRef.current = transcriptionQueueRef.current
-        .then(() => transcribeChunk(event.data))
-        .catch(() => undefined);
     };
     recorder.onerror = () => {
       stopSpeechInput();
       toast.error("Could not record microphone audio.");
     };
     recorder.onstop = () => {
+      const chunks = audioChunksRef.current;
       audioChunksRef.current = [];
       mediaRecorderRef.current = null;
       stream.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
       setListening(false);
       setLiveTranscript("");
-      if (committedRef.current.trim()) {
-        toast.success("Voice prompt ready", { description: "Review the transcript, then submit." });
-      }
+
+      const blob = chunks.length ? new Blob(chunks, { type: mediaMimeTypeRef.current }) : null;
+      void (async () => {
+        const transcribed = blob ? await transcribeRecording(blob) : false;
+        if (transcribed) {
+          toast.success("Voice prompt ready", { description: "Review the transcript, then submit." });
+        }
+      })();
     };
 
-    recorder.start(1800);
+    recorder.start();
     setListening(true);
     toast.message("Listening", { description: "Tap Stop or the microphone again when you are done speaking." });
     return true;
-  }, [stopSpeechInput, transcribeChunk]);
+  }, [stopSpeechInput, transcribeRecording]);
 
   const toggleSpeechInput = useCallback(async () => {
     if (listening) {
@@ -274,14 +292,14 @@ export function useSpeechInput({ value, onChange, getContext, language = "en" }:
     }
 
     try {
+      const speechStarted = startSpeechApi();
+      if (speechStarted) return;
+
       const recorderStarted = await startMediaRecorder();
       if (recorderStarted) return;
-
-      const speechStarted = startSpeechApi();
-      if (speechStarted) return;
     } catch (error) {
-      const speechStarted = startSpeechApi();
-      if (speechStarted) return;
+      const recorderStarted = await startMediaRecorder().catch(() => false);
+      if (recorderStarted) return;
 
       const denied =
         error instanceof DOMException &&
