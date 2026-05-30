@@ -2,21 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, BellRing, Bot, CheckCircle2, FileCheck2, Pause, Play, Radar, Send, ShieldCheck, Sparkles, TimerReset, Trash2, Workflow, X, Zap } from "lucide-react";
+import { AlertTriangle, BellRing, Bot, CheckCircle2, Pause, Play, Radar, ShieldCheck, Sparkles, TimerReset, Trash2, X, Zap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { gtmMonitorTemplates } from "@/data/gtm-monitor-templates";
 import { signalStream } from "@/data/mock-intelligence";
-import { AccountContextPanel } from "@/components/gtm/account-context-panel";
-import { BattlecardAnalyzer } from "@/components/gtm/battlecard-analyzer";
 import { AutomationWebhookPanel } from "@/components/gtm/crm-export-button";
-import { GtmResearchAgentPanel } from "@/components/gtm/gtm-research-agent-panel";
 import { getWorkspaceContext } from "@/lib/gtm/workspace-context";
+import { MonitorPromptField } from "@/components/dashboard/monitor-prompt-field";
 import { getAlertWebhookUrl, getAutomationWebhookUrl, saveAlertWebhookUrl, saveAutomationWebhookUrl } from "@/lib/webhooks";
 import { WorkspaceSection } from "@/components/workspace/workspace-page";
 import { isBrowserSupabaseConfigured } from "@/lib/supabase/client";
@@ -146,6 +142,8 @@ export function MonitorCenter() {
   );
   const [demoLoading, setDemoLoading] = useState(false);
   const [timelineKey, setTimelineKey] = useState(0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(() =>
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
   );
@@ -756,328 +754,216 @@ export function MonitorCenter() {
 
   return (
     <>
-      <WorkspaceSection
-        id="gtm-workspace"
-        title="GTM workspace"
-        description="Account context, battlecard analysis, and the Bright Data MCP research agent."
-      >
-        <div className="grid gap-5 xl:grid-cols-2">
-          <AccountContextPanel compact />
-          <BattlecardAnalyzer compact />
-        </div>
-        <GtmResearchAgentPanel
-          compact
-          initialQuery={requirement}
-          onApplyRequirement={(value) => setRequirement(value)}
-        />
-      </WorkspaceSection>
+      <WorkspaceSection id="create-signal-monitor">
+        <Card className="p-5 md:p-6" glow>
+          <Badge variant="cyan">New monitor</Badge>
+          <h2 className="mt-3 text-2xl font-semibold text-white">What should we watch?</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
+            One sentence is enough. Sentra interprets it, then checks the live web every 30 minutes (or when you tap
+            Check now).
+          </p>
 
-      <WorkspaceSection
-        id="create-signal-monitor"
-        title="Signal monitors"
-        description="Define requirements, run live checks, and deliver executive reports to your team."
-      >
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Card className="p-5 md:p-6" glow>
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <Badge variant="cyan">Automated monitoring</Badge>
-            <h2 className="mt-3 text-2xl font-semibold text-white">Create signal monitor</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
-              Define the requirement, category, and alert threshold. In production, active monitors
-              are checked every 30 minutes via server cron; use Autopilot for in-browser checks while
-              you work.
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            onClick={enableBrowserNotifications}
-            disabled={notificationPermission === "granted" || notificationPermission === "unsupported"}
-          >
-            <BellRing className="h-4 w-4" />
-            {notificationPermission === "granted" ? "Alerts enabled" : "Enable browser alerts"}
-          </Button>
-        </div>
-
-        <div className="mt-5 grid gap-4 rounded-3xl border border-white/10 bg-white/[0.035] p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-white">Competitive pricing demo</p>
-              <p className="mt-1 text-xs leading-5 text-white/42">
-                Load ApexAnalytics, DataForge, and InsightPro with a visible Pro tier change ($99 → $129), evidence, report, and webhook action.
-              </p>
-            </div>
-            <Button variant="neon" onClick={loadPresetDemo} disabled={demoLoading}>
-              <Zap className="h-4 w-4" />
-              {demoLoading ? "Loading demo…" : "Load pricing demo"}
-            </Button>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-4 rounded-3xl border border-white/10 bg-white/[0.035] p-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-medium text-white">
-                <Send className="h-4 w-4 text-sentra-cyan" />
-                Alert webhook
-              </div>
-              <Input
-                value={webhookUrl}
-                onChange={(event) => setWebhookUrl(event.target.value)}
-                placeholder="Slack, Discord, or alert webhook URL"
-                className="mt-3 h-10"
-                aria-label="Alert webhook URL"
-              />
-            </div>
-            <Button
-              variant={demoAutopilot ? "neon" : "ghost"}
-              onClick={() => setDemoAutopilot((current) => !current)}
-              disabled={!activeMonitorCount}
-            >
-              <TimerReset className="h-4 w-4" />
-              {demoAutopilot ? "Autopilot on" : "Autopilot"}
-            </Button>
-            <Badge variant={webhookSending ? "cyan" : webhookUrl.trim() ? "success" : "default"}>
-              {webhookSending ? "Sending" : webhookUrl.trim() ? "Alert armed" : "Alert optional"}
-            </Badge>
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm font-medium text-white">
-              <Workflow className="h-4 w-4 text-sentra-cyan" />
-              CRM & automation webhook
-            </div>
-            <Input
-              value={automationWebhookUrl}
-              onChange={(event) => setAutomationWebhookUrl(event.target.value)}
-              placeholder="HubSpot, Zapier, Make, TriggerWare, or automation URL"
-              className="mt-3 h-10"
-              aria-label="CRM and automation webhook URL"
+          <div className="mt-6">
+            <MonitorPromptField
+              value={requirement}
+              onChange={setRequirement}
+              onPickSuggestion={(selection) => {
+                setRequirement(selection.requirement);
+                if (selection.category) {
+                  setCategory(selection.category);
+                }
+              }}
             />
-            <p className="mt-2 text-xs leading-5 text-white/42">
-              Used for CRM export, workflow triggers, and automatic delivery when a monitor matches.
-            </p>
           </div>
-        </div>
 
-        <div className="mt-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-white/40">GTM monitor templates</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {gtmMonitorTemplates.map((template) => (
-              <Button
-                key={template.id}
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-auto max-w-full whitespace-normal px-3 py-2 text-left text-xs"
-                onClick={() => {
-                  setRequirement(template.requirement);
-                  setCategory(template.category);
-                }}
-              >
-                {template.title}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
-          <Textarea
-            value={requirement}
-            onChange={(event) => setRequirement(event.target.value)}
-            placeholder="Example: alert me when Tesla pricing incentives change or competitors launch procurement agents"
-            className="min-h-24 lg:min-h-12"
-          />
-          <select
-            value={category}
-            onChange={(event) => setCategory(event.target.value as "any" | SignalCategory)}
-            className="sentra-focus h-12 rounded-2xl border border-white/10 bg-sentra-panel px-4 text-sm text-white"
-            aria-label="Monitor category"
-          >
-            {categories.map((item) => (
-              <option key={item} value={item}>
-                {item === "any" ? "Any category" : item}
-              </option>
-            ))}
-          </select>
-          <select
-            value={minimumSeverity}
-            onChange={(event) => setMinimumSeverity(event.target.value as Severity)}
-            className="sentra-focus h-12 rounded-2xl border border-white/10 bg-sentra-panel px-4 text-sm text-white"
-            aria-label="Minimum severity"
-          >
-            {severities.map((severity) => (
-              <option key={severity} value={severity}>
-                {severity}+ severity
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {(intentLoading || monitorIntent || intentError) && (
-          <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.045] p-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-sm font-medium text-white">
-                  <Sparkles className={cn("h-4 w-4 text-sentra-cyan", intentLoading && "animate-pulse")} />
-                  AI monitor understanding
-                </div>
-                {intentLoading && <p className="mt-2 text-sm text-white/50">Interpreting the requirement...</p>}
-                {intentError && !intentLoading && <p className="mt-2 text-sm text-amber-100">{intentError}</p>}
-                {monitorIntent && !intentLoading && (
-                  <div className="mt-3 grid gap-3">
-                    <p className="text-sm leading-6 text-white/68">{monitorIntent.normalizedRequirement}</p>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="cyan">{monitorIntent.category}</Badge>
-                      <Badge variant="risk">{monitorIntent.minimumSeverity}+ severity</Badge>
-                      <Badge variant="default">{Math.round(monitorIntent.confidence * 100)}% confidence</Badge>
-                      <Badge variant={monitorIntent.provider === "openai" ? "success" : "default"}>
-                        {monitorIntent.provider === "openai" ? "AI interpreted" : "Local fallback"}
-                      </Badge>
-                    </div>
-                    {monitorIntent.keywords.length > 0 && (
-                      <p className="text-xs leading-5 text-white/42">
-                        Keywords: {monitorIntent.keywords.join(", ")}
-                      </p>
-                    )}
-                    <p className="text-xs leading-5 text-white/42">{monitorIntent.rationale}</p>
-                  </div>
-                )}
-              </div>
+          {(intentLoading || monitorIntent || intentError) && (
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm">
+              <Sparkles className={cn("h-4 w-4 shrink-0 text-sentra-cyan", intentLoading && "animate-pulse")} />
+              {intentLoading && <span className="text-white/50">Understanding your monitor…</span>}
+              {intentError && !intentLoading && <span className="text-amber-100">{intentError}</span>}
               {monitorIntent && !intentLoading && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setRequirement(monitorIntent.normalizedRequirement);
-                    setCategory(monitorIntent.category);
-                    setMinimumSeverity(monitorIntent.minimumSeverity);
-                  }}
-                >
-                  Apply interpretation
-                </Button>
+                <>
+                  <Badge variant="cyan">{monitorIntent.category}</Badge>
+                  <Badge variant="risk">{monitorIntent.minimumSeverity}+</Badge>
+                  <span className="min-w-0 flex-1 text-white/60 line-clamp-2">
+                    {monitorIntent.normalizedRequirement}
+                  </span>
+                </>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Input
-            value={`${activeMonitorCount} active monitor${activeMonitorCount === 1 ? "" : "s"}`}
-            readOnly
-            aria-label="Active monitor count"
-            className="pointer-events-none h-10 max-w-xs text-white/60"
-          />
-          <Button variant="neon" onClick={createMonitor}>
-            <Radar className="h-4 w-4" />
-            Start monitoring
-          </Button>
-        </div>
-      </Card>
-
-      <Card className="p-5 md:p-6" glow>
-        <p className="text-sm uppercase tracking-[0.24em] text-white/35">Monitor status</p>
-        <div className="mt-5 grid gap-3">
-          {monitorSummaries.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.035] p-4 text-sm leading-6 text-white/45">
-              No monitors yet. Add a requirement to start watching for matching signals.
+          <details className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <summary className="sentra-focus cursor-pointer text-sm text-white/55 hover:text-white/75">
+              Fine-tune category &amp; severity
+            </summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 text-xs text-white/45">
+                Category
+                <select
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value as "any" | SignalCategory)}
+                  className="sentra-focus h-11 rounded-2xl border border-white/10 bg-sentra-panel px-4 text-sm text-white"
+                >
+                  {categories.map((item) => (
+                    <option key={item} value={item}>
+                      {item === "any" ? "Any category" : item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2 text-xs text-white/45">
+                Minimum severity
+                <select
+                  value={minimumSeverity}
+                  onChange={(event) => setMinimumSeverity(event.target.value as Severity)}
+                  className="sentra-focus h-11 rounded-2xl border border-white/10 bg-sentra-panel px-4 text-sm text-white"
+                >
+                  {severities.map((severity) => (
+                    <option key={severity} value={severity}>
+                      {severity}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-          ) : (
-            monitorSummaries.slice(0, 3).map(({ monitor, matches }) => (
-              <div key={monitor.id} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                <div className="flex items-start gap-3">
-                  <span
-                    className={cn(
-                      "mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-2xl",
-                      monitor.active ? "bg-cyan-300/10 text-sentra-cyan" : "bg-white/10 text-white/45",
-                    )}
+          </details>
+
+          <div className="mt-4">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-auto px-0 text-sm text-white/45 hover:text-white/70"
+              onClick={() => setShowAdvanced((value) => !value)}
+            >
+              {showAdvanced ? "Hide" : "Show"} webhooks &amp; demo options
+            </Button>
+            {showAdvanced && (
+              <div className="mt-3 grid gap-4 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <Button
+                  variant="ghost"
+                  className="w-fit"
+                  onClick={enableBrowserNotifications}
+                  disabled={notificationPermission === "granted" || notificationPermission === "unsupported"}
+                >
+                  <BellRing className="h-4 w-4" />
+                  {notificationPermission === "granted" ? "Browser alerts on" : "Enable browser alerts"}
+                </Button>
+                <Button variant="neon" className="w-fit" onClick={loadPresetDemo} disabled={demoLoading}>
+                  <Zap className="h-4 w-4" />
+                  {demoLoading ? "Loading…" : "Load pricing demo"}
+                </Button>
+                <Input
+                  value={webhookUrl}
+                  onChange={(event) => setWebhookUrl(event.target.value)}
+                  placeholder="Alert webhook (Slack, Discord…)"
+                  className="h-10"
+                  aria-label="Alert webhook URL"
+                />
+                <Input
+                  value={automationWebhookUrl}
+                  onChange={(event) => setAutomationWebhookUrl(event.target.value)}
+                  placeholder="CRM / automation webhook (optional)"
+                  className="h-10"
+                  aria-label="Automation webhook URL"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant={demoAutopilot ? "neon" : "ghost"}
+                    onClick={() => setDemoAutopilot((current) => !current)}
+                    disabled={!activeMonitorCount}
                   >
-                    {monitor.active ? <CheckCircle2 className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-sm font-medium text-white">{monitor.requirement}</p>
-                    <p className="mt-2 text-xs text-white/42">
-                      {matches.length} match{matches.length === 1 ? "" : "es"} - {monitor.minimumSeverity}+ -{" "}
-                      {monitor.category}
-                    </p>
-                  </div>
+                    <TimerReset className="h-4 w-4" />
+                    {demoAutopilot ? "Autopilot on" : "Autopilot"}
+                  </Button>
+                  {webhookUrl.trim() && (
+                    <Badge variant={webhookSending ? "cyan" : "success"}>
+                      {webhookSending ? "Sending" : "Webhook saved"}
+                    </Badge>
+                  )}
                 </div>
               </div>
-            ))
-          )}
-        </div>
-      </Card>
-
-      {monitorSummaries.length > 0 && (
-        <Card className="xl:col-span-2 p-5 md:p-6" glow>
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm uppercase tracking-[0.24em] text-white/35">Active watchlist</p>
-              <h3 className="mt-2 text-2xl font-semibold text-white">Requirement alerts</h3>
-            </div>
+            )}
           </div>
-          <div className="grid gap-3">
+
+          <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-white/45">
+              {activeMonitorCount === 0
+                ? "No active monitors yet"
+                : `${activeMonitorCount} active monitor${activeMonitorCount === 1 ? "" : "s"}`}
+            </p>
+            <Button variant="neon" onClick={createMonitor} className="sm:min-w-[200px]">
+              <Radar className="h-4 w-4" />
+              Start monitoring
+            </Button>
+          </div>
+        </Card>
+
+        {monitorSummaries.length > 0 && (
+          <div className="mt-6 grid gap-3">
+            <h3 className="text-lg font-semibold text-white">Your monitors</h3>
             {monitorSummaries.map(({ monitor, matches }) => (
-              <div key={monitor.id} className="rounded-3xl border border-white/10 bg-white/[0.045] p-4">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div className="min-w-0">
+              <Card key={monitor.id} className="p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant={monitor.active ? "success" : "default"}>
-                        {monitor.active ? "Monitoring" : "Paused"}
+                        {monitor.active ? "Active" : "Paused"}
                       </Badge>
-                      <Badge variant="default">{matches.length} matches</Badge>
-                      {reportsByMonitor[monitor.id] && (
-                        <Badge variant={reportsByMonitor[monitor.id].hallucinationRisk === "low" ? "success" : "risk"}>
-                          {reportsByMonitor[monitor.id].hallucinationRisk} AI risk
-                        </Badge>
-                      )}
+                      <span className="text-xs text-white/40">
+                        {matches.length} match{matches.length === 1 ? "" : "es"} · {monitor.category}
+                      </span>
                     </div>
-                    <h4 className="mt-3 break-words font-medium text-white">{monitor.requirement}</h4>
-                    {matches[0] ? (
+                    <p className="mt-2 text-sm font-medium leading-6 text-white">{monitor.requirement}</p>
+                    {matches[0] && (
                       <button
-                        className="sentra-focus mt-2 block text-left text-sm leading-6 text-white/55 transition"
+                        type="button"
+                        className="sentra-focus mt-1 text-left text-xs text-cyan-100/80 hover:text-cyan-100"
                         onClick={() => openReport(monitor, matches[0], reportsByMonitor[monitor.id])}
                       >
-                        Latest match: <span className="text-white/80">{matches[0].title}</span>
+                        View latest: {matches[0].title}
                       </button>
-                    ) : (
-                      <p className="mt-2 text-sm leading-6 text-white/45">
-                        No matching signals in the current stream yet.
-                      </p>
                     )}
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <Button
-                      variant="ghost"
+                      variant="neon"
+                      size="sm"
                       disabled={checkingId === monitor.id}
                       onClick={() => checkMonitorNow(monitor.id)}
                     >
-                      <Radar className="h-4 w-4" />
                       {checkingId === monitor.id ? "Checking…" : "Check now"}
                     </Button>
-                    {(matches[0] || reportsByMonitor[monitor.id]) && (
-                      <Button variant="neon" onClick={() => openReport(monitor, matches[0], reportsByMonitor[monitor.id])}>
-                        <FileCheck2 className="h-4 w-4" />
-                        Evidence-backed report
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="icon" onClick={() => toggleMonitor(monitor.id)}>
+                    <Button variant="ghost" size="icon" onClick={() => toggleMonitor(monitor.id)} aria-label="Pause or resume">
                       {monitor.active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => removeMonitor(monitor.id)}>
+                    <Button variant="ghost" size="icon" onClick={() => removeMonitor(monitor.id)} aria-label="Delete monitor">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-              </div>
+              </Card>
             ))}
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-fit text-sm text-white/45"
+              onClick={() => setShowActivity((value) => !value)}
+            >
+              {showActivity ? "Hide activity log" : "Show activity log"}
+            </Button>
+            {showActivity && (
+              <>
+                {detectedChanges.length > 0 && (
+                  <ChangeDetectionPanel changes={detectedChanges.slice(0, 6)} />
+                )}
+                <MonitorTimeline key={timelineKey} />
+              </>
+            )}
           </div>
-        </Card>
-      )}
-
-      {detectedChanges.length > 0 && (
-        <ChangeDetectionPanel changes={detectedChanges.slice(0, 6)} className="xl:col-span-2" />
-      )}
-
-      <MonitorTimeline key={timelineKey} className="xl:col-span-2" />
+        )}
+      </WorkspaceSection>
 
       {selectedReport && (
         <div
@@ -1320,7 +1206,6 @@ export function MonitorCenter() {
           </div>
         </div>
       )}
-    </div>
       </WorkspaceSection>
     </>
   );
