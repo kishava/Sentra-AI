@@ -60,10 +60,25 @@ export function getMonitorHistory() {
   return loadHistory();
 }
 
+/** Strip nested suggestion wrappers so history does not compound "Keep watching…" text. */
+export function cleanMonitorRequirement(requirement: string) {
+  let text = requirement.trim();
+  for (let i = 0; i < 3; i += 1) {
+    const next = text
+      .replace(/^keep watching\s+/i, "")
+      .replace(/^alert me when\s+/i, "")
+      .replace(/^["'`]+|["'`]+$/g, "")
+      .trim();
+    if (next === text) break;
+    text = next;
+  }
+  return text.slice(0, 280);
+}
+
 function topicLabel(requirement: string) {
-  const trimmed = requirement.trim();
-  if (trimmed.length <= 48) return trimmed;
-  return `${trimmed.slice(0, 45)}…`;
+  const cleaned = cleanMonitorRequirement(requirement);
+  if (cleaned.length <= 48) return cleaned;
+  return `${cleaned.slice(0, 45)}…`;
 }
 
 /** Suggestions tailored from monitors the user has already created. */
@@ -77,15 +92,15 @@ export function buildPersonalizedSuggestions(history: MonitorHistoryEntry[]): Mo
 
   const related: MonitorPromptSelection[] = [
     {
-      requirement: `Keep watching "${subject}" and alert me when something important changes.`,
+      requirement: `Alert me when anything important changes for ${subject}.`,
       category: baseCategory ?? "any",
     },
     {
-      requirement: `Tell me if news or social sentiment about ${subject} turns negative.`,
+      requirement: `Tell me if news or sentiment about ${subject} turns negative.`,
       category: "sentiment",
     },
     {
-      requirement: `Alert me when competitors make pricing or packaging moves related to ${subject}.`,
+      requirement: `Notify me when competitors make pricing moves affecting ${subject}.`,
       category: "pricing",
     },
   ];

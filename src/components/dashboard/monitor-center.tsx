@@ -18,6 +18,7 @@ import { readResponseJson } from "@/lib/http/read-response-json";
 import { signInFor } from "@/lib/landing/auth-links";
 import {
   buildPersonalizedSuggestions,
+  cleanMonitorRequirement,
   plainEnglishMonitorSummary,
   recordMonitorHistory,
 } from "@/lib/monitor-history";
@@ -158,7 +159,14 @@ export function MonitorCenter() {
   }, []);
 
   const promptSuggestions = useMemo(
-    () => buildPersonalizedSuggestions(monitors.map((m) => ({ requirement: m.requirement, category: m.category, createdAt: m.createdAt }))),
+    () =>
+      buildPersonalizedSuggestions(
+        monitors.map((m) => ({
+          requirement: cleanMonitorRequirement(m.requirement),
+          category: m.category,
+          createdAt: m.createdAt,
+        })),
+      ),
     [monitors],
   );
 
@@ -481,7 +489,13 @@ export function MonitorCenter() {
       return;
     }
 
-    const interpretedRequirement = monitorIntent?.normalizedRequirement?.trim() || trimmed;
+    const interpretedRequirement = cleanMonitorRequirement(
+      monitorIntent?.normalizedRequirement?.trim() || trimmed,
+    );
+    if (interpretedRequirement.length < 3) {
+      toast.error("Describe what you want to watch in a few words.");
+      return;
+    }
     const monitorPayload = {
       requirement: interpretedRequirement,
       category,
@@ -541,15 +555,22 @@ export function MonitorCenter() {
 
     recordMonitorHistory({ requirement: monitor.requirement, category: monitor.category });
 
+    const savedMonitor = monitor;
+
     setMonitors((current) => {
-      const next = [monitor!, ...current.filter((item) => item.id !== monitor!.id)];
+      const next = [savedMonitor, ...current.filter((item) => item.id !== savedMonitor.id)];
       saveMonitors(next);
       return next;
     });
     setRequirement("");
     setMonitorIntent(null);
-    toast.success("Monitor started", { description: "Running a live check now…" });
-    await checkMonitorNow(monitor.id);
+    toast.success("Monitor started", { description: "Running a live check…" });
+
+    try {
+      await checkMonitorNow(savedMonitor.id, { monitor: savedMonitor });
+    } catch {
+      toast.message("Monitor saved — tap Check now to run the live scan.", { duration: 5000 });
+    }
   }
 
   async function sendAutomationTrigger(report: ExecutiveIntelligenceReport, monitorId?: string) {
@@ -662,10 +683,13 @@ export function MonitorCenter() {
     }
   }
 
-  async function checkMonitorNow(monitorId: string, options?: { automated?: boolean }) {
-    const monitor = monitors.find((item) => item.id === monitorId);
+  async function checkMonitorNow(
+    monitorId: string,
+    options?: { automated?: boolean; monitor?: Monitor },
+  ) {
+    const monitor = options?.monitor ?? monitors.find((item) => item.id === monitorId);
     if (!monitor) {
-      toast.error("Monitor not found.");
+      toast.error("Monitor not found. Refresh the page and try again.");
       return;
     }
 
