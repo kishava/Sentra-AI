@@ -10,7 +10,7 @@ type WorkspacePageProps = {
 
 /** Consistent max-width and vertical rhythm for workspace routes. */
 export function WorkspacePage({ children, className }: WorkspacePageProps) {
-  return <div className={cn("flex w-full flex-col gap-8", className)}>{children}</div>;
+  return <div className={cn("flex w-full flex-col gap-6", className)}>{children}</div>;
 }
 
 type WorkspacePageHeaderProps = {

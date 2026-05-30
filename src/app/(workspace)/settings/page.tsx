@@ -69,6 +69,9 @@ const voiceModes: Array<{ id: VoiceMode; label: string }> = [
   { id: "fast", label: "Fast Briefing" },
 ];
 
+/** Hidden on public deploy — set NEXT_PUBLIC_SENTRA_SHOW_INTEGRATION_STATUS=true to debug locally. */
+const SHOW_INTEGRATION_STATUS = process.env.NEXT_PUBLIC_SENTRA_SHOW_INTEGRATION_STATUS === "true";
+
 export default function SettingsPage() {
   const { settings, updateSettings, resetSettings, exportSettings, clearAnalysisHistory } = useSettings();
   const [status, setStatus] = useState<IntegrationStatus | null>(null);
@@ -79,6 +82,7 @@ export default function SettingsPage() {
   const voiceLanguage = useMemo(() => getVoiceLanguageOption(settings.voice.language), [settings.voice.language]);
 
   useEffect(() => {
+    if (!SHOW_INTEGRATION_STATUS) return;
     void testConnection(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -151,25 +155,27 @@ export default function SettingsPage() {
         title="Settings"
         description="Configure voice, AI analyst behavior, visual forensics, Bright Data routing, privacy guardrails, and command-center experience from one enterprise control surface."
         aside={
-          <Card className="grid content-center gap-4 p-6" glow>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-white/42">System status</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Enterprise readiness</h2>
+          SHOW_INTEGRATION_STATUS ? (
+            <Card className="grid content-center gap-4 p-6" glow>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-white/42">System status</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">Enterprise readiness</h2>
+                </div>
+                <StatusDot ok={brightDataReady} />
               </div>
-              <StatusDot ok={brightDataReady} />
-            </div>
-            <div className="grid gap-2">
-              <StatusLine label="AI/ML API (LLM)" ok={status?.aiml || status?.llm?.ready} />
-              <StatusLine label="Speechmatics voice (TTS)" ok={status?.speechmaticsVoice ?? status?.aimlVoice} />
-              <StatusLine label="Speechmatics STT" ok={status?.speechmaticsStt ?? status?.speechmaticsVoice} />
-              <StatusLine label="Bright Data API" ok={status?.brightData.apiKey} />
-              <StatusLine label="Workspace database" ok={status?.supabaseSchema} />
-            </div>
-            <p className="text-xs leading-5 text-white/42">
-              Last sync: {settings.brightData.lastSync ? new Date(settings.brightData.lastSync).toLocaleString() : "Not tested yet"}
-            </p>
-          </Card>
+              <div className="grid gap-2">
+                <StatusLine label="AI/ML API (LLM)" ok={status?.aiml || status?.llm?.ready} />
+                <StatusLine label="Speechmatics voice (TTS)" ok={status?.speechmaticsVoice ?? status?.aimlVoice} />
+                <StatusLine label="Speechmatics STT" ok={status?.speechmaticsStt ?? status?.speechmaticsVoice} />
+                <StatusLine label="Bright Data API" ok={status?.brightData.apiKey} />
+                <StatusLine label="Workspace database" ok={status?.supabaseSchema} />
+              </div>
+              <p className="text-xs leading-5 text-white/42">
+                Last sync: {settings.brightData.lastSync ? new Date(settings.brightData.lastSync).toLocaleString() : "Not tested yet"}
+              </p>
+            </Card>
+          ) : undefined
         }
       />
 
@@ -182,7 +188,8 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      <div className="grid items-start gap-6 xl:grid-cols-2">
+      <div className="grid items-start gap-4 xl:grid-cols-2 xl:gap-5">
+        <div className="grid gap-4">
         <SettingsCard icon={Volume2} title="Voice Settings" subtitle="Control response playback, microphones, and analyst voice behavior.">
           <ToggleRow label="AI voice response" description="When disabled, AI replies stay text-only." checked={settings.voice.enabled} onChange={(value) => patchSection("voice", { enabled: value })} />
           <ToggleRow label="Microphone listening" description="Hides or disables mic input buttons across Sentra." checked={settings.voice.microphone} onChange={(value) => patchSection("voice", { microphone: value })} />
@@ -210,43 +217,28 @@ export default function SettingsPage() {
           <ToggleRow label="Confidence scores" checked={settings.analyst.confidenceScores} onChange={(value) => patchSection("analyst", { confidenceScores: value })} />
         </SettingsCard>
 
-        <SettingsCard icon={Radar} title="Visual Forensics Settings" subtitle="Select which authenticity and face intelligence modules appear in investigation flows.">
-          <ToggleRow label="Image authenticity detection" checked={settings.forensics.authenticityDetection} onChange={(value) => patchSection("forensics", { authenticityDetection: value })} />
-          <ToggleRow label="AI-generated image probability" checked={settings.forensics.aiGeneratedProbability} onChange={(value) => patchSection("forensics", { aiGeneratedProbability: value })} />
-          <ToggleRow label="Metadata analysis" checked={settings.forensics.metadataAnalysis} onChange={(value) => patchSection("forensics", { metadataAnalysis: value })} />
-          <ToggleRow label="Location/environment estimation" checked={settings.forensics.environmentEstimation} onChange={(value) => patchSection("forensics", { environmentEstimation: value })} />
-          <ToggleRow label="Face intelligence" description="Hides the AI Face Intelligence workspace when off." checked={settings.forensics.faceIntelligence} onChange={(value) => patchSection("forensics", { faceIntelligence: value })} />
-          <ToggleRow label="Face comparison mode" checked={settings.forensics.faceComparison} onChange={(value) => patchSection("forensics", { faceComparison: value })} />
-          <ToggleRow label="Deepfake risk analysis" checked={settings.forensics.deepfakeRisk} onChange={(value) => patchSection("forensics", { deepfakeRisk: value })} />
-        </SettingsCard>
-
         <SettingsCard icon={DatabaseZap} title="Bright Data Settings" subtitle="Control live web collection and demo-safe fallback routing.">
           <ToggleRow label="Bright Data SERP" checked={settings.brightData.serp} onChange={(value) => patchSection("brightData", { serp: value })} />
           <ToggleRow label="Bright Data Scraper" checked={settings.brightData.scraper} onChange={(value) => patchSection("brightData", { scraper: value })} />
           <ToggleRow label="Web Unlocker" checked={settings.brightData.webUnlocker} onChange={(value) => patchSection("brightData", { webUnlocker: value })} />
           <ToggleRow label="Bright Data MCP (search + scrape)" checked={settings.brightData.mcp} onChange={(value) => patchSection("brightData", { mcp: value })} />
-          <BrightDataControlCenter />
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-white">API connection status</p>
-                <p className="mt-1 text-xs leading-5 text-white/44">{status?.brightData.message ?? "Connection has not been tested in this session."}</p>
+          {SHOW_INTEGRATION_STATUS ? (
+            <>
+              <BrightDataControlCenter />
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">API connection status</p>
+                    <p className="mt-1 text-xs leading-5 text-white/44">{status?.brightData.message ?? "Connection has not been tested in this session."}</p>
+                  </div>
+                  <Badge variant={brightDataReady ? "success" : "risk"}>{brightDataReady ? "Ready" : "Fallback"}</Badge>
+                </div>
+                <Button variant="ghost" className="mt-4" onClick={() => void testConnection(true)} disabled={testing}>
+                  <Activity className={cn("h-4 w-4", testing && "animate-pulse")} /> Test Connection
+                </Button>
               </div>
-              <Badge variant={brightDataReady ? "success" : "risk"}>{brightDataReady ? "Ready" : "Fallback"}</Badge>
-            </div>
-            <Button variant="ghost" className="mt-4" onClick={() => void testConnection(true)} disabled={testing}>
-              <Activity className={cn("h-4 w-4", testing && "animate-pulse")} /> Test Connection
-            </Button>
-          </div>
-        </SettingsCard>
-
-        <SettingsCard icon={MonitorCog} title="UI / Experience Settings" subtitle="Adjust motion, background effects, and command center density.">
-          <ToggleRow label="Animations" description="Disabling this reduces motion globally." checked={settings.experience.animations} onChange={(value) => patchSection("experience", { animations: value })} />
-          <ToggleRow label="Mouse hover effects" description="Kept off for a stable enterprise UI." checked={settings.experience.mouseHoverEffects} onChange={(value) => patchSection("experience", { mouseHoverEffects: value })} />
-          <ToggleRow label="Particle background" checked={settings.experience.particleBackground} onChange={(value) => patchSection("experience", { particleBackground: value })} />
-          <ToggleRow label="Sound effects" checked={settings.experience.soundEffects} onChange={(value) => patchSection("experience", { soundEffects: value })} />
-          <ToggleRow label="Compact mode" checked={settings.experience.compactMode} onChange={(value) => patchSection("experience", { compactMode: value })} />
-          <ToggleRow label="Fullscreen command center mode" checked={settings.experience.fullscreenCommandCenter} onChange={(value) => patchSection("experience", { fullscreenCommandCenter: value })} />
+            </>
+          ) : null}
         </SettingsCard>
 
         <SettingsCard icon={ShieldCheck} title="Privacy & Safety Settings" subtitle="Keep biometric and forensic workflows scoped to user-provided evidence.">
@@ -259,6 +251,28 @@ export default function SettingsPage() {
             <Button variant="ghost" onClick={exportSettings}><Download className="h-4 w-4" /> Export user data</Button>
           </div>
         </SettingsCard>
+        </div>
+
+        <div className="grid gap-4">
+        <SettingsCard icon={Radar} title="Visual Forensics Settings" subtitle="Select which authenticity and face intelligence modules appear in investigation flows.">
+          <ToggleRow label="Image authenticity detection" checked={settings.forensics.authenticityDetection} onChange={(value) => patchSection("forensics", { authenticityDetection: value })} />
+          <ToggleRow label="AI-generated image probability" checked={settings.forensics.aiGeneratedProbability} onChange={(value) => patchSection("forensics", { aiGeneratedProbability: value })} />
+          <ToggleRow label="Metadata analysis" checked={settings.forensics.metadataAnalysis} onChange={(value) => patchSection("forensics", { metadataAnalysis: value })} />
+          <ToggleRow label="Location/environment estimation" checked={settings.forensics.environmentEstimation} onChange={(value) => patchSection("forensics", { environmentEstimation: value })} />
+          <ToggleRow label="Face intelligence" description="Hides the AI Face Intelligence workspace when off." checked={settings.forensics.faceIntelligence} onChange={(value) => patchSection("forensics", { faceIntelligence: value })} />
+          <ToggleRow label="Face comparison mode" checked={settings.forensics.faceComparison} onChange={(value) => patchSection("forensics", { faceComparison: value })} />
+          <ToggleRow label="Deepfake risk analysis" checked={settings.forensics.deepfakeRisk} onChange={(value) => patchSection("forensics", { deepfakeRisk: value })} />
+        </SettingsCard>
+
+        <SettingsCard icon={MonitorCog} title="UI / Experience Settings" subtitle="Adjust motion, background effects, and command center density.">
+          <ToggleRow label="Animations" description="Disabling this reduces motion globally." checked={settings.experience.animations} onChange={(value) => patchSection("experience", { animations: value })} />
+          <ToggleRow label="Mouse hover effects" description="Kept off for a stable enterprise UI." checked={settings.experience.mouseHoverEffects} onChange={(value) => patchSection("experience", { mouseHoverEffects: value })} />
+          <ToggleRow label="Particle background" checked={settings.experience.particleBackground} onChange={(value) => patchSection("experience", { particleBackground: value })} />
+          <ToggleRow label="Sound effects" checked={settings.experience.soundEffects} onChange={(value) => patchSection("experience", { soundEffects: value })} />
+          <ToggleRow label="Compact mode" checked={settings.experience.compactMode} onChange={(value) => patchSection("experience", { compactMode: value })} />
+          <ToggleRow label="Fullscreen command center mode" checked={settings.experience.fullscreenCommandCenter} onChange={(value) => patchSection("experience", { fullscreenCommandCenter: value })} />
+        </SettingsCard>
+        </div>
       </div>
 
       <Card className="p-5" glow>
@@ -274,54 +288,56 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <Card className="p-6" glow>
-        <h2 className="text-lg font-semibold text-white">Connection status</h2>
-        <ul className="mt-5 space-y-4">
-          <StatusRow label="Supabase credentials" ok={status?.supabase} />
-          <StatusRow label="Supabase workspace schema" ok={status?.supabaseSchema} />
-          <StatusRow
-            label={`API keys vault (${status?.secretsSource ?? "env"})`}
-            ok={status?.secretsSource === "supabase" || status?.aiml}
-          />
-          <StatusRow label="AI/ML API (LLM)" ok={status?.aiml || status?.llm?.ready} />
-          <StatusRow label="Featherless (open models)" ok={status?.featherless} optional />
-          <StatusRow label="Speechmatics voice (TTS)" ok={status?.speechmaticsVoice ?? status?.aimlVoice} />
-          <StatusRow label="Speechmatics STT" ok={status?.speechmaticsStt ?? status?.speechmaticsVoice} />
-          <StatusRow label="Bright Data API key" ok={status?.brightData?.apiKey} />
-          <StatusRow label="Bright Data SERP zone" ok={status?.brightData?.serpZone} />
-          <StatusRow label="Bright Data Unlocker zone" ok={status?.brightData?.unlockerZone} />
-          <StatusRow label="Bright Data Scraper zone" ok={status?.brightData?.scraperZone} />
-          <StatusRow label="Bright Data Browser zone" ok={status?.brightData?.browserZone} />
-          <StatusRow label="Bright Data MCP" ok={status?.brightData?.mcpReady} />
-        </ul>
-        {status?.brightData?.message && (
-          <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/60">
-            {status.brightData.message}
-          </p>
-        )}
-        {status?.secretsSource === "env" && status?.supabase && (
-          <p className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 text-sm text-cyan-50/90">
-            Provider keys are still in local env. Run{" "}
-            <code className="font-mono text-xs">npm run secrets:sync</code> to store them in Supabase
-            (safe for deploy). On Vercel, only Supabase keys are needed after sync.
-          </p>
-        )}
-        {status?.supabase && !status.supabaseSchema && (
-          <p className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm text-amber-100">
-            Authentication is connected, but workspace tables are missing. Run
-            {" "}<code className="font-mono text-xs">supabase/migrations/001_initial_schema.sql</code>{" "}
-            in the Supabase SQL Editor to enable regular accounts and saved data.
-          </p>
-        )}
-        <Link
-          href="https://brightdata.com/cp/zones"
-          target="_blank"
-          rel="noreferrer"
-          className="mt-5 inline-flex items-center gap-2 text-sm text-sentra-cyan hover:text-white"
-        >
-          Open Bright Data control panel <ExternalLink className="h-4 w-4" />
-        </Link>
-      </Card>
+      {SHOW_INTEGRATION_STATUS ? (
+        <Card className="p-6" glow>
+          <h2 className="text-lg font-semibold text-white">Connection status</h2>
+          <ul className="mt-5 space-y-4">
+            <StatusRow label="Supabase credentials" ok={status?.supabase} />
+            <StatusRow label="Supabase workspace schema" ok={status?.supabaseSchema} />
+            <StatusRow
+              label={`API keys vault (${status?.secretsSource ?? "env"})`}
+              ok={status?.secretsSource === "supabase" || status?.aiml}
+            />
+            <StatusRow label="AI/ML API (LLM)" ok={status?.aiml || status?.llm?.ready} />
+            <StatusRow label="Featherless (open models)" ok={status?.featherless} optional />
+            <StatusRow label="Speechmatics voice (TTS)" ok={status?.speechmaticsVoice ?? status?.aimlVoice} />
+            <StatusRow label="Speechmatics STT" ok={status?.speechmaticsStt ?? status?.speechmaticsVoice} />
+            <StatusRow label="Bright Data API key" ok={status?.brightData?.apiKey} />
+            <StatusRow label="Bright Data SERP zone" ok={status?.brightData?.serpZone} />
+            <StatusRow label="Bright Data Unlocker zone" ok={status?.brightData?.unlockerZone} />
+            <StatusRow label="Bright Data Scraper zone" ok={status?.brightData?.scraperZone} />
+            <StatusRow label="Bright Data Browser zone" ok={status?.brightData?.browserZone} />
+            <StatusRow label="Bright Data MCP" ok={status?.brightData?.mcpReady} />
+          </ul>
+          {status?.brightData?.message && (
+            <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/60">
+              {status.brightData.message}
+            </p>
+          )}
+          {status?.secretsSource === "env" && status?.supabase && (
+            <p className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 text-sm text-cyan-50/90">
+              Provider keys are still in local env. Run{" "}
+              <code className="font-mono text-xs">npm run secrets:sync</code> to store them in Supabase
+              (safe for deploy). On Vercel, only Supabase keys are needed after sync.
+            </p>
+          )}
+          {status?.supabase && !status.supabaseSchema && (
+            <p className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm text-amber-100">
+              Authentication is connected, but workspace tables are missing. Run
+              {" "}<code className="font-mono text-xs">supabase/migrations/001_initial_schema.sql</code>{" "}
+              in the Supabase SQL Editor to enable regular accounts and saved data.
+            </p>
+          )}
+          <Link
+            href="https://brightdata.com/cp/zones"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-5 inline-flex items-center gap-2 text-sm text-sentra-cyan hover:text-white"
+          >
+            Open Bright Data control panel <ExternalLink className="h-4 w-4" />
+          </Link>
+        </Card>
+      ) : null}
     </WorkspacePage>
   );
 }
