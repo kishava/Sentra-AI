@@ -11,7 +11,7 @@ import { useWorkspaceSession } from "@/lib/hooks/use-workspace-session";
 import { cn } from "@/lib/utils";
 
 function signUpUrl(next: string) {
-  return `/sign-up?next=${encodeURIComponent(next)}`;
+  return `/sign-in?next=${encodeURIComponent(next)}`;
 }
 
 export function OurServicesPage({ basePath = "/services" }: { basePath?: string }) {

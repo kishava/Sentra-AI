@@ -21,6 +21,7 @@ import {
   getLocalSession,
   getUserProfile,
   repairLocalStorageQuota,
+  repairLocalSessionFromCookie,
   saveUserProfile,
   signOutLocalAccount,
   updateLocalSession,
@@ -76,6 +77,7 @@ export function UserMenu() {
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       repairLocalStorageQuota();
+      repairLocalSessionFromCookie();
       const stored = getUserProfile();
       setProfile(stored);
 
@@ -195,14 +197,14 @@ export function UserMenu() {
   async function signOut() {
     if (!isBrowserSupabaseConfigured()) {
       signOutLocalAccount();
-      router.push("/sign-up");
+      router.push("/sign-in");
       router.refresh();
       return;
     }
 
     const supabase = getBrowserClient();
     if (supabase) await supabase.auth.signOut();
-    router.push("/sign-up");
+    router.push("/sign-in");
     router.refresh();
   }
 

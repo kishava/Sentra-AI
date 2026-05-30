@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { ArrowRight, FileCheck2, Radar, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { HeroVisual } from "@/components/landing/hero-visual";
+
+const HeroVisual = dynamic(
+  () => import("@/components/landing/hero-visual").then((module) => module.HeroVisual),
+  { ssr: false },
+);
 
 const cards = [
   { icon: Radar, label: "Monitor", value: "24/7", detail: "competitor and market watch" },
@@ -25,7 +30,7 @@ export function Hero() {
           className="mx-auto w-full max-w-4xl xl:mx-0"
         >
           <Badge variant="cyan" className="mb-5">Autonomous intelligence command center</Badge>
-          <h1 className="max-w-[18ch] text-balance font-display text-[clamp(3.4rem,5.2vw,6.3rem)] font-bold leading-[0.98] tracking-tight text-white">
+          <h1 className="max-w-[18ch] text-balance font-display text-[clamp(2.9rem,4.9vw,5.6rem)] font-bold leading-[1.02] tracking-tight text-white">
             <span className="premium-gradient-text">
               Monitor competitors, verify evidence, and brief leaders automatically
             </span>

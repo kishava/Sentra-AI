@@ -20,7 +20,7 @@ import { LocalDevBanner } from "@/components/shared/local-dev-banner";
 import { ParticleField } from "@/components/shared/particle-field";
 import { NewUserGuideModal } from "@/components/dashboard/new-user-guide-modal";
 import { UserMenu } from "@/components/dashboard/user-menu";
-import { getLocalSession, repairLocalStorageQuota } from "@/lib/local-auth";
+import { getLocalSession, repairLocalSessionFromCookie, repairLocalStorageQuota } from "@/lib/local-auth";
 import { isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     repairLocalStorageQuota();
+    repairLocalSessionFromCookie();
   }, []);
 
   useEffect(() => {
@@ -93,7 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (getLocalSession()) return;
 
     const next = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
-    router.replace(`/sign-up?next=${encodeURIComponent(next)}`);
+    router.replace(`/sign-in?next=${encodeURIComponent(next)}`);
   }, [pathname, router, searchParams]);
 
   return (
