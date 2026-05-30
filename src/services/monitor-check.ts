@@ -1,11 +1,10 @@
 import { getSignalsForRun, saveIntelligenceRun } from "@/lib/db/intelligence";
+import {
+  appendTimelineEventDb,
+  updateMonitorCheckState as persistMonitorCheckState,
+} from "@/lib/db/monitor-workspace";
 import { recordMonitorEvents, updateMonitorChecked } from "@/lib/db/monitors";
 import { saveIntelligenceReport } from "@/lib/db/reports";
-import {
-  recordChangeDetected,
-  recordCheckComplete,
-  recordReportGenerated,
-} from "@/lib/monitor-timeline";
 import { filterSignalsForMonitor } from "@/lib/monitor-match";
 import {
   BrightDataCollectionError,
@@ -15,6 +14,7 @@ import { enrichQueryWithWorkspace, type WorkspaceContext } from "@/lib/gtm/works
 import { planGtmCollection } from "@/lib/bright-data/router";
 import { createExecutiveReport } from "@/services/intelligence-report";
 import { runChangeDetection } from "@/services/change-detection";
+import { runChangeDetectionWithDb } from "@/services/change-detection-db";
 import { bundleToLegacyEvidence, collectFromPlan } from "@/services/gtm-research";
 import { generateEnterpriseAnalysis } from "@/services/openai";
 import type { Severity } from "@/types/intelligence";
@@ -37,7 +37,14 @@ export type MonitorCheckResult = {
   signals: ReturnType<typeof filterSignalsForMonitor>;
   analysis: Awaited<ReturnType<typeof generateEnterpriseAnalysis>>;
   report: ReturnType<typeof createExecutiveReport>;
-  detectedChanges: ReturnType<typeof runChangeDetection>["changes"];
+  detectedChanges: Array<{
+    id: string;
+    field: string;
+    oldValue: string;
+    newValue: string;
+    sourceUrl: string;
+    severity: Severity;
+  }>;
   evidencePreview: string;
 };
 
@@ -64,12 +71,20 @@ export async function runMonitorCheck(
   const bundle = await collectFromPlan(plan, { multiSource: true });
   const webEvidence = bundleToLegacyEvidence(bundle);
 
-  const changeResult = runChangeDetection({
-    monitorId: monitor.id,
-    evidence: webEvidence.evidence,
-    targetUrl: monitor.target_url ?? plan.targetUrl,
-    userId: options?.userId,
-  });
+  const canPersist = Boolean(options?.persist && options.supabase && options.userId);
+  const changeResult = canPersist
+    ? await runChangeDetectionWithDb({
+        supabase: options!.supabase!,
+        userId: options!.userId!,
+        monitorId: monitor.id,
+        evidence: webEvidence.evidence,
+        targetUrl: monitor.target_url ?? plan.targetUrl,
+      })
+    : runChangeDetection({
+        monitorId: monitor.id,
+        evidence: webEvidence.evidence,
+        targetUrl: monitor.target_url ?? plan.targetUrl,
+      });
 
   const analysis = await generateEnterpriseAnalysis(
     enrichedRequirement,
@@ -85,15 +100,15 @@ export async function runMonitorCheck(
   ];
 
   let savedSignals = mergedSignals;
-  if (options?.persist && options.supabase && options.userId) {
+  if (canPersist) {
     try {
-      const runId = await saveIntelligenceRun(options.supabase, options.userId, {
+      const runId = await saveIntelligenceRun(options!.supabase!, options!.userId!, {
         query: monitor.requirement,
         provider: webEvidence.provider,
         evidencePreview: analysis.summary,
         analysis: { ...analysis, signals: mergedSignals },
       });
-      savedSignals = await getSignalsForRun(options.supabase, options.userId, runId);
+      savedSignals = await getSignalsForRun(options!.supabase!, options!.userId!, runId);
     } catch (error) {
       console.warn("Monitor run persistence skipped", error);
     }
@@ -109,10 +124,19 @@ export async function runMonitorCheck(
     savedSignals.length ? savedSignals : mergedSignals,
   );
 
-  if (options?.persist && options.supabase && options.userId) {
+  if (canPersist) {
     try {
-      await recordMonitorEvents(options.supabase, options.userId, monitor.id, matched);
-      await updateMonitorChecked(options.supabase, options.userId, monitor.id);
+      await recordMonitorEvents(options!.supabase!, options!.userId!, monitor.id, matched);
+      await updateMonitorChecked(options!.supabase!, options!.userId!, monitor.id);
+      await persistMonitorCheckState(options!.supabase!, options!.userId!, monitor.id, {
+        last_matched_count: matched.length,
+        last_signal_count: mergedSignals.length,
+        last_summary: analysis.summary?.slice(0, 280) ?? null,
+        last_search_query: collectionQuery,
+        last_match_title: matched[0]?.title ?? mergedSignals[0]?.title ?? null,
+        last_provider: webEvidence.provider,
+        last_checked_at: new Date().toISOString(),
+      });
     } catch (error) {
       console.warn("Monitor event persistence skipped", error);
     }
@@ -133,42 +157,75 @@ export async function runMonitorCheck(
     collectionMeta,
   });
 
-  changeResult.changes.forEach((change) => {
-    recordChangeDetected({
-      monitorId: monitor.id,
-      monitorRequirement: monitor.requirement,
-      field: change.field,
-      oldValue: change.oldValue,
-      newValue: change.newValue,
-      sourceUrl: change.sourceUrl,
-      severity: change.severity,
-      changeId: change.id,
-      userId: options?.userId,
-    });
-  });
-
-  recordCheckComplete({
-    monitorId: monitor.id,
-    monitorRequirement: monitor.requirement,
-    matchedCount: matched.length,
-    provider: webEvidence.provider,
-    userId: options?.userId,
-  });
-
-  recordReportGenerated({
-    monitorId: monitor.id,
-    monitorRequirement: monitor.requirement,
-    reportId: report.id,
-    verdict: report.verdict,
-    riskScore: report.riskScore,
-    userId: options?.userId,
-  });
-
-  if (options?.persist && options.supabase && options.userId) {
+  if (canPersist) {
     try {
-      await saveIntelligenceReport(options.supabase, options.userId, report, monitor.id);
+      await saveIntelligenceReport(options!.supabase!, options!.userId!, report, monitor.id);
     } catch (error) {
       console.warn("Report persistence skipped", error);
+    }
+
+    const supabase = options!.supabase!;
+    const userId = options!.userId!;
+
+    for (const change of changeResult.changes) {
+      try {
+        await appendTimelineEventDb(supabase, userId, {
+          type: "change_detected",
+          monitorId: monitor.id,
+          monitorRequirement: monitor.requirement,
+          summary: `${change.field} changed from ${change.oldValue} to ${change.newValue}`,
+          severity: change.severity,
+          changeId: change.id,
+          metadata: {
+            sourceUrl: change.sourceUrl,
+            oldValue: change.oldValue,
+            newValue: change.newValue,
+            field: change.field,
+          },
+        });
+      } catch (error) {
+        console.warn("Timeline change event skipped", error);
+      }
+    }
+
+    try {
+      await appendTimelineEventDb(supabase, userId, {
+        type: "check_complete",
+        monitorId: monitor.id,
+        monitorRequirement: monitor.requirement,
+        summary: `Monitor check completed — ${matched.length} match${matched.length === 1 ? "" : "es"} from ${webEvidence.provider === "bright-data" ? "live Bright Data" : "demo evidence"}.`,
+        metadata: { provider: webEvidence.provider, matchedCount: String(matched.length) },
+      });
+    } catch (error) {
+      console.warn("Timeline check event skipped", error);
+    }
+
+    for (const signal of matched) {
+      try {
+        await appendTimelineEventDb(supabase, userId, {
+          type: "signal_matched",
+          monitorId: monitor.id,
+          monitorRequirement: monitor.requirement,
+          summary: signal.title,
+          severity: signal.severity,
+        });
+      } catch (error) {
+        console.warn("Timeline signal event skipped", error);
+      }
+    }
+
+    try {
+      await appendTimelineEventDb(supabase, userId, {
+        type: "report_generated",
+        monitorId: monitor.id,
+        monitorRequirement: monitor.requirement,
+        reportId: report.id,
+        summary: report.verdict,
+        severity: report.riskScore >= 80 ? "critical" : report.riskScore >= 65 ? "high" : "medium",
+        metadata: { riskScore: String(report.riskScore) },
+      });
+    } catch (error) {
+      console.warn("Timeline report event skipped", error);
     }
   }
 

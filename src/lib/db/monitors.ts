@@ -10,6 +10,14 @@ export type DbMonitor = {
   target_url: string | null;
   active: boolean;
   last_checked_at: string | null;
+  search_query?: string | null;
+  plain_summary?: string | null;
+  last_matched_count?: number;
+  last_signal_count?: number;
+  last_summary?: string | null;
+  last_search_query?: string | null;
+  last_match_title?: string | null;
+  last_provider?: string | null;
 };
 
 export async function listMonitors(supabase: SupabaseClient, userId: string) {
@@ -26,11 +34,16 @@ export async function listMonitors(supabase: SupabaseClient, userId: string) {
 export async function createMonitor(
   supabase: SupabaseClient,
   userId: string,
-  monitor: Omit<DbMonitor, "id" | "last_checked_at">,
+  monitor: Omit<DbMonitor, "id" | "last_checked_at"> & {
+    id?: string;
+    search_query?: string | null;
+    plain_summary?: string | null;
+  },
 ) {
   const { data, error } = await supabase
     .from("monitors")
     .insert({
+      ...(monitor.id ? { id: monitor.id } : {}),
       user_id: userId,
       requirement: monitor.requirement,
       category: monitor.category,
@@ -38,12 +51,29 @@ export async function createMonitor(
       keywords: monitor.keywords,
       target_url: monitor.target_url,
       active: monitor.active,
+      search_query: monitor.search_query ?? null,
+      plain_summary: monitor.plain_summary ?? null,
     })
     .select("*")
     .single();
 
   if (error || !data) throw new Error(error?.message ?? "Failed to create monitor.");
   return data as DbMonitor;
+}
+
+export async function updateMonitorActive(
+  supabase: SupabaseClient,
+  userId: string,
+  monitorId: string,
+  active: boolean,
+) {
+  const { error } = await supabase
+    .from("monitors")
+    .update({ active, updated_at: new Date().toISOString() })
+    .eq("id", monitorId)
+    .eq("user_id", userId);
+
+  if (error) throw new Error(error.message);
 }
 
 export async function deleteMonitor(supabase: SupabaseClient, userId: string, monitorId: string) {

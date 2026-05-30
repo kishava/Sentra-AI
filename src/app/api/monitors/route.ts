@@ -25,6 +25,8 @@ export async function POST(request: Request) {
 
     const body = (await request.json().catch(() => ({}))) as {
       requirement?: string;
+      searchQuery?: string;
+      plainSummary?: string;
       category?: string;
       minimumSeverity?: Severity;
       keywords?: string[];
@@ -57,6 +59,8 @@ export async function POST(request: Request) {
       keywords: body.keywords ?? [],
       target_url: body.targetUrl ?? null,
       active: body.active ?? true,
+      search_query: body.searchQuery?.trim() ?? null,
+      plain_summary: body.plainSummary?.trim() ?? null,
     });
 
     return NextResponse.json({ monitor });

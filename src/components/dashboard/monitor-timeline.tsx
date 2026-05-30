@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { loadTimelineEvents } from "@/lib/monitor-timeline";
 import { cn } from "@/lib/utils";
 import type { MonitorTimelineEvent, Severity } from "@/types/intelligence";
 
@@ -59,24 +58,13 @@ export function MonitorTimeline({ monitorId, limit = 12, className }: MonitorTim
         const data = (text.trim() ? JSON.parse(text) : {}) as { events?: MonitorTimelineEvent[] };
         if (!cancelled) {
           const serverEvents = response.ok ? data.events ?? [] : [];
-          const localEvents = loadTimelineEvents();
-          const merged = [...serverEvents, ...localEvents].filter(
-            (event, index, all) => all.findIndex((item) => item.id === event.id) === index,
-          );
           const filtered = monitorId
-            ? merged.filter((event) => !event.monitorId || event.monitorId === monitorId)
-            : merged;
+            ? serverEvents.filter((event) => !event.monitorId || event.monitorId === monitorId)
+            : serverEvents;
           setEvents(filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, limit));
         }
       } catch {
-        if (!cancelled) {
-          const local = loadTimelineEvents();
-          setEvents(
-            (monitorId ? local.filter((event) => event.monitorId === monitorId) : local)
-              .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-              .slice(0, limit),
-          );
-        }
+        if (!cancelled) setEvents([]);
       } finally {
         if (!cancelled) setLoading(false);
       }

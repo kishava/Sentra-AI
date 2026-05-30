@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
-import { getLatestBriefing, getSignalsForRun } from "@/lib/db/intelligence";
+import { getLatestBriefing, getLatestSignals, getSignalsForRun } from "@/lib/db/intelligence";
 import { signalStream } from "@/data/mock-intelligence";
 
 export const runtime = "nodejs";
@@ -18,6 +18,21 @@ export async function GET() {
     }
 
     const briefing = await getLatestBriefing(auth.supabase, auth.user.id);
+    const monitorSignals = await getLatestSignals(auth.supabase, auth.user.id, 50);
+
+    if (monitorSignals.length) {
+      return NextResponse.json(
+        {
+          signals: monitorSignals,
+          source: monitorSignals.some((s) => s.source.includes("bright") || s.source.includes("http"))
+            ? "live"
+            : "monitor",
+          generatedAt: new Date().toISOString(),
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
     if (!briefing) {
       return NextResponse.json(
         { signals: signalStream, source: "sample", generatedAt: new Date().toISOString() },

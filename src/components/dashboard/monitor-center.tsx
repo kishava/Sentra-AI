@@ -32,22 +32,7 @@ import { looksLikeTechnicalPayload } from "@/lib/evidence/format-evidence";
 import { ChangeDetectionPanel } from "@/components/dashboard/change-detection-panel";
 import { MonitorTimeline } from "@/components/dashboard/monitor-timeline";
 import { initializePresetDemoStorage, PRESET_DEMO_MONITOR_REQUIREMENT } from "@/lib/demo/preset-scenario";
-import { appendTimelineEvents, recordCheckComplete, recordReportGenerated, recordChangeDetected, recordSignalMatched, recordWorkflowTriggered } from "@/lib/monitor-timeline";
-import {
-  appendLiveDetectedChanges,
-  flattenMonitorSignals,
-  loadLiveDetectedChanges,
-  loadMonitorSignalsMap,
-  loadPersistedMonitors,
-  loadReportsByMonitorIdFromStorage,
-  mergeMonitorsWithLocal,
-  purgeDemoMonitorArtifacts,
-  saveMonitorSignals,
-  savePersistedMonitors,
-  saveReportForMonitor,
-} from "@/lib/monitor-workspace-storage";
-import { runChangeDetection } from "@/services/change-detection";
-import type { DetectedChange, ExecutiveIntelligenceReport, IntelligenceSignal, MonitorIntent, Severity } from "@/types/intelligence";
+import type { DetectedChange, ExecutiveIntelligenceReport, IntelligenceSignal, MonitorIntent, MonitorTimelineEvent, Severity } from "@/types/intelligence";
 import { claimStatusLabel, normalizeClaimStatus } from "@/types/intelligence";
 
 type SignalCategory = IntelligenceSignal["category"];
@@ -79,8 +64,6 @@ type SelectedReport = {
   report?: ExecutiveIntelligenceReport;
 };
 
-const STORAGE_KEY = "sentra-monitors";
-const REPORTS_STORAGE_KEY = "sentra-intelligence-reports";
 const categories: Array<"any" | SignalCategory> = [
   "any",
   "competitor",
@@ -91,18 +74,6 @@ const categories: Array<"any" | SignalCategory> = [
   "sentiment",
 ];
 const severities: Severity[] = ["low", "medium", "high", "critical"];
-
-function loadMonitors() {
-  return loadPersistedMonitors() as Monitor[];
-}
-
-function saveMonitors(monitors: Monitor[]) {
-  savePersistedMonitors(monitors);
-}
-
-function saveLocalReport(report: ExecutiveIntelligenceReport) {
-  saveReportForMonitor(report);
-}
 
 function buildLocalMonitor(input: {
   requirement: string;
@@ -166,21 +137,36 @@ export function MonitorCenter() {
   useEffect(() => {
     repairLocalStorageQuota();
     syncLocalSessionToCookie();
-    purgeDemoMonitorArtifacts();
 
-    const localMonitors = loadMonitors().filter((monitor) => monitor.requirement?.trim());
-    if (localMonitors.length) {
-      setMonitors(localMonitors);
-      setReportsByMonitor(loadReportsByMonitorIdFromStorage(localMonitors));
+    async function loadWorkspace() {
+      const localOnly = !isBrowserSupabaseConfigured();
+      if (localOnly) return;
+
+      try {
+        const response = await fetch("/api/monitors/workspace", { credentials: "include" });
+        if (response.status === 401 || response.status === 403) return;
+
+        const data = await readResponseJson<{
+          localMode?: boolean;
+          monitors?: Monitor[];
+          reportsByMonitorId?: Record<string, ExecutiveIntelligenceReport>;
+          timeline?: MonitorTimelineEvent[];
+          detectedChanges?: DetectedChange[];
+          signals?: IntelligenceSignal[];
+        }>(response);
+
+        if (data.localMode) return;
+
+        if (data.monitors?.length) setMonitors(data.monitors);
+        if (data.reportsByMonitorId) setReportsByMonitor(data.reportsByMonitorId);
+        if (data.signals?.length) setSignals(data.signals);
+        if (data.detectedChanges?.length) setDetectedChanges(data.detectedChanges);
+      } catch {
+        // Workspace load failed — user can still create monitors.
+      }
     }
 
-    const signalMap = loadMonitorSignalsMap();
-    const persistedSignals = flattenMonitorSignals(signalMap);
-    if (persistedSignals.length) {
-      setSignals(persistedSignals);
-    }
-
-    setDetectedChanges(loadLiveDetectedChanges());
+    void loadWorkspace();
   }, []);
 
   const promptSuggestions = useMemo(
@@ -196,115 +182,6 @@ export function MonitorCenter() {
   );
 
   const promptSuggestionsTitle = monitors.length > 0 ? "Based on your monitors" : "Quick examples";
-
-  useEffect(() => {
-    async function loadData() {
-      const localOnly = !isBrowserSupabaseConfigured();
-
-      try {
-        const [signalsRes, monitorsRes] = await Promise.all([
-          fetch("/api/signals"),
-          localOnly ? Promise.resolve(null) : fetch("/api/monitors"),
-        ]);
-        const signalsData = await readResponseJson<{ signals?: IntelligenceSignal[] }>(signalsRes);
-        const persistedSignals = flattenMonitorSignals(loadMonitorSignalsMap());
-        if (persistedSignals.length) {
-          setSignals(persistedSignals);
-        } else if (signalsData.signals?.length) {
-          setSignals(signalsData.signals);
-        }
-
-        if (localOnly) {
-          return;
-        }
-
-        if (!monitorsRes) return;
-
-        if (monitorsRes.status === 401 || monitorsRes.status === 403) {
-          return;
-        }
-
-        const monitorsData = await readResponseJson<{
-          monitors?: Array<{
-            id: string;
-            requirement: string;
-            category: string;
-            minimum_severity: Severity;
-            keywords: string[];
-            active: boolean;
-            last_checked_at: string | null;
-          }>;
-          localMode?: boolean;
-        }>(monitorsRes);
-
-        if (monitorsData.monitors?.length) {
-          const local = loadMonitors();
-          const mapped = mergeMonitorsWithLocal(
-            monitorsData.monitors.map((monitor) => ({
-              id: monitor.id,
-              requirement: monitor.requirement,
-              category: monitor.category as Monitor["category"],
-              minimumSeverity: monitor.minimum_severity,
-              keywords: monitor.keywords,
-              active: monitor.active,
-              createdAt: monitor.last_checked_at ?? new Date().toISOString(),
-              lastCheckedAt: monitor.last_checked_at ?? undefined,
-              alertedSignalIds: [] as string[],
-            })),
-            local,
-          ) as Monitor[];
-          setMonitors(mapped);
-          setReportsByMonitor(loadReportsByMonitorIdFromStorage(mapped));
-          if (monitorsData.localMode) saveMonitors(mapped);
-          return;
-        }
-
-        const legacy = loadMonitors();
-        if (legacy.length && !monitorsData.localMode) {
-          for (const monitor of legacy) {
-            await fetch("/api/monitors", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                requirement: monitor.requirement,
-                category: monitor.category,
-                minimumSeverity: monitor.minimumSeverity,
-                keywords: monitor.keywords,
-                active: monitor.active,
-              }),
-            });
-          }
-          window.localStorage.removeItem(STORAGE_KEY);
-          const refreshed = await fetch("/api/monitors");
-          const refreshedData = await readResponseJson<typeof monitorsData>(refreshed);
-          if (refreshedData.monitors?.length) {
-            setMonitors(
-              refreshedData.monitors.map((monitor) => ({
-                id: monitor.id,
-                requirement: monitor.requirement,
-                category: monitor.category as Monitor["category"],
-                minimumSeverity: monitor.minimum_severity,
-                keywords: monitor.keywords,
-                active: monitor.active,
-                createdAt: monitor.last_checked_at ?? new Date().toISOString(),
-                lastCheckedAt: monitor.last_checked_at ?? undefined,
-                alertedSignalIds: [],
-              })),
-            );
-          }
-          return;
-        }
-
-        if (legacy.length) {
-          setMonitors(legacy);
-        }
-      } catch {
-        setMonitors(loadMonitors());
-      }
-    }
-
-    loadData();
-  }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -329,12 +206,6 @@ export function MonitorCenter() {
     const timeout = window.setTimeout(() => setRequirement(guidePrompt), 0);
     return () => window.clearTimeout(timeout);
   }, [searchParams]);
-
-  useEffect(() => {
-    if (!monitors.length) return;
-    const timeout = window.setTimeout(() => saveMonitors(monitors), 400);
-    return () => window.clearTimeout(timeout);
-  }, [monitors]);
 
   function enrichIntent(intent: MonitorIntent, rawInput: string): MonitorIntent {
     return {
@@ -430,11 +301,9 @@ export function MonitorCenter() {
       | "lastProvider"
     >,
   ) {
-    setMonitors((current) => {
-      const next = current.map((item) => (item.id === monitorId ? { ...item, ...patch } : item));
-      saveMonitors(next);
-      return next;
-    });
+    setMonitors((current) =>
+      current.map((item) => (item.id === monitorId ? { ...item, ...patch } : item)),
+    );
   }
 
   async function openReport(monitor: Monitor, signal?: IntelligenceSignal, report?: ExecutiveIntelligenceReport) {
@@ -624,11 +493,7 @@ export function MonitorCenter() {
 
     const savedMonitor = monitor;
 
-    setMonitors((current) => {
-      const next = [savedMonitor, ...current.filter((item) => item.id !== savedMonitor.id)];
-      saveMonitors(next);
-      return next;
-    });
+    setMonitors((current) => [savedMonitor, ...current.filter((item) => item.id !== savedMonitor.id)]);
     setRequirement("");
     setMonitorIntent(null);
     toast.success("Monitor started", { description: "Running a live check…" });
@@ -679,10 +544,17 @@ export function MonitorCenter() {
       if (!response.ok) throw new Error(data.error || "Webhook delivery failed.");
       toast.success("Webhook alert delivered.");
       void sendAutomationTrigger(report, monitorId);
-      recordWorkflowTriggered({
-        monitorId,
-        monitorRequirement: report.monitorRequirement,
-        workflowType: "Slack + HubSpot",
+      void fetch("/api/timeline", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "workflow_triggered",
+          monitorId,
+          monitorRequirement: report.monitorRequirement,
+          summary: "Slack + HubSpot workflow triggered for monitor alert",
+          metadata: { workflowType: "Slack + HubSpot" },
+        }),
       });
       setTimelineKey((current) => current + 1);
     } catch (error) {
@@ -701,7 +573,7 @@ export function MonitorCenter() {
         signals?: IntelligenceSignal[];
         report?: ExecutiveIntelligenceReport;
         detectedChanges?: DetectedChange[];
-        timeline?: Parameters<typeof appendTimelineEvents>[0];
+        timeline?: MonitorTimelineEvent[];
         error?: string;
       };
 
@@ -711,17 +583,10 @@ export function MonitorCenter() {
       const monitor = data.monitor ?? bundle.monitor;
       const report = data.report ?? bundle.report;
       const changes = data.detectedChanges ?? [bundle.detectedChange];
-      const timeline = data.timeline ?? bundle.timeline;
-
-      appendTimelineEvents(timeline);
-      appendLiveDetectedChanges(changes);
-      setDetectedChanges(loadLiveDetectedChanges());
 
       setMonitors((current) => {
         const withoutDemo = current.filter((item) => item.id !== monitor.id);
-        const next = [{ ...monitor, lastCheckedAt: new Date().toISOString() }, ...withoutDemo];
-        if (!isBrowserSupabaseConfigured()) saveMonitors(next);
-        return next;
+        return [{ ...monitor, lastCheckedAt: new Date().toISOString() }, ...withoutDemo];
       });
       setSignals((current) => {
         const incoming = data.signals ?? bundle.signals;
@@ -734,7 +599,6 @@ export function MonitorCenter() {
         });
       });
       setReportsByMonitor((current) => ({ ...current, [monitor.id]: report }));
-      saveLocalReport(report);
       setDetectedChanges(changes);
       setTimelineKey((current) => current + 1);
       setRequirement(PRESET_DEMO_MONITOR_REQUIREMENT);
@@ -822,7 +686,7 @@ export function MonitorCenter() {
       const matched = data.signals ?? [];
       const topMatch = matched[0];
       const allSignals = data.analysis?.signals ?? matched;
-      const summary = data.analysis?.summary ?? data.report?.executiveSummary;
+      const summary = data.analysis?.summary ?? data.report?.situation ?? data.report?.verdict;
 
       updateMonitorCheckState(monitorId, {
         lastCheckedAt: new Date().toISOString(),
@@ -835,7 +699,6 @@ export function MonitorCenter() {
       });
 
       if (allSignals.length) {
-        saveMonitorSignals(monitorId, allSignals);
         setSignals((current) => {
           const merged = [...allSignals, ...current];
           const seen = new Set<string>();
@@ -847,65 +710,21 @@ export function MonitorCenter() {
         });
       }
 
-      const clientChanges =
-        data.evidencePreview && data.evidencePreview.length > 40
-          ? runChangeDetection({
-              monitorId,
-              evidence: data.evidencePreview,
-              targetUrl: monitor.targetUrl,
-              persistLocally: true,
-            }).changes
-          : [];
-
-      const mergedChanges = [...(data.detectedChanges ?? []), ...clientChanges].filter(
-        (change, index, all) => all.findIndex((item) => item.id === change.id) === index,
-      );
-
-      if (mergedChanges.length) {
-        appendLiveDetectedChanges(mergedChanges);
-        setDetectedChanges(loadLiveDetectedChanges());
+      if (data.detectedChanges?.length) {
+        setDetectedChanges((current) => {
+          const merged = [...data.detectedChanges!, ...current];
+          const seen = new Set<string>();
+          return merged.filter((change) => {
+            if (seen.has(change.id)) return false;
+            seen.add(change.id);
+            return true;
+          });
+        });
         setTimelineKey((current) => current + 1);
       }
 
-      recordCheckComplete({
-        monitorId,
-        monitorRequirement: monitor.requirement,
-        matchedCount: data.matchedCount ?? matched.length,
-        provider: data.provider ?? "demo",
-      });
-
-      matched.forEach((signal) => {
-        recordSignalMatched({
-          monitorId,
-          monitorRequirement: monitor.requirement,
-          signalTitle: signal.title,
-          severity: signal.severity,
-        });
-      });
-
-      mergedChanges.forEach((change) => {
-        recordChangeDetected({
-          monitorId,
-          monitorRequirement: monitor.requirement,
-          field: change.field,
-          oldValue: change.oldValue,
-          newValue: change.newValue,
-          sourceUrl: change.sourceUrl,
-          severity: change.severity,
-          changeId: change.id,
-        });
-      });
-
       if (data.report) {
         setReportsByMonitor((current) => ({ ...current, [monitorId]: data.report! }));
-        saveLocalReport(data.report);
-        recordReportGenerated({
-          monitorId,
-          monitorRequirement: monitor.requirement,
-          reportId: data.report.id,
-          verdict: data.report.verdict,
-          riskScore: data.report.riskScore,
-        });
         const displaySignal = matched[0] ?? allSignals[0];
         toast.success("Evidence-backed report ready", {
           description: data.report.verdict,
@@ -993,13 +812,20 @@ export function MonitorCenter() {
   }
 
   function toggleMonitor(id: string) {
-    setMonitors((current) => {
-      const next = current.map((monitor) =>
+    setMonitors((current) =>
+      current.map((monitor) =>
         monitor.id === id ? { ...monitor, active: !monitor.active } : monitor,
-      );
-      if (!isBrowserSupabaseConfigured()) saveMonitors(next);
-      return next;
-    });
+      ),
+    );
+    const monitor = monitors.find((item) => item.id === id);
+    if (monitor && isBrowserSupabaseConfigured()) {
+      void fetch(`/api/monitors/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !monitor.active }),
+      });
+    }
   }
 
   async function removeMonitor(id: string) {
@@ -1008,11 +834,7 @@ export function MonitorCenter() {
     } catch {
       // Still remove locally if API fails in demo mode.
     }
-    setMonitors((current) => {
-      const next = current.filter((monitor) => monitor.id !== id);
-      if (!isBrowserSupabaseConfigured()) saveMonitors(next);
-      return next;
-    });
+    setMonitors((current) => current.filter((monitor) => monitor.id !== id));
   }
 
   return (

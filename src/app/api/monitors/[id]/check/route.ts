@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/session";
-import { getMonitor } from "@/lib/db/monitors";
+import { createMonitor, getMonitor } from "@/lib/db/monitors";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { monitorCheckErrorStatus, runMonitorCheck } from "@/services/monitor-check";
@@ -37,10 +37,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const body = (await request.json().catch(() => ({}))) as LocalMonitorPayload;
     const { id } = await context.params;
+    const canPersist = Boolean(auth.supabase && !auth.localMode);
 
     let stored: Awaited<ReturnType<typeof getMonitor>> = null;
-    if (auth.supabase && !auth.localMode) {
-      stored = await getMonitor(auth.supabase, auth.user.id, id);
+    if (canPersist) {
+      stored = await getMonitor(auth.supabase!, auth.user.id, id);
     }
 
     const requirement = body.requirement?.trim() || stored?.requirement?.trim();
@@ -49,6 +50,24 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         { error: "Monitor not found. Refresh the page and try again." },
         { status: 404 },
       );
+    }
+
+    if (canPersist && !stored) {
+      try {
+        stored = await createMonitor(auth.supabase!, auth.user.id, {
+          id,
+          requirement,
+          category: body.category ?? "any",
+          minimum_severity: body.minimumSeverity ?? "medium",
+          keywords: body.keywords ?? [],
+          target_url: body.targetUrl ?? null,
+          active: true,
+          search_query: body.searchQuery?.trim() ?? null,
+          plain_summary: null,
+        });
+      } catch (error) {
+        console.warn("Monitor upsert on check skipped", error);
+      }
     }
 
     const monitor = {
@@ -61,11 +80,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     };
 
     const result = await runMonitorCheck(monitor, {
-      supabase: stored && auth.supabase ? auth.supabase : undefined,
+      supabase: canPersist ? auth.supabase! : undefined,
       userId: auth.user.id,
-      persist: Boolean(stored && auth.supabase),
+      persist: canPersist,
       workspace: body.workspace,
-      searchQuery: body.searchQuery?.trim(),
+      searchQuery: body.searchQuery?.trim() ?? stored?.search_query ?? undefined,
       targetUrl: body.targetUrl ?? monitor.target_url,
     });
 
