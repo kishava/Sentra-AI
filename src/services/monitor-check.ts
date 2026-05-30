@@ -6,6 +6,7 @@ import {
   BrightDataCollectionError,
   BrightDataNotConfiguredError,
 } from "@/lib/bright-data/config";
+import { enrichQueryWithWorkspace, type WorkspaceContext } from "@/lib/gtm/workspace-context";
 import { planGtmCollection } from "@/lib/bright-data/router";
 import { createExecutiveReport } from "@/services/intelligence-report";
 import { bundleToLegacyEvidence, collectFromPlan } from "@/services/gtm-research";
@@ -36,19 +37,25 @@ export async function runMonitorCheck(
     supabase?: SupabaseClient;
     userId?: string;
     persist?: boolean;
+    workspace?: WorkspaceContext | null;
   },
 ): Promise<MonitorCheckResult> {
+  const enrichedRequirement = enrichQueryWithWorkspace(monitor.requirement, options?.workspace);
   const plan = planGtmCollection(
     monitor.target_url
-      ? `${monitor.requirement} ${monitor.target_url}`
-      : monitor.requirement,
+      ? `${enrichedRequirement} ${monitor.target_url}`
+      : enrichedRequirement,
     { preferMcp: true },
   );
 
   const bundle = await collectFromPlan(plan, { multiSource: true });
   const webEvidence = bundleToLegacyEvidence(bundle);
 
-  const analysis = await generateEnterpriseAnalysis(monitor.requirement, webEvidence.evidence);
+  const analysis = await generateEnterpriseAnalysis(
+    enrichedRequirement,
+    webEvidence.evidence,
+    options?.workspace,
+  );
 
   let savedSignals = analysis.signals;
   if (options?.persist && options.supabase && options.userId) {

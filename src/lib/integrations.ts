@@ -21,6 +21,7 @@ import {
 } from "@/lib/bright-data/config";
 import { isBrightDataMcpEnabled } from "@/lib/bright-data/config";
 import { isSpeechmaticsConfigured } from "@/services/speechmatics-tts";
+import { isSpeechmaticsSttConfigured } from "@/services/speechmatics-stt";
 import { discoverBrightDataZones } from "@/services/bright-data";
 import {
   ensurePlatformSecrets,
@@ -94,6 +95,7 @@ export function getIntegrationStatus() {
     elevenlabs: isSpeechmaticsConfigured(),
     aimlVoice: isSpeechmaticsConfigured(),
     speechmaticsVoice: isSpeechmaticsConfigured(),
+    speechmaticsStt: isSpeechmaticsSttConfigured(),
     featherless: isFeatherlessConfigured(),
     featherlessModels: isFeatherlessConfigured()
       ? {

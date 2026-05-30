@@ -65,7 +65,8 @@ export type ChatProvider =
   | "featherless-document"
   | "featherless-document-bright-data"
   | "openai-web-search"
-  | "bright-data-openai";
+  | "bright-data-openai"
+  | "gtm-agent";
 
 export type ChatDocumentAttachment = {
   fileName: string;

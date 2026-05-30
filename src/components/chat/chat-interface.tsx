@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import { motion } from "framer-motion";
-import { Bot, FileText, Mic2, MicOff, Paperclip, Send, Sparkles, Volume2, X } from "lucide-react";
+import { Bot, FileText, Mic2, MicOff, Paperclip, Radar, Send, Sparkles, Volume2, X } from "lucide-react";
 import { toast } from "sonner";
 import { AiOrb } from "@/components/shared/ai-orb";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import { usePipelineLogs } from "@/hooks/use-pipeline-logs";
 import { useSpeechInput } from "@/hooks/use-speech-input";
 import { useTypewriter } from "@/hooks/use-typewriter";
 import { chatPipelineScript } from "@/lib/pipeline-log-scripts";
+import { getWorkspaceContext } from "@/lib/gtm/workspace-context";
 import { abortVoiceController, isAbortError } from "@/lib/voice/abort";
 import { playPipelinedVoice } from "@/lib/voice/pipelined-playback";
 import { cn } from "@/lib/utils";
@@ -92,6 +93,7 @@ export function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [useGtmAgent, setUseGtmAgent] = useState(false);
   const [liveChatReady, setLiveChatReady] = useState<boolean | null>(null);
   const [attachedDocument, setAttachedDocument] = useState<ChatDocumentEvidence | null>(null);
   const [parsingDocument, setParsingDocument] = useState(false);
@@ -290,6 +292,8 @@ export function ChatInterface() {
           threadId,
           brightData: settings.brightData,
           document: document ?? undefined,
+          workspace: getWorkspaceContext(),
+          useGtmAgent,
         }),
       });
       const data = (await response.json()) as {
@@ -461,6 +465,8 @@ export function ChatInterface() {
                                     ? "Document analysis"
                                     : message.provider === "aiml-bright-data" || message.provider === "bright-data-openai"
                                   ? "Bright Data + AIML"
+                                  : message.provider === "gtm-agent"
+                                    ? "GTM agent · MCP + AIML"
                                   : message.provider === "aiml-search"
                                     ? "AIML live search"
                                     : "Live web search"}
@@ -519,7 +525,17 @@ export function ChatInterface() {
           </div>
 
           <div className="border-t border-white/10 p-4 md:p-5">
-            <div className="mb-4 flex flex-wrap gap-2">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant={useGtmAgent ? "neon" : "ghost"}
+                size="sm"
+                className="rounded-full"
+                onClick={() => setUseGtmAgent((current) => !current)}
+              >
+                <Radar className="h-4 w-4" />
+                {useGtmAgent ? "GTM agent on" : "Run GTM agent"}
+              </Button>
               {prompts.map((prompt) => (
                 <button
                   key={prompt}

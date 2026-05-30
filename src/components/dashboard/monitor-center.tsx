@@ -12,6 +12,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { gtmMonitorTemplates } from "@/data/gtm-monitor-templates";
 import { signalStream } from "@/data/mock-intelligence";
+import { AccountContextPanel } from "@/components/gtm/account-context-panel";
+import { BattlecardAnalyzer } from "@/components/gtm/battlecard-analyzer";
+import { CrmExportButton, TriggerWareAutomationButton } from "@/components/gtm/crm-export-button";
+import { GtmResearchAgentPanel } from "@/components/gtm/gtm-research-agent-panel";
+import { getWorkspaceContext } from "@/lib/gtm/workspace-context";
 import { isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { ExecutiveIntelligenceReport, IntelligenceSignal, MonitorIntent, Severity } from "@/types/intelligence";
@@ -449,7 +454,29 @@ export function MonitorCenter() {
     }
   }
 
-  async function sendWebhookAlert(report: ExecutiveIntelligenceReport) {
+  async function sendAutomationTrigger(report: ExecutiveIntelligenceReport, monitorId?: string) {
+    const triggerUrl = window.localStorage.getItem("sentra-triggerware-webhook")?.trim();
+    if (!triggerUrl) return;
+
+    try {
+      await fetch("/api/automation/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          webhookUrl: triggerUrl,
+          event: "monitor_alert",
+          workspace: getWorkspaceContext(),
+          report,
+          requirement: report.monitorRequirement,
+          monitorId,
+        }),
+      });
+    } catch {
+      // Optional automation path — alert webhook remains primary.
+    }
+  }
+
+  async function sendWebhookAlert(report: ExecutiveIntelligenceReport, monitorId?: string) {
     const trimmed = webhookUrl.trim();
     if (!trimmed) return;
 
@@ -463,6 +490,7 @@ export function MonitorCenter() {
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(data.error || "Webhook delivery failed.");
       toast.success("Webhook alert delivered.");
+      void sendAutomationTrigger(report, monitorId);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Webhook delivery failed.");
     } finally {
@@ -490,6 +518,7 @@ export function MonitorCenter() {
                 category: monitor.category,
                 minimumSeverity: monitor.minimumSeverity,
                 keywords: monitor.keywords,
+                workspace: getWorkspaceContext(),
               },
         ),
       });
@@ -539,7 +568,7 @@ export function MonitorCenter() {
             body: `${data.report.verdict} - risk ${data.report.riskScore}%`,
           });
         }
-        void sendWebhookAlert(data.report);
+        void sendWebhookAlert(data.report, monitorId);
       }
 
       toast.message("Check complete", {
@@ -621,7 +650,21 @@ export function MonitorCenter() {
   }
 
   return (
-    <section className="mb-8 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <>
+      <section className="mb-8 grid gap-5 xl:grid-cols-2">
+        <AccountContextPanel compact />
+        <BattlecardAnalyzer compact />
+      </section>
+
+      <section className="mb-8">
+        <GtmResearchAgentPanel
+          compact
+          initialQuery={requirement}
+          onApplyRequirement={(value) => setRequirement(value)}
+        />
+      </section>
+
+    <section id="create-signal-monitor" className="mb-8 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Card className="p-5 md:p-6" glow>
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
@@ -1046,6 +1089,20 @@ export function MonitorCenter() {
                           ))}
                         </div>
                       </div>
+                      <div className="grid gap-4 border-t border-white/10 pt-5 md:grid-cols-2">
+                        <div>
+                          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">CRM export</p>
+                          <CrmExportButton report={selectedReport.report} />
+                        </div>
+                        <div>
+                          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">TriggerWare automation</p>
+                          <TriggerWareAutomationButton
+                            report={selectedReport.report}
+                            requirement={selectedReport.monitor.requirement}
+                            monitorId={selectedReport.monitor.id}
+                          />
+                        </div>
+                      </div>
                     </div>
                   ) : aiLoading ? (
                     <div className="flex h-64 items-center justify-center gap-3 text-sm text-white/60">
@@ -1071,5 +1128,6 @@ export function MonitorCenter() {
         </div>
       )}
     </section>
+    </>
   );
 }

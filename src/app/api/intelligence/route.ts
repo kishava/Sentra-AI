@@ -10,18 +10,20 @@ import {
   collectWebIntelligence,
   requiresLiveBrightData,
 } from "@/services/bright-data";
+import { enrichQueryWithWorkspace, type WorkspaceContext } from "@/lib/gtm/workspace-context";
 import { generateEnterpriseAnalysis } from "@/services/openai";
 
 export const runtime = "nodejs";
 
-async function runIntelligence(query: string, targetUrl?: string) {
+async function runIntelligence(query: string, targetUrl?: string, workspace?: WorkspaceContext | null) {
+  const enrichedQuery = enrichQueryWithWorkspace(query, workspace);
   const validated = targetUrl ? validatePublicHttpsUrl(targetUrl) : null;
   if (targetUrl && validated && !validated.ok) {
     throw new Error(validated.error);
   }
 
   const webEvidence = await collectWebIntelligence({
-    query,
+    query: enrichedQuery,
     targetUrl: validated?.ok ? validated.url : undefined,
     mode: targetUrl ? "unlocker" : "serp",
   });
@@ -32,7 +34,7 @@ async function runIntelligence(query: string, targetUrl?: string) {
       "missing_zone",
     );
   }
-  const analysis = await generateEnterpriseAnalysis(query, webEvidence.evidence);
+  const analysis = await generateEnterpriseAnalysis(enrichedQuery, webEvidence.evidence, workspace);
   return { provider: webEvidence.provider, analysis, cacheHit: webEvidence.cacheHit };
 }
 
@@ -47,10 +49,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: limited.message }, { status: 429 });
     }
 
-    const body = (await request.json()) as { query?: string; targetUrl?: string };
+    const body = (await request.json()) as { query?: string; targetUrl?: string; workspace?: WorkspaceContext };
     const query = body.query?.trim() || "Summarize enterprise market intelligence";
     const targetUrl = body.targetUrl?.trim();
-    const result = await runIntelligence(query, targetUrl);
+    const result = await runIntelligence(query, targetUrl, body.workspace);
 
     if (!auth.localMode && auth.supabase) {
       try {

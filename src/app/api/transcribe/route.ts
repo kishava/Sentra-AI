@@ -3,6 +3,7 @@ import { requireApiUser } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ensurePlatformSecrets } from "@/lib/secrets/platform-secrets";
 import { transcribeAudio } from "@/services/openai";
+import { isSpeechmaticsSttConfigured, transcribeSpeechmaticsAudio } from "@/services/speechmatics-stt";
 
 export const runtime = "nodejs";
 
@@ -31,12 +32,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Audio recording must be smaller than 25 MB" }, { status: 413 });
     }
 
-    const text = await transcribeAudio(audio, typeof context === "string" ? context.trim() : undefined);
+    const contextText = typeof context === "string" ? context.trim() : undefined;
+    let provider: "speechmatics" | "aiml" = "aiml";
+    let text: string | null = null;
+
+    if (isSpeechmaticsSttConfigured()) {
+      text = await transcribeSpeechmaticsAudio(audio, contextText);
+      if (text) provider = "speechmatics";
+    }
+
+    if (!text) {
+      text = await transcribeAudio(audio, contextText);
+      provider = "aiml";
+    }
+
     if (!text) {
       return NextResponse.json({ error: "No speech detected in the recording" }, { status: 422 });
     }
 
-    return NextResponse.json({ text });
+    return NextResponse.json({ text, provider });
   } catch (error) {
     console.error("Transcription route failed", error);
     return NextResponse.json(

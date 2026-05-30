@@ -6,6 +6,9 @@ import { DashboardBriefing } from "@/components/dashboard/dashboard-briefing";
 import { LiveSignalsPanel } from "@/components/dashboard/live-signals-panel";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { RiskHeatmap } from "@/components/dashboard/risk-heatmap";
+import { AccountContextPanel } from "@/components/gtm/account-context-panel";
+import { BattlecardAnalyzer } from "@/components/gtm/battlecard-analyzer";
+import { GtmResearchAgentPanel } from "@/components/gtm/gtm-research-agent-panel";
 import { AiOrb } from "@/components/shared/ai-orb";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -79,6 +82,15 @@ export default function DashboardPage() {
           </div>
         </Card>
         <DashboardBriefing />
+      </section>
+
+      <section className="mb-8 grid gap-5 xl:grid-cols-2">
+        <AccountContextPanel compact />
+        <BattlecardAnalyzer compact />
+      </section>
+
+      <section className="mb-8">
+        <GtmResearchAgentPanel compact />
       </section>
 
       <section className="mb-4 flex items-center justify-between gap-4">

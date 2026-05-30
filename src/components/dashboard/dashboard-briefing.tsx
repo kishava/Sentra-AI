@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DASHBOARD_SIGNALS_UPDATED_EVENT } from "@/hooks/use-dashboard-signals";
+import { getWorkspaceContext } from "@/lib/gtm/workspace-context";
 import type { IntelligenceAnalysis } from "@/types/intelligence";
 
 type BriefingState = {
@@ -51,6 +52,7 @@ export function DashboardBriefing() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: "Daily GTM intelligence briefing for my workspace",
+          workspace: getWorkspaceContext(),
         }),
       });
       const data = (await response.json()) as BriefingState & { error?: string };

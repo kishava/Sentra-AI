@@ -23,18 +23,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: limited.message }, { status: 429 });
     }
 
-    const body = (await request.json()) as { query?: string; multiSource?: boolean };
+    const body = (await request.json()) as { query?: string; multiSource?: boolean; workspace?: import("@/lib/gtm/workspace-context").WorkspaceContext };
     const query = body.query?.trim();
     if (!query) {
       return NextResponse.json({ error: "Query is required" }, { status: 400 });
     }
 
-    const bundle = await runGtmResearch(query, {
+    const enrichedQuery = body.workspace
+      ? `${query}\n\nAccount context:\n${[
+          body.workspace.companyName ? `Company: ${body.workspace.companyName}` : null,
+          body.workspace.industry ? `Industry: ${body.workspace.industry}` : null,
+          body.workspace.competitors ? `Competitors: ${body.workspace.competitors}` : null,
+          body.workspace.markets ? `Markets: ${body.workspace.markets}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n")}`
+      : query;
+
+    const bundle = await runGtmResearch(enrichedQuery, {
       preferMcp: true,
       multiSource: body.multiSource !== false,
     });
 
-    const analysis = await generateEnterpriseAnalysis(query, bundle.evidence);
+    const analysis = await generateEnterpriseAnalysis(enrichedQuery, bundle.evidence);
 
     return NextResponse.json({
       provider: bundle.provider,

@@ -51,6 +51,7 @@ export async function POST(request: Request) {
       history?: unknown;
       threadId?: string;
       document?: ChatDocumentEvidence;
+      workspace?: import("@/lib/gtm/workspace-context").WorkspaceContext;
       brightData?: {
         serp?: boolean;
         scraper?: boolean;
@@ -129,7 +130,11 @@ export async function POST(request: Request) {
       if (bundle.provider === "bright-data") {
         const legacy = bundleToLegacyEvidence(bundle);
         brightDataEvidence = legacy.evidence;
-        provider = documentEvidence ? resolveDocumentChatProvider(true) : "aiml-bright-data";
+        provider = documentEvidence
+          ? resolveDocumentChatProvider(true)
+          : body.useGtmAgent
+            ? "gtm-agent"
+            : "aiml-bright-data";
       }
     }
 
@@ -137,6 +142,7 @@ export async function POST(request: Request) {
       history: getHistory(body.history),
       brightDataEvidence,
       documentEvidence,
+      workspaceContext: body.workspace,
     });
 
     let threadId = body.threadId;
