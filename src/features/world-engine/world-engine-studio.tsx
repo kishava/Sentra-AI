@@ -672,36 +672,38 @@ export function WorldEngineStudio() {
               </Button>
             )}
           </div>
-          <div className="relative mt-4 flex flex-wrap gap-2">
-            {prompts.map((suggestion) => (
-              <button key={suggestion} type="button" onClick={() => void runWorldEngine(suggestion)} className="sentra-focus rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-xs text-white/58 transition">
-                {suggestion}
-              </button>
-            ))}
-          </div>
-          <div className="relative mt-6 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-white/38">Observed evidence and modeled forecasts are explicitly separated in each brief.</p>
-            <div className="flex flex-wrap gap-2">
+          <div className="relative mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <SuggestedPromptsMenu
+                prompts={prompts}
+                disabled={loading || !settings.analyst.worldIntelligence}
+                onSelect={(suggestion) => void runWorldEngine(suggestion)}
+              />
               {(loading || logs.length > 0) && settings.analyst.liveLogs && (
-                <Button variant="ghost" onClick={() => setLogModalOpen(true)}>
+                <Button variant="ghost" size="sm" onClick={() => setLogModalOpen(true)}>
                   <TerminalSquare className="h-4 w-4" />
                   {loading ? "Live log" : "Activity log"}
                 </Button>
               )}
               {report && (
                 <>
-                  <Button variant="ghost" onClick={() => setInsightModalOpen(true)}>
+                  <Button variant="ghost" size="sm" onClick={() => setInsightModalOpen(true)}>
                     <Eye className="h-4 w-4" /> View insight
                   </Button>
-                  <Button variant="ghost" onClick={() => downloadWorldReport(report, "markdown")}>
+                  <Button variant="ghost" size="sm" onClick={() => downloadWorldReport(report, "markdown")}>
                     <Download className="h-4 w-4" /> Download
                   </Button>
                 </>
               )}
-              <Button variant="neon" onClick={() => void runWorldEngine()} disabled={loading || !prompt.trim() || !settings.analyst.worldIntelligence}>
-                <Send className="h-4 w-4" /> {loading ? "Running…" : "Launch World Engine"}
-              </Button>
             </div>
+            <Button
+              variant="neon"
+              className="w-full shrink-0 sm:w-auto"
+              onClick={() => void runWorldEngine()}
+              disabled={loading || !prompt.trim() || !settings.analyst.worldIntelligence}
+            >
+              <Send className="h-4 w-4" /> {loading ? "Running…" : "Launch World Engine"}
+            </Button>
           </div>
         </Card>
         <Card className="flex flex-col items-center justify-center p-6 text-center" glow>
