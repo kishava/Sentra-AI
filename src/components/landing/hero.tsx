@@ -35,7 +35,7 @@ export function Hero() {
               Autonomous intelligence command center
             </Badge>
 
-            <h1 className="max-w-[16ch] text-balance font-display text-[clamp(2.35rem,3.8vw,4.5rem)] font-bold leading-[1.06] tracking-[-0.02em] text-white xl:max-w-[18ch]">
+            <h1 className="max-w-[18ch] text-balance font-display text-[clamp(2.85rem,5.2vw,5.75rem)] font-bold leading-[1.04] tracking-[-0.025em] text-white xl:max-w-[20ch]">
               <span className="premium-gradient-text">
                 Monitor competitors, verify evidence, and brief leaders automatically
               </span>
