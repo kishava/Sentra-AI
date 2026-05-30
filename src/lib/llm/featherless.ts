@@ -36,9 +36,13 @@ export function getFeatherlessVisionModel() {
   return process.env.FEATHERLESS_MODEL_VISION?.trim() || "google/gemma-3-27b-it";
 }
 
-/** Prefer Featherless for open-source agent workflows; fall back to AIML. */
+/** Prefer AIML when both are configured; invalid Featherless keys should not block briefings. */
 export function getAgentInferenceClient() {
-  return getFeatherlessClient();
+  const prefer = process.env.SENTRA_AGENT_PROVIDER?.trim().toLowerCase();
+  if (prefer === "featherless") {
+    return getFeatherlessClient() ?? getLlmClient();
+  }
+  return getLlmClient() ?? getFeatherlessClient();
 }
 
 export function getAgentInferenceModel() {

@@ -8,7 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DASHBOARD_SIGNALS_UPDATED_EVENT } from "@/hooks/use-dashboard-signals";
 import { getWorkspaceContext } from "@/lib/gtm/workspace-context";
+import { readResponseJson } from "@/lib/http/read-response-json";
+import { syncLocalSessionToCookie } from "@/lib/local-auth";
 import type { IntelligenceAnalysis } from "@/types/intelligence";
+
+function briefingErrorHint(message: string) {
+  if (/401|403|signed in|unauthorized|api.?key|authentication|inference provider/i.test(message)) {
+    return " Check AIML_API_KEY and FEATHERLESS_API_KEY in the Supabase vault (npm run secrets:sync), then restart the dev server.";
+  }
+  if (/zone|bright data/i.test(message)) {
+    return "";
+  }
+  return " Add BRIGHT_DATA_SERP_ZONE in .env.local after creating a zone in the Bright Data control panel.";
+}
 
 type BriefingState = {
   provider?: string;
@@ -26,9 +38,10 @@ export function DashboardBriefing() {
 
     void (async () => {
       try {
-        const response = await fetch("/api/intelligence");
+        syncLocalSessionToCookie();
+        const response = await fetch("/api/intelligence", { credentials: "include" });
         if (!response.ok || cancelled) return;
-        const data = (await response.json()) as BriefingState & { cached?: boolean };
+        const data = await readResponseJson<BriefingState & { cached?: boolean }>(response);
         if (data.analysis && !cancelled) {
           setBriefing({ provider: data.provider, analysis: data.analysis, source: "cached" });
         }
@@ -47,15 +60,17 @@ export function DashboardBriefing() {
     setError("");
 
     try {
+      syncLocalSessionToCookie();
       const response = await fetch("/api/intelligence", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: "Daily GTM intelligence briefing for my workspace",
           workspace: getWorkspaceContext(),
         }),
       });
-      const data = (await response.json()) as BriefingState & { error?: string };
+      const data = await readResponseJson<BriefingState & { error?: string }>(response);
 
       if (!response.ok) {
         throw new Error(data.error || "Could not refresh briefing.");
@@ -114,9 +129,7 @@ export function DashboardBriefing() {
       {error && (
         <p className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
           {error}
-          {error.includes("zone") || error.includes("Bright Data")
-            ? ""
-            : " Add BRIGHT_DATA_SERP_ZONE in .env.local after creating a zone in the Bright Data control panel."}
+          {briefingErrorHint(error)}
         </p>
       )}
 

@@ -14,6 +14,11 @@ import {
   isLlmConfigured,
 } from "@/lib/llm/client";
 import {
+  createChatCompletionWithFallback,
+  createIntentCompletionWithFallback,
+  isLlmAuthError,
+} from "@/lib/llm/inference";
+import {
   getAgentInferenceClient,
   getFeatherlessClient,
   getFeatherlessChatModel,
@@ -163,17 +168,12 @@ export async function analyzeMonitorIntent(input: string): Promise<MonitorIntent
     throw new Error("Monitor input is required.");
   }
 
-  const inference = getAgentInferenceClient() ?? getLlmClient();
-  if (!inference) {
+  if (!isLlmConfigured()) {
     return inferMonitorIntentHeuristically(trimmed);
   }
 
-  const intentModel = isFeatherlessConfigured()
-    ? getFeatherlessFastModel()
-    : getIntentModel();
-
-  const response = await createChatCompletion(inference, {
-    model: intentModel,
+  try {
+    const { response } = await createIntentCompletionWithFallback({
     temperature: 0.1,
     response_format: { type: "json_object" },
     messages: [
@@ -189,10 +189,16 @@ export async function analyzeMonitorIntent(input: string): Promise<MonitorIntent
     ],
   });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) return inferMonitorIntentHeuristically(trimmed);
+    const content = response.choices[0]?.message?.content;
+    if (!content) return inferMonitorIntentHeuristically(trimmed);
 
-  return normalizeMonitorIntent(trimmed, JSON.parse(content) as Partial<MonitorIntent>);
+    return normalizeMonitorIntent(trimmed, JSON.parse(content) as Partial<MonitorIntent>);
+  } catch (error) {
+    if (isLlmAuthError(error)) {
+      return inferMonitorIntentHeuristically(trimmed);
+    }
+    throw error;
+  }
 }
 
 export async function transcribeAudio(file: File, context?: string) {
@@ -228,32 +234,36 @@ export async function generateEnterpriseAnalysis(
   webEvidence: string,
   workspaceContext?: WorkspaceContext | null,
 ): Promise<IntelligenceAnalysis> {
-  const inference = getAgentInferenceClient() ?? getLlmClient();
-  if (!inference) {
+  if (!isLlmConfigured()) {
     return {
       ...demoAnalysis,
       summary: `${demoAnalysis.summary} Demo analysis generated for: "${query}".`,
     };
   }
 
-  const analysisModel = isFeatherlessConfigured()
-    ? getFeatherlessChatModel()
-    : getAnalysisModel();
-
   const accountBlock = formatWorkspaceContextForPrompt(workspaceContext);
 
-  const response = await createChatCompletion(inference, {
-    model: analysisModel,
-    temperature: 0.35,
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Query: ${query}${accountBlock ? `\n\nAccount context:\n${accountBlock}` : ""}\n\nBright Data evidence:\n${webEvidence}\n\nReturn JSON with keys: summary, risks, opportunities, recommendations, confidenceScore, signals.\nsignals must be an array of objects with keys: title, source, summary, category (competitor|market|risk|pricing|hiring|sentiment), severity (low|medium|high|critical), confidence (0-1), timestamp (short human string). Include 2-6 signals derived from the evidence only.`,
-      },
-    ],
-  });
+  let response;
+  try {
+    ({ response } = await createChatCompletionWithFallback({
+      temperature: 0.35,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Query: ${query}${accountBlock ? `\n\nAccount context:\n${accountBlock}` : ""}\n\nBright Data evidence:\n${webEvidence}\n\nReturn JSON with keys: summary, risks, opportunities, recommendations, confidenceScore, signals.\nsignals must be an array of objects with keys: title, source, summary, category (competitor|market|risk|pricing|hiring|sentiment), severity (low|medium|high|critical), confidence (0-1), timestamp (short human string). Include 2-6 signals derived from the evidence only.`,
+        },
+      ],
+    }));
+  } catch (error) {
+    if (isLlmAuthError(error)) {
+      throw new Error(
+        "AI provider authentication failed. Update AIML_API_KEY or FEATHERLESS_API_KEY in the Supabase vault (npm run secrets:sync), then restart the dev server.",
+      );
+    }
+    throw error;
+  }
 
   const content = response.choices[0]?.message?.content;
   if (!content) return demoAnalysis;

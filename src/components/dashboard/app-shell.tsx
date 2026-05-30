@@ -20,7 +20,7 @@ import { LocalDevBanner } from "@/components/shared/local-dev-banner";
 import { ParticleField } from "@/components/shared/particle-field";
 import { NewUserGuideModal } from "@/components/dashboard/new-user-guide-modal";
 import { UserMenu } from "@/components/dashboard/user-menu";
-import { getLocalSession, repairLocalSessionFromCookie, repairLocalStorageQuota } from "@/lib/local-auth";
+import { getLocalSession, repairLocalSessionFromCookie, repairLocalStorageQuota, syncLocalSessionToCookie } from "@/lib/local-auth";
 import { isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     repairLocalStorageQuota();
     repairLocalSessionFromCookie();
+    syncLocalSessionToCookie();
   }, []);
 
   useEffect(() => {
