@@ -2,6 +2,9 @@
   "name": "sentra-ai",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev -p 3001",
     "dev:turbo": "next dev --turbopack -p 3001",
@@ -18,7 +21,8 @@
     "secrets:restore": "node scripts/restore-vault-now.mjs",
     "secrets:patch-missing": "node scripts/patch-vault-missing.mjs",
     "secrets:rotate": "node scripts/rotate-platform-secret.mjs",
-    "secrets:verify": "node scripts/verify-vault.mjs"
+    "secrets:verify": "node scripts/verify-vault.mjs",
+    "deploy:cf-cron": "npm run deploy --prefix cloudflare/cron-worker"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -40,12 +44,15 @@
     "pdf-parse": "^2.4.5",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-is": "^19.1.0",
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "@netlify/functions": "^5.1.0",
+    "@netlify/plugin-nextjs": "^5.15.8"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",

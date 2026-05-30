@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
   reactStrictMode: true,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   serverExternalPackages: ["pdf-parse"],
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts"],

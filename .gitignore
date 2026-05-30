@@ -25,4 +25,5 @@ next-dev*.log
 *.pem
 scripts/restore-vault-now.mjs
 *.mjs
+!netlify/functions/*.mjs
 /scripts

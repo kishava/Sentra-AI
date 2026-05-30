@@ -1,0 +1,11 @@
+# Sentra monitor cron — Cloudflare Worker (optional; use when app is NOT on Vercel/Netlify cron)
+# Deploy: cd cloudflare/cron-worker && npx wrangler deploy
+# Secrets: npx wrangler secret put CRON_SECRET
+#          npx wrangler secret put SENTRA_APP_URL   (e.g. https://your-app.netlify.app)
+
+name = "sentra-monitor-cron"
+main = "src/index.js"
+compatibility_date = "2024-08-01"
+
+[triggers]
+crons = ["*/30 * * * *"]
