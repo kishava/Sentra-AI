@@ -176,6 +176,13 @@ export function signOutLocalAccount() {
 }
 
 /** Restore localStorage from the session cookie when storage was cleared. */
+/** Ensure the HTTP-only-visible session cookie matches localStorage (fixes API 401s). */
+export function syncLocalSessionToCookie() {
+  if (typeof window === "undefined") return;
+  const session = getLocalSession();
+  if (session) writeSessionCookie(session);
+}
+
 export function repairLocalSessionFromCookie() {
   if (typeof window === "undefined") return;
   if (getLocalSession()) return;

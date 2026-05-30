@@ -58,10 +58,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       };
     } else {
       const stored = await getMonitor(auth.supabase, auth.user.id, id);
-      if (!stored) {
+      if (stored) {
+        monitor = stored;
+      } else if (body.requirement?.trim()) {
+        monitor = {
+          id,
+          requirement: body.requirement.trim(),
+          category: body.category ?? "any",
+          minimum_severity: body.minimumSeverity ?? "medium",
+          keywords: body.keywords ?? [],
+          target_url: body.targetUrl ?? null,
+        };
+      } else {
         return NextResponse.json({ error: "Monitor not found." }, { status: 404 });
       }
-      monitor = stored;
     }
 
     const result = await runMonitorCheck(monitor, {

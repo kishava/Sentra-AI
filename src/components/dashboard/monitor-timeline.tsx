@@ -54,10 +54,10 @@ export function MonitorTimeline({ monitorId, limit = 12, className }: MonitorTim
 
     async function load() {
       try {
-        const response = await fetch("/api/timeline");
+        const response = await fetch("/api/timeline", { credentials: "include" });
         const data = (await response.json()) as { events?: MonitorTimelineEvent[] };
         if (!cancelled) {
-          const serverEvents = data.events ?? [];
+          const serverEvents = response.ok ? data.events ?? [] : [];
           const localEvents = loadTimelineEvents();
           const merged = [...serverEvents, ...localEvents].filter(
             (event, index, all) => all.findIndex((item) => item.id === event.id) === index,

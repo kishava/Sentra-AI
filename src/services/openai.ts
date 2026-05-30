@@ -135,6 +135,7 @@ function normalizeMonitorIntent(input: string, parsed: Partial<MonitorIntent>): 
     minimumSeverity,
     keywords,
     rationale: parsed.rationale?.trim() || "Sentra inferred the monitor intent from the user input.",
+    plainSummary: parsed.plainSummary?.trim(),
     confidence:
       typeof parsed.confidence === "number" && Number.isFinite(parsed.confidence)
         ? Math.min(Math.max(parsed.confidence, 0), 1)
@@ -183,7 +184,7 @@ export async function analyzeMonitorIntent(input: string): Promise<MonitorIntent
       },
       {
         role: "user",
-        content: `Input: ${trimmed}\n\nReturn JSON with keys: normalizedRequirement, category, minimumSeverity, keywords, rationale, confidence.\ncategory must be one of: any, competitor, market, risk, pricing, hiring, sentiment.\nminimumSeverity must be one of: low, medium, high, critical.\nkeywords must be short tokens or phrases that should match future signals.`,
+        content: `Input: ${trimmed}\n\nReturn JSON with keys: normalizedRequirement, category, minimumSeverity, keywords, rationale, plainSummary, confidence.\nplainSummary must be one friendly sentence explaining what Sentra will watch (no jargon).\ncategory must be one of: any, competitor, market, risk, pricing, hiring, sentiment.\nminimumSeverity must be one of: low, medium, high, critical.\nkeywords must be short tokens or phrases that should match future signals.`,
       },
     ],
   });

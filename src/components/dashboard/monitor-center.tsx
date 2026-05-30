@@ -15,6 +15,12 @@ import { getWorkspaceContext } from "@/lib/gtm/workspace-context";
 import { useWorkspaceSession } from "@/lib/hooks/use-workspace-session";
 import { inferMonitorIntentHeuristically } from "@/lib/monitor-intent-heuristic";
 import { signInFor } from "@/lib/landing/auth-links";
+import {
+  buildPersonalizedSuggestions,
+  plainEnglishMonitorSummary,
+  recordMonitorHistory,
+} from "@/lib/monitor-history";
+import { repairLocalStorageQuota, syncLocalSessionToCookie } from "@/lib/local-auth";
 import { MonitorPromptField } from "@/components/dashboard/monitor-prompt-field";
 import { getAlertWebhookUrl, getAutomationWebhookUrl, saveAlertWebhookUrl, saveAutomationWebhookUrl } from "@/lib/webhooks";
 import { WorkspaceSection } from "@/components/workspace/workspace-page";
@@ -172,6 +178,18 @@ export function MonitorCenter() {
   );
 
   useEffect(() => {
+    repairLocalStorageQuota();
+    syncLocalSessionToCookie();
+  }, []);
+
+  const promptSuggestions = useMemo(
+    () => buildPersonalizedSuggestions(monitors.map((m) => ({ requirement: m.requirement, category: m.category, createdAt: m.createdAt }))),
+    [monitors],
+  );
+
+  const promptSuggestionsTitle = monitors.length > 0 ? "Based on your monitors" : "Quick examples";
+
+  useEffect(() => {
     async function loadData() {
       const localOnly = !isBrowserSupabaseConfigured();
 
@@ -297,11 +315,24 @@ export function MonitorCenter() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!isBrowserSupabaseConfigured() && monitors.length) {
-      const timeout = window.setTimeout(() => saveMonitors(monitors), 400);
-      return () => window.clearTimeout(timeout);
-    }
+    if (!monitors.length) return;
+    const timeout = window.setTimeout(() => saveMonitors(monitors), 400);
+    return () => window.clearTimeout(timeout);
   }, [monitors]);
+
+  function enrichIntent(intent: MonitorIntent, rawInput: string): MonitorIntent {
+    return {
+      ...intent,
+      plainSummary:
+        intent.plainSummary ??
+        plainEnglishMonitorSummary({
+          requirement: rawInput,
+          normalizedRequirement: intent.normalizedRequirement,
+          category: intent.category,
+          minimumSeverity: intent.minimumSeverity,
+        }),
+    };
+  }
 
   useEffect(() => {
     const input = requirement.trim();
@@ -332,7 +363,7 @@ export function MonitorCenter() {
         const data = (await response.json()) as { intent?: MonitorIntent; error?: string };
 
         if (response.status === 401 || response.status === 403 || !response.ok) {
-          const local = inferMonitorIntentHeuristically(input);
+          const local = enrichIntent(inferMonitorIntentHeuristically(input), input);
           setMonitorIntent(local);
           setCategory(local.category);
           setMinimumSeverity(local.minimumSeverity);
@@ -344,12 +375,13 @@ export function MonitorCenter() {
           throw new Error(data.error || "Sentra could not understand this monitor yet.");
         }
 
-        setMonitorIntent(data.intent);
-        setCategory(data.intent.category);
-        setMinimumSeverity(data.intent.minimumSeverity);
+        const intent = enrichIntent(data.intent, input);
+        setMonitorIntent(intent);
+        setCategory(intent.category);
+        setMinimumSeverity(intent.minimumSeverity);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        const local = inferMonitorIntentHeuristically(input);
+        const local = enrichIntent(inferMonitorIntentHeuristically(input), input);
         setMonitorIntent(local);
         setCategory(local.category);
         setMinimumSeverity(local.minimumSeverity);
@@ -528,6 +560,8 @@ export function MonitorCenter() {
 
     if (!monitor) return;
 
+    recordMonitorHistory({ requirement: monitor.requirement, category: monitor.category });
+
     setMonitors((current) => {
       const next = [monitor!, ...current.filter((item) => item.id !== monitor!.id)];
       saveMonitors(next);
@@ -658,17 +692,28 @@ export function MonitorCenter() {
 
     setCheckingId(monitorId);
     try {
-      const response = await fetch(`/api/monitors/${monitorId}/check`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requirement: monitor.requirement,
-          category: monitor.category,
-          minimumSeverity: monitor.minimumSeverity,
-          keywords: monitor.keywords ?? [],
-          workspace: getWorkspaceContext(),
-        }),
-      });
+      syncLocalSessionToCookie();
+
+      const runCheck = () =>
+        fetch(`/api/monitors/${monitorId}/check`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            requirement: monitor.requirement,
+            category: monitor.category,
+            minimumSeverity: monitor.minimumSeverity,
+            keywords: monitor.keywords ?? [],
+            workspace: getWorkspaceContext(),
+          }),
+        });
+
+      let response = await runCheck();
+      if (response.status === 401 || response.status === 403) {
+        syncLocalSessionToCookie();
+        response = await runCheck();
+      }
+
       const data = (await response.json()) as {
         signals?: IntelligenceSignal[];
         provider?: string;
@@ -679,6 +724,12 @@ export function MonitorCenter() {
       };
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          toast.error("Sign in required for live checks.", {
+            action: { label: "Sign in", onClick: () => router.push(signInFor("/alerts")) },
+          });
+          return;
+        }
         throw new Error(data.error || "Check failed.");
       }
 
@@ -839,6 +890,8 @@ export function MonitorCenter() {
             <MonitorPromptField
               value={requirement}
               onChange={setRequirement}
+              suggestions={promptSuggestions}
+              suggestionsTitle={promptSuggestionsTitle}
               onPickSuggestion={(selection) => {
                 setRequirement(selection.requirement);
                 if (selection.category) {
@@ -848,17 +901,34 @@ export function MonitorCenter() {
             />
 
             {(intentLoading || monitorIntent) && (
-              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-cyan-200/15 bg-cyan-300/5 px-3 py-2.5 text-sm">
-                <Sparkles className={cn("h-4 w-4 shrink-0 text-sentra-cyan", intentLoading && "animate-pulse")} />
-                {intentLoading ? (
-                  <span className="text-white/50">Understanding your monitor…</span>
-                ) : monitorIntent ? (
-                  <>
-                    <Badge variant="cyan">{monitorIntent.category}</Badge>
-                    <Badge variant="risk">{monitorIntent.minimumSeverity}+</Badge>
-                    <span className="text-white/55">AI interpreted — adjust below if needed</span>
-                  </>
-                ) : null}
+              <div className="rounded-xl border border-cyan-200/15 bg-cyan-300/5 px-4 py-3 text-sm">
+                <div className="flex items-start gap-2">
+                  <Sparkles className={cn("mt-0.5 h-4 w-4 shrink-0 text-sentra-cyan", intentLoading && "animate-pulse")} />
+                  <div className="min-w-0 space-y-2">
+                    {intentLoading ? (
+                      <p className="text-white/50">Sentra is understanding what you want to watch…</p>
+                    ) : monitorIntent ? (
+                      <>
+                        <p className="leading-6 text-white/75">
+                          {monitorIntent.plainSummary ??
+                            plainEnglishMonitorSummary({
+                              requirement,
+                              normalizedRequirement: monitorIntent.normalizedRequirement,
+                              category: monitorIntent.category,
+                              minimumSeverity: monitorIntent.minimumSeverity,
+                            })}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="cyan">{monitorIntent.category}</Badge>
+                          <Badge variant="risk">{monitorIntent.minimumSeverity}+ priority</Badge>
+                          {monitorIntent.provider !== "heuristic" && (
+                            <Badge variant="success">AI understood</Badge>
+                          )}
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             )}
 

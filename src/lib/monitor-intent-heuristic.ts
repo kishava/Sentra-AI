@@ -1,3 +1,4 @@
+import { plainEnglishMonitorSummary } from "@/lib/monitor-history";
 import type { MonitorIntent, Severity } from "@/types/intelligence";
 
 /** Client-safe fallback when monitor-intent API is unavailable. */
@@ -32,12 +33,19 @@ export function inferMonitorIntentHeuristically(input: string): MonitorIntent {
     ),
   );
 
+  const normalizedRequirement = input.trim();
   return {
-    normalizedRequirement: input.trim(),
+    normalizedRequirement,
     category,
     minimumSeverity,
     keywords,
     rationale: "Interpreted from your wording — adjust category below if needed.",
+    plainSummary: plainEnglishMonitorSummary({
+      requirement: input,
+      normalizedRequirement,
+      category,
+      minimumSeverity,
+    }),
     confidence: 0.58,
     provider: "heuristic",
   };

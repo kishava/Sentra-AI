@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
 
   const { supabaseResponse, user } = await updateSession(request);
 
-  if (isProtectedPath(pathname) && !user) {
+  if (isProtectedPath(pathname) && !user && !hasLocalSession(request)) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/sign-in";
     redirectUrl.search = "";

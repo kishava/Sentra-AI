@@ -7,7 +7,9 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const auth = await requireApiUser();
-    if ("error" in auth) return auth.error;
+    if ("error" in auth) {
+      return NextResponse.json({ events: [] });
+    }
 
     const timeline = getTimelineForApi(auth.user.id);
     return NextResponse.json({ events: timeline });

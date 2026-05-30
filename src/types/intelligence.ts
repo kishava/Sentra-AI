@@ -184,6 +184,8 @@ export type MonitorIntent = {
   minimumSeverity: Severity;
   keywords: string[];
   rationale: string;
+  /** One sentence, plain-language explanation for the user */
+  plainSummary?: string;
   confidence: number;
   provider: "aiml" | "featherless" | "openai" | "heuristic";
 };
