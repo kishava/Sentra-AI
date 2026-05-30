@@ -173,7 +173,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearAnalysisHistory = useCallback(() => {
-    ["sentra-image-investigations", "sentra-face-intelligence"].forEach((key) => window.localStorage.removeItem(key));
+    void import("@/lib/history/workspace-history").then(({ clearWorkspaceHistory }) => clearWorkspaceHistory());
   }, []);
 
   const exportSettings = useCallback(() => {
@@ -181,8 +181,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       settings,
       exportedAt: new Date().toISOString(),
       histories: {
-        imageInvestigations: window.localStorage.getItem("sentra-image-investigations"),
-        faceIntelligence: window.localStorage.getItem("sentra-face-intelligence"),
+        workspaceHistory: window.localStorage.getItem("sentra-workspace-history"),
       },
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });

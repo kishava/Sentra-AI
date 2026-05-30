@@ -34,6 +34,7 @@ import { LiveAgentLogs } from "@/features/activity-console/ai-activity-console";
 import { investigationPrompts, investigationTimeline } from "@/features/image-intelligence/constants";
 import { InvestigationResults } from "@/features/image-intelligence/investigation-results";
 import { usePipelineLogs } from "@/hooks/use-pipeline-logs";
+import { listWorkspaceHistory, recordImageForensicsHistory } from "@/lib/history/workspace-history";
 import { visionPipelineScript } from "@/lib/pipeline-log-scripts";
 import { speakWithBrowser } from "@/lib/voice/browser-tts";
 import { cn } from "@/lib/utils";
@@ -41,7 +42,6 @@ import { useSettings } from "@/settings/settings-context";
 import type { ImageInvestigationReport } from "@/types/image-intelligence";
 
 type EvidenceImage = { file: File; url: string };
-const historyKey = "sentra-image-investigations";
 const accept = ["image/png", "image/jpeg", "image/webp"];
 
 function EvidencePreview({
@@ -178,15 +178,10 @@ export function InvestigationStudio() {
   });
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(historyKey);
-      if (saved) {
-        const persisted = JSON.parse(saved) as ImageInvestigationReport[];
-        queueMicrotask(() => setHistory(persisted));
-      }
-    } catch {
-      window.localStorage.removeItem(historyKey);
-    }
+    const persisted = listWorkspaceHistory().flatMap((entry) =>
+      entry.payload.kind === "image_forensics" ? [entry.payload.report] : [],
+    );
+    if (persisted.length) queueMicrotask(() => setHistory(persisted));
   }, []);
 
   useEffect(() => () => {
@@ -271,11 +266,10 @@ export function InvestigationStudio() {
       setReport(data.report);
       resetVoicePlayback();
       setActiveStep(investigationTimeline.length);
-      setHistory((current) => {
-        const next = [data.report!, ...current.filter((entry) => entry.id !== data.report!.id)].slice(0, 8);
-        window.localStorage.setItem(historyKey, JSON.stringify(next));
-        return next;
-      });
+      recordImageForensicsHistory(data.report);
+      setHistory((current) =>
+        [data.report!, ...current.filter((entry) => entry.id !== data.report!.id)].slice(0, 8),
+      );
       if (settings.privacy.clearUploadsAfterAnalysis) {
         if (primary) URL.revokeObjectURL(primary.url);
         if (comparison) URL.revokeObjectURL(comparison.url);
@@ -616,7 +610,9 @@ export function InvestigationStudio() {
                 ))}
               </div>
             ) : (
-              <p className="mt-4 rounded-2xl border border-dashed border-white/10 p-4 text-xs leading-5 text-white/42">Completed investigation reports will be stored on this device.</p>
+              <p className="mt-4 rounded-2xl border border-dashed border-white/10 p-4 text-xs leading-5 text-white/42">
+                Completed runs are saved automatically. Open History to review every visual forensics analysis.
+              </p>
             )}
           </Card>
         </aside>

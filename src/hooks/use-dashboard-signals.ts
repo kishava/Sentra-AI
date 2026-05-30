@@ -36,27 +36,16 @@ function readSessionSnapshot() {
   }
 }
 
-function initialSnapshot(): DashboardSignalSnapshot {
-  if (typeof window === "undefined") {
-    return {
-      signals: [],
-      source: "sample",
-      loading: true,
-      lastUpdated: null,
-    };
-  }
-
-  const cached = readSessionSnapshot();
-  return {
-    signals: cached?.signals ?? [],
-    source: cached?.source ?? "sample",
-    loading: !cached?.signals?.length,
-    lastUpdated: cached?.generatedAt ? resolvedDate(cached.generatedAt) : null,
-  };
-}
+/** Same on server and first client paint — session cache applied after mount. */
+const INITIAL_SNAPSHOT: DashboardSignalSnapshot = {
+  signals: [],
+  source: "sample",
+  loading: true,
+  lastUpdated: null,
+};
 
 export function useDashboardSignals(refreshInterval = 60000) {
-  const [snapshot, setSnapshot] = useState<DashboardSignalSnapshot>(initialSnapshot);
+  const [snapshot, setSnapshot] = useState<DashboardSignalSnapshot>(INITIAL_SNAPSHOT);
 
   const refresh = useCallback(async () => {
     try {
@@ -78,6 +67,16 @@ export function useDashboardSignals(refreshInterval = 60000) {
   }, []);
 
   useEffect(() => {
+    const cached = readSessionSnapshot();
+    if (cached?.signals?.length) {
+      setSnapshot({
+        signals: cached.signals ?? [],
+        source: cached.source ?? "sample",
+        loading: false,
+        lastUpdated: cached.generatedAt ? resolvedDate(cached.generatedAt) : null,
+      });
+    }
+
     const initialRefresh = window.setTimeout(() => void refresh(), 0);
 
     const interval = window.setInterval(() => {

@@ -28,7 +28,7 @@ const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "Intelligence", icon: Bot },
   { href: "/alerts", label: "Monitors", icon: Radar },
-  { href: "/reports", label: "Reports", icon: FileCheck2 },
+  { href: "/reports", label: "History", icon: FileCheck2 },
   { href: "/analyst", label: "Analyst", icon: ScanSearch },
   { href: "/workspace/services", label: "Services", icon: BriefcaseBusiness },
   { href: "/settings", label: "Settings", icon: Settings },

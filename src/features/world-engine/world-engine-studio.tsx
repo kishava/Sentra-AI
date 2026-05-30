@@ -42,6 +42,7 @@ import { speakWithBrowser } from "@/lib/voice/browser-tts";
 import { streamWorldActivity } from "@/services/activity-stream-client";
 import { useSettings } from "@/settings/settings-context";
 import type { ActivityCategory, ActivityLevel, ActivityLog, CollectionSource, PipelineHealth } from "@/types/activity-console";
+import { recordWorldEngineHistory } from "@/lib/history/workspace-history";
 import type { WorldDomain, WorldEngineReport, WorldMapSignal } from "@/types/world-engine";
 import {
   ForecastEngine,
@@ -501,6 +502,7 @@ export function WorldEngineStudio() {
         if (event.type === "thought") setThoughts((current) => [...current, event.thought]);
         if (event.type === "report") {
           setReport(event.report);
+          recordWorldEngineHistory(event.report);
           setSelectedSignal(event.report.signals[0]);
           setDomain("all");
         }

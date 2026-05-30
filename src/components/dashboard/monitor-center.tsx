@@ -32,6 +32,7 @@ import { looksLikeTechnicalPayload } from "@/lib/evidence/format-evidence";
 import { ChangeDetectionPanel } from "@/components/dashboard/change-detection-panel";
 import { MonitorTimeline } from "@/components/dashboard/monitor-timeline";
 import { initializePresetDemoStorage, PRESET_DEMO_MONITOR_REQUIREMENT } from "@/lib/demo/preset-scenario";
+import { recordMonitorReportHistory } from "@/lib/history/workspace-history";
 import type { DetectedChange, ExecutiveIntelligenceReport, IntelligenceSignal, MonitorIntent, MonitorTimelineEvent, Severity } from "@/types/intelligence";
 import { claimStatusLabel, normalizeClaimStatus } from "@/types/intelligence";
 
@@ -599,6 +600,7 @@ export function MonitorCenter() {
         });
       });
       setReportsByMonitor((current) => ({ ...current, [monitor.id]: report }));
+      recordMonitorReportHistory(report, monitor.id);
       setDetectedChanges(changes);
       setTimelineKey((current) => current + 1);
       setRequirement(PRESET_DEMO_MONITOR_REQUIREMENT);
@@ -724,6 +726,13 @@ export function MonitorCenter() {
       }
 
       if (data.report) {
+        recordMonitorReportHistory(data.report, monitorId);
+        void fetch("/api/history", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ report: data.report, monitorId }),
+        });
         setReportsByMonitor((current) => ({ ...current, [monitorId]: data.report! }));
         const displaySignal = matched[0] ?? allSignals[0];
         toast.success("Evidence-backed report ready", {

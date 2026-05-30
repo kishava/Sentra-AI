@@ -35,8 +35,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { listWorkspaceHistory, recordFaceIntelligenceHistory } from "@/lib/history/workspace-history";
 import { cn } from "@/lib/utils";
 import { useSettings } from "@/settings/settings-context";
+import type { FaceIntelligenceReport } from "@/types/workspace-history";
 
 type EvidenceImage = { file: File; url: string; width?: number; height?: number };
 type FaceBox = { x: number; y: number; width: number; height: number };
@@ -97,7 +99,6 @@ type FaceDetectorLike = {
 };
 type FaceDetectorCtor = new (options?: { fastMode?: boolean; maxDetectedFaces?: number }) => FaceDetectorLike;
 
-const historyKey = "sentra-face-intelligence";
 const accept = ["image/png", "image/jpeg", "image/webp"];
 const logScript = [
   ["FACE", "Detecting facial landmarks..."],
@@ -444,12 +445,10 @@ export function FaceIntelligenceStudio() {
   const secondaryInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(historyKey);
-      if (saved) queueMicrotask(() => setHistory(JSON.parse(saved) as FaceReport[]));
-    } catch {
-      window.localStorage.removeItem(historyKey);
-    }
+    const persisted = listWorkspaceHistory().flatMap((entry) =>
+      entry.payload.kind === "face_intelligence" ? [entry.payload.report as FaceReport] : [],
+    );
+    if (persisted.length) queueMicrotask(() => setHistory(persisted));
   }, []);
 
   useEffect(() => () => {
@@ -481,11 +480,8 @@ export function FaceIntelligenceStudio() {
       if (target === "primary") {
         setPrimary(settings.privacy.clearUploadsAfterAnalysis ? null : result.evidence);
         setReport(result.report);
-        setHistory((current) => {
-          const next = [result.report, ...current].slice(0, 8);
-          window.localStorage.setItem(historyKey, JSON.stringify(next));
-          return next;
-        });
+        recordFaceIntelligenceHistory(result.report as FaceIntelligenceReport);
+        setHistory((current) => [result.report, ...current].slice(0, 8));
         if (settings.privacy.clearUploadsAfterAnalysis) URL.revokeObjectURL(result.evidence.url);
       } else {
         setSecondary(settings.privacy.clearUploadsAfterAnalysis ? null : result.evidence);

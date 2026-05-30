@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DASHBOARD_SIGNALS_UPDATED_EVENT } from "@/hooks/use-dashboard-signals";
+import { recordGtmBriefingHistory } from "@/lib/history/workspace-history";
 import { getWorkspaceContext } from "@/lib/gtm/workspace-context";
 import { readResponseJson } from "@/lib/http/read-response-json";
 import { syncLocalSessionToCookie } from "@/lib/local-auth";
@@ -77,6 +78,9 @@ export function DashboardBriefing() {
       }
 
       setBriefing({ provider: data.provider, analysis: data.analysis, source: "live" });
+      if (data.analysis) {
+        recordGtmBriefingHistory("Daily GTM intelligence briefing for my workspace", data.analysis, data.provider);
+      }
       window.dispatchEvent(
         new CustomEvent(DASHBOARD_SIGNALS_UPDATED_EVENT, {
           detail: {
