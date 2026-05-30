@@ -40,8 +40,16 @@ export async function getSessionUser() {
   }
 
   const {
-    data: { user },
+    data: { user: userFromGetUser },
   } = await supabase.auth.getUser();
+
+  let user = userFromGetUser;
+  if (!user) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    user = session?.user ?? null;
+  }
 
   return {
     user,

@@ -44,6 +44,9 @@ type Monitor = {
   active: boolean;
   createdAt: string;
   lastCheckedAt?: string;
+  lastMatchedCount?: number;
+  lastMatchTitle?: string;
+  lastProvider?: string;
   keywords?: string[];
   alertedSignalIds: string[];
 };
@@ -56,12 +59,6 @@ type SelectedReport = {
 
 const STORAGE_KEY = "sentra-monitors";
 const REPORTS_STORAGE_KEY = "sentra-intelligence-reports";
-const severityRank: Record<Severity, number> = {
-  low: 1,
-  medium: 2,
-  high: 3,
-  critical: 4,
-};
 const categories: Array<"any" | SignalCategory> = [
   "any",
   "competitor",
@@ -98,29 +95,6 @@ function saveLocalReport(report: ExecutiveIntelligenceReport) {
   } catch {
     window.localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify([report]));
   }
-}
-
-function tokenize(value: string) {
-  return value
-    .toLowerCase()
-    .split(/[^a-z0-9]+/i)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 3);
-}
-
-function matchesRequirement(monitor: Monitor, signal: IntelligenceSignal) {
-  if (monitor.category !== "any" && signal.category !== monitor.category) return false;
-  if (severityRank[signal.severity] < severityRank[monitor.minimumSeverity]) return false;
-
-  const requirementTokens = monitor.keywords?.length ? monitor.keywords : tokenize(monitor.requirement);
-  if (!requirementTokens.length) return false;
-
-  const haystack = `${signal.title} ${signal.summary} ${signal.source} ${signal.category}`.toLowerCase();
-  return requirementTokens.some((token) => haystack.includes(token));
-}
-
-function getMatches(monitor: Monitor, signals: IntelligenceSignal[]) {
-  return signals.filter((signal) => matchesRequirement(monitor, signal));
 }
 
 function buildLocalMonitor(input: {
@@ -399,15 +373,18 @@ export function MonitorCenter() {
     };
   }, [requirement]);
 
-  const monitorSummaries = useMemo(
-    () =>
-      monitors.map((monitor) => ({
-        monitor,
-        matches: getMatches(monitor, signals),
-      })),
-    [monitors, signals],
-  );
   const activeMonitorCount = monitors.filter((monitor) => monitor.active).length;
+
+  function updateMonitorCheckState(
+    monitorId: string,
+    patch: Pick<Monitor, "lastCheckedAt" | "lastMatchedCount" | "lastMatchTitle" | "lastProvider">,
+  ) {
+    setMonitors((current) => {
+      const next = current.map((item) => (item.id === monitorId ? { ...item, ...patch } : item));
+      saveMonitors(next);
+      return next;
+    });
+  }
 
   async function openReport(monitor: Monitor, signal?: IntelligenceSignal, report?: ExecutiveIntelligenceReport) {
     aiAbortRef.current?.abort();
@@ -725,17 +702,31 @@ export function MonitorCenter() {
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          toast.error("Sign in required for live checks.", {
+          toast.error("Session expired — sign in again to run live checks.", {
             action: { label: "Sign in", onClick: () => router.push(signInFor("/alerts")) },
           });
+          return;
+        }
+        if (response.status === 404) {
+          toast.error(data.error || "Monitor not found — refresh and try again.");
           return;
         }
         throw new Error(data.error || "Check failed.");
       }
 
-      if (data.signals?.length) {
+      const matched = data.signals ?? [];
+      const topMatch = matched[0];
+
+      updateMonitorCheckState(monitorId, {
+        lastCheckedAt: new Date().toISOString(),
+        lastMatchedCount: data.matchedCount ?? matched.length,
+        lastMatchTitle: topMatch?.title,
+        lastProvider: data.provider,
+      });
+
+      if (matched.length) {
         setSignals((current) => {
-          const merged = [...data.signals!, ...current];
+          const merged = [...matched, ...current];
           const seen = new Set<string>();
           return merged.filter((signal) => {
             if (seen.has(signal.id)) return false;
@@ -760,7 +751,6 @@ export function MonitorCenter() {
         setTimelineKey((current) => current + 1);
       }
 
-      const matched = data.signals ?? [];
       if (data.report) {
         setReportsByMonitor((current) => ({ ...current, [monitorId]: data.report! }));
         saveLocalReport(data.report);
@@ -799,13 +789,15 @@ export function MonitorCenter() {
         });
       }
 
-      setMonitors((current) =>
-        current.map((item) =>
-          item.id === monitorId ? { ...item, lastCheckedAt: new Date().toISOString() } : item,
-        ),
-      );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Check failed.");
+      const message = error instanceof Error ? error.message : "Check failed.";
+      if (/401|403|signed in|unauthorized/i.test(message)) {
+        toast.error("Session expired — sign in again to run live checks.", {
+          action: { label: "Sign in", onClick: () => router.push(signInFor("/alerts")) },
+        });
+        return;
+      }
+      toast.error(message);
     } finally {
       setCheckingId(null);
     }
@@ -1046,10 +1038,17 @@ export function MonitorCenter() {
           </div>
         </Card>
 
-        {monitorSummaries.length > 0 && (
+        {monitors.length > 0 && (
           <div className="mt-6 grid gap-3">
             <h3 className="text-lg font-semibold text-white">Your monitors</h3>
-            {monitorSummaries.map(({ monitor, matches }) => (
+            {monitors.map((monitor) => {
+              const report = reportsByMonitor[monitor.id];
+              const matchCount = monitor.lastMatchedCount ?? 0;
+              const lastChecked = monitor.lastCheckedAt
+                ? new Date(monitor.lastCheckedAt).toLocaleString()
+                : null;
+
+              return (
               <Card key={monitor.id} className="p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
@@ -1058,18 +1057,30 @@ export function MonitorCenter() {
                         {monitor.active ? "Active" : "Paused"}
                       </Badge>
                       <span className="text-xs text-white/40">
-                        {matches.length} match{matches.length === 1 ? "" : "es"} · {monitor.category}
+                        {matchCount} match{matchCount === 1 ? "" : "es"} from last check · {monitor.category}
                       </span>
+                      {monitor.lastProvider && (
+                        <span className="text-xs text-white/30">
+                          {monitor.lastProvider === "bright-data" ? "Live web" : "Sample"}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-2 text-sm font-medium leading-6 text-white">{monitor.requirement}</p>
-                    {matches[0] && (
+                    {lastChecked && (
+                      <p className="mt-1 text-xs text-white/35">Last checked {lastChecked}</p>
+                    )}
+                    {monitor.lastMatchTitle ? (
                       <button
                         type="button"
                         className="sentra-focus mt-1 text-left text-xs text-cyan-100/80 hover:text-cyan-100"
-                        onClick={() => openReport(monitor, matches[0], reportsByMonitor[monitor.id])}
+                        onClick={() => openReport(monitor, undefined, report)}
                       >
-                        View latest: {matches[0].title}
+                        Latest finding: {monitor.lastMatchTitle}
                       </button>
+                    ) : lastChecked ? (
+                      <p className="mt-1 text-xs text-white/40">No matching signals on the last check.</p>
+                    ) : (
+                      <p className="mt-1 text-xs text-white/40">Tap Check now to run the first live scan.</p>
                     )}
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
@@ -1090,7 +1101,8 @@ export function MonitorCenter() {
                   </div>
                 </div>
               </Card>
-            ))}
+            );
+            })}
 
             <Button
               type="button"

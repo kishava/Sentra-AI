@@ -24,60 +24,44 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const auth = await requireApiUser();
     if ("error" in auth) return auth.error;
 
-    const limited = await checkRateLimit(auth.user.id, "monitor_check");
-    if (!limited.allowed) {
-      return NextResponse.json({ error: limited.message }, { status: 429 });
+    try {
+      const limited = await checkRateLimit(auth.user.id, "monitor_check");
+      if (!limited.allowed) {
+        return NextResponse.json({ error: limited.message }, { status: 429 });
+      }
+    } catch (rateError) {
+      console.warn("Monitor check rate limit skipped", rateError);
     }
 
     const body = (await request.json().catch(() => ({}))) as LocalMonitorPayload;
     const { id } = await context.params;
 
-    let monitor: {
-      requirement: string;
-      category: string;
-      minimum_severity: Severity;
-      keywords: string[];
-      target_url: string | null;
-      id: string;
-    } | null = null;
-
-    if (auth.localMode || !auth.supabase) {
-      if (!body.requirement?.trim()) {
-        return NextResponse.json(
-          { error: "Monitor requirement is required in local mode." },
-          { status: 400 },
-        );
-      }
-      monitor = {
-        id,
-        requirement: body.requirement.trim(),
-        category: body.category ?? "any",
-        minimum_severity: body.minimumSeverity ?? "medium",
-        keywords: body.keywords ?? [],
-        target_url: body.targetUrl ?? null,
-      };
-    } else {
-      const stored = await getMonitor(auth.supabase, auth.user.id, id);
-      if (stored) {
-        monitor = stored;
-      } else if (body.requirement?.trim()) {
-        monitor = {
-          id,
-          requirement: body.requirement.trim(),
-          category: body.category ?? "any",
-          minimum_severity: body.minimumSeverity ?? "medium",
-          keywords: body.keywords ?? [],
-          target_url: body.targetUrl ?? null,
-        };
-      } else {
-        return NextResponse.json({ error: "Monitor not found." }, { status: 404 });
-      }
+    let stored: Awaited<ReturnType<typeof getMonitor>> = null;
+    if (auth.supabase && !auth.localMode) {
+      stored = await getMonitor(auth.supabase, auth.user.id, id);
     }
 
+    const requirement = body.requirement?.trim() || stored?.requirement?.trim();
+    if (!requirement) {
+      return NextResponse.json(
+        { error: "Monitor not found. Refresh the page and try again." },
+        { status: 404 },
+      );
+    }
+
+    const monitor = {
+      id,
+      requirement,
+      category: body.category ?? stored?.category ?? "any",
+      minimum_severity: body.minimumSeverity ?? stored?.minimum_severity ?? "medium",
+      keywords: body.keywords ?? stored?.keywords ?? [],
+      target_url: body.targetUrl ?? stored?.target_url ?? null,
+    };
+
     const result = await runMonitorCheck(monitor, {
-      supabase: auth.localMode ? undefined : auth.supabase ?? undefined,
+      supabase: stored && auth.supabase ? auth.supabase : undefined,
       userId: auth.user.id,
-      persist: !auth.localMode && Boolean(auth.supabase),
+      persist: Boolean(stored && auth.supabase),
       workspace: body.workspace,
     });
 
@@ -91,9 +75,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     });
   } catch (error) {
     console.error("Monitor check failed", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Monitor check failed." },
-      { status: monitorCheckErrorStatus(error) },
-    );
+    const message = error instanceof Error ? error.message : "Monitor check failed.";
+    const status = monitorCheckErrorStatus(error);
+    if (/401|403|signed in|unauthorized/i.test(message)) {
+      return NextResponse.json(
+        { error: "Sign in required for live monitor checks." },
+        { status: 401 },
+      );
+    }
+    return NextResponse.json({ error: message }, { status });
   }
 }
