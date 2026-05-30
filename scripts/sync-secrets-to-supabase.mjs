@@ -127,6 +127,9 @@ async function syncToStorage() {
     throw bucketError;
   }
 
+  const existing = await loadExistingVaultMap();
+  map = { ...existing, ...map };
+
   const body = JSON.stringify(map, null, 2);
   const { error: uploadError } = await admin.storage
     .from(STORAGE_BUCKET)
