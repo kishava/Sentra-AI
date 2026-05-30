@@ -59,46 +59,46 @@ export function Hero() {
           </motion.div>
 
           <motion.div
-            className="relative mx-auto aspect-[5/6] w-full max-w-[560px] overflow-hidden rounded-[1.75rem] sm:aspect-[4/5] lg:mx-0 lg:max-w-none lg:justify-self-end xl:aspect-square xl:max-h-[580px]"
+            className="relative mx-auto aspect-[5/6] w-full max-w-[400px] overflow-hidden rounded-[1.5rem] sm:aspect-[4/5] sm:max-w-[440px] lg:mx-0 lg:max-w-[420px] lg:justify-self-end xl:aspect-square xl:max-h-[440px] xl:max-w-[460px]"
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1, delay: 0.1 }}
           >
             <HeroVisual />
             <Card
-              className="absolute left-3 top-8 w-[min(16rem,78%)] p-4 sm:left-5 sm:top-10 sm:w-60 sm:p-5"
+              className="absolute left-2 top-6 w-[min(13.5rem,74%)] p-3 sm:left-4 sm:top-8 sm:w-52 sm:p-4"
               data-float
               glow
             >
-              <p className="text-[0.65rem] uppercase tracking-[0.28em] text-cyan-100/60 sm:text-xs">
+              <p className="text-[0.6rem] uppercase tracking-[0.26em] text-cyan-100/60 sm:text-[0.65rem]">
                 Monitor workflow
               </p>
-              <p className="mt-2 text-xl font-semibold text-white sm:mt-3 sm:text-2xl">Live watch</p>
-              <p className="mt-1 text-xs leading-5 text-white/50 sm:text-sm">
+              <p className="mt-1.5 text-lg font-semibold text-white sm:mt-2 sm:text-xl">Live watch</p>
+              <p className="mt-0.5 text-[0.65rem] leading-4 text-white/50 sm:text-xs">
                 competitors, pricing, hiring, sentiment
               </p>
             </Card>
             <Card
-              className="absolute right-3 top-14 w-[min(11.5rem,62%)] p-4 sm:right-5 sm:top-16 sm:w-52 sm:p-5"
+              className="absolute right-2 top-11 w-[min(10rem,58%)] p-3 sm:right-4 sm:top-12 sm:w-44 sm:p-4"
               data-float
             >
-              <p className="text-xs text-white/60 sm:text-sm">Evidence</p>
-              <p className="mt-1.5 text-lg font-semibold leading-snug text-white sm:mt-2 sm:text-xl">
+              <p className="text-[0.65rem] text-white/60 sm:text-xs">Evidence</p>
+              <p className="mt-1 text-base font-semibold leading-snug text-white sm:text-lg">
                 SERP + Unlocker
               </p>
-              <p className="mt-1 text-[0.65rem] leading-4 text-white/45 sm:text-xs">
+              <p className="mt-0.5 text-[0.6rem] leading-4 text-white/45 sm:text-[0.65rem]">
                 Live vs Sample labeled in the product
               </p>
             </Card>
             <Card
-              className="absolute bottom-5 left-3 right-3 p-4 sm:bottom-8 sm:left-auto sm:right-5 sm:w-[min(22rem,88%)] sm:p-5"
+              className="absolute bottom-4 left-2 right-2 p-3 sm:bottom-6 sm:left-auto sm:right-4 sm:w-[min(18rem,84%)] sm:p-4"
               data-float
               glow
             >
-              <p className="text-[0.65rem] uppercase tracking-[0.28em] text-violet-100/60 sm:text-xs">
+              <p className="text-[0.6rem] uppercase tracking-[0.26em] text-violet-100/60 sm:text-[0.65rem]">
                 Executive report
               </p>
-              <p className="mt-2 text-xs leading-6 text-white/70 sm:mt-3 sm:text-sm">
+              <p className="mt-1.5 text-[0.65rem] leading-5 text-white/70 sm:mt-2 sm:text-xs">
                 Pricing pressure verified. Recommended action: brief strategic accounts and prepare
                 retention offers.
               </p>
