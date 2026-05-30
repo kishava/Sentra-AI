@@ -6,7 +6,10 @@ import Image from "next/image";
 import {
   ArrowRight,
   Clock3,
+  Download,
   Expand,
+  Eye,
+  FileText,
   History,
   ImagePlus,
   Layers2,
@@ -14,10 +17,13 @@ import {
   MicOff,
   RotateCcw,
   ScanSearch,
+  Send,
   Sparkles,
+  TerminalSquare,
   UploadCloud,
   Volume2,
   VolumeX,
+  Waypoints,
   X,
   ZoomIn,
   ZoomOut,
@@ -26,6 +32,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSpeechInput } from "@/hooks/use-speech-input";
 import { AiOrb } from "@/components/shared/ai-orb";
+import { SuggestedPromptsMenu } from "@/components/shared/suggested-prompts-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,8 +40,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { LiveAgentLogs } from "@/features/activity-console/ai-activity-console";
 import { investigationPrompts, investigationTimeline } from "@/features/image-intelligence/constants";
 import { InvestigationResults } from "@/features/image-intelligence/investigation-results";
+import { StudioModal } from "@/features/world-engine/studio-modal";
 import { usePipelineLogs } from "@/hooks/use-pipeline-logs";
-import { listWorkspaceHistory, recordImageForensicsHistory } from "@/lib/history/workspace-history";
+import { downloadInvestigationReport } from "@/lib/image-intelligence/export-report";
 import { visionPipelineScript } from "@/lib/pipeline-log-scripts";
 import { speakWithBrowser } from "@/lib/voice/browser-tts";
 import { cn } from "@/lib/utils";
@@ -42,6 +50,9 @@ import { useSettings } from "@/settings/settings-context";
 import type { ImageInvestigationReport } from "@/types/image-intelligence";
 
 type EvidenceImage = { file: File; url: string };
+type VisionPanel = "evidence" | "verdict" | "timeline" | "history" | null;
+
+const historyKey = "sentra-image-investigations";
 const accept = ["image/png", "image/jpeg", "image/webp"];
 
 function EvidencePreview({
@@ -50,12 +61,14 @@ function EvidencePreview({
   scanning,
   onInspect,
   onRemove,
+  compact,
 }: {
   evidence: EvidenceImage;
   title: string;
   scanning: boolean;
   onInspect: () => void;
   onRemove: () => void;
+  compact?: boolean;
 }) {
   const scannerRef = useRef<HTMLDivElement>(null);
 
@@ -71,9 +84,9 @@ function EvidencePreview({
     <motion.figure
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="relative overflow-hidden rounded-3xl border border-cyan-200/15 bg-black/35"
+      className="relative overflow-hidden rounded-2xl border border-cyan-200/15 bg-black/35"
     >
-      <div className="relative h-72 w-full">
+      <div className={cn("relative w-full", compact ? "h-36" : "h-72")}>
         <Image src={evidence.url} alt={`${title} investigation preview`} fill unoptimized className="object-contain" />
       </div>
       {scanning && (
@@ -102,38 +115,35 @@ function EvidencePreview({
 
 function ScanTimeline({ activeStep, loading }: { activeStep: number; loading: boolean }) {
   return (
-    <Card className="p-5" glow aria-label="Investigation timeline">
-      <p className="text-xs uppercase tracking-[0.24em] text-white/42">Investigation Timeline</p>
-      <div className="mt-5 grid gap-2">
-        {investigationTimeline.map((step, index) => {
-          const complete = index < activeStep || (!loading && activeStep === investigationTimeline.length);
-          const active = loading && index === activeStep;
-          return (
-            <motion.div
-              key={step.label}
-              animate={{ opacity: index <= activeStep ? 1 : 0.38 }}
-              className={cn("flex items-center gap-3 rounded-2xl border px-3 py-3 transition", active ? "border-cyan-200/25 bg-cyan-300/[0.08]" : "border-transparent")}
-            >
-              <span className={cn("grid h-9 w-9 place-items-center rounded-xl bg-white/[0.05] text-white/42", (complete || active) && "bg-cyan-300/10 text-sentra-cyan")}>
-                <step.icon className={cn("h-4 w-4", active && "animate-pulse")} />
-              </span>
-              <div>
-                <p className="text-sm text-white">{step.label}</p>
-                <p className="text-[11px] text-white/42">{step.detail}</p>
-              </div>
-              {complete && <span className="ml-auto h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,.8)]" />}
-              {active && <span className="ml-auto h-2 w-2 animate-pulse rounded-full bg-sentra-cyan" />}
-            </motion.div>
-          );
-        })}
-      </div>
-    </Card>
+    <div aria-label="Investigation timeline" className="grid gap-2">
+      {investigationTimeline.map((step, index) => {
+        const complete = index < activeStep || (!loading && activeStep === investigationTimeline.length);
+        const active = loading && index === activeStep;
+        return (
+          <motion.div
+            key={step.label}
+            animate={{ opacity: index <= activeStep ? 1 : 0.38 }}
+            className={cn("flex items-center gap-3 rounded-2xl border px-3 py-3 transition", active ? "border-cyan-200/25 bg-cyan-300/[0.08]" : "border-transparent")}
+          >
+            <span className={cn("grid h-9 w-9 place-items-center rounded-xl bg-white/[0.05] text-white/42", (complete || active) && "bg-cyan-300/10 text-sentra-cyan")}>
+              <step.icon className={cn("h-4 w-4", active && "animate-pulse")} />
+            </span>
+            <div>
+              <p className="text-sm text-white">{step.label}</p>
+              <p className="text-[11px] text-white/42">{step.detail}</p>
+            </div>
+            {complete && <span className="ml-auto h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,.8)]" />}
+            {active && <span className="ml-auto h-2 w-2 animate-pulse rounded-full bg-sentra-cyan" />}
+          </motion.div>
+        );
+      })}
+    </div>
   );
 }
 
 function ReportSkeleton() {
   return (
-    <div className="mt-6 grid gap-5" aria-label="Analysis loading">
+    <div className="grid gap-5" aria-label="Analysis loading">
       {[160, 300].map((height) => (
         <div key={height} style={{ height }} className="glass-panel animate-pulse rounded-3xl bg-gradient-to-r from-white/[0.045] via-white/[0.09] to-white/[0.045] bg-[length:220%_100%]" />
       ))}
@@ -155,6 +165,9 @@ export function InvestigationStudio() {
   const [activeStep, setActiveStep] = useState(-1);
   const [inspecting, setInspecting] = useState<EvidenceImage | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [viewPanel, setViewPanel] = useState<VisionPanel>(null);
+  const [logModalOpen, setLogModalOpen] = useState(false);
+  const [insightModalOpen, setInsightModalOpen] = useState(false);
   const primaryInput = useRef<HTMLInputElement>(null);
   const comparisonInput = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -178,10 +191,15 @@ export function InvestigationStudio() {
   });
 
   useEffect(() => {
-    const persisted = listWorkspaceHistory().flatMap((entry) =>
-      entry.payload.kind === "image_forensics" ? [entry.payload.report] : [],
-    );
-    if (persisted.length) queueMicrotask(() => setHistory(persisted));
+    try {
+      const saved = window.localStorage.getItem(historyKey);
+      if (saved) {
+        const persisted = JSON.parse(saved) as ImageInvestigationReport[];
+        queueMicrotask(() => setHistory(persisted));
+      }
+    } catch {
+      window.localStorage.removeItem(historyKey);
+    }
   }, []);
 
   useEffect(() => () => {
@@ -266,10 +284,11 @@ export function InvestigationStudio() {
       setReport(data.report);
       resetVoicePlayback();
       setActiveStep(investigationTimeline.length);
-      recordImageForensicsHistory(data.report);
-      setHistory((current) =>
-        [data.report!, ...current.filter((entry) => entry.id !== data.report!.id)].slice(0, 8),
-      );
+      setHistory((current) => {
+        const next = [data.report!, ...current.filter((entry) => entry.id !== data.report!.id)].slice(0, 8);
+        window.localStorage.setItem(historyKey, JSON.stringify(next));
+        return next;
+      });
       if (settings.privacy.clearUploadsAfterAnalysis) {
         if (primary) URL.revokeObjectURL(primary.url);
         if (comparison) URL.revokeObjectURL(comparison.url);
@@ -320,6 +339,7 @@ export function InvestigationStudio() {
     setPrompt("");
     setReport(null);
     setActiveStep(-1);
+    setViewPanel(null);
     if (primaryInput.current) primaryInput.current.value = "";
     if (comparisonInput.current) comparisonInput.current.value = "";
   }
@@ -430,227 +450,412 @@ export function InvestigationStudio() {
     }
   }
 
+  const verdictVariant =
+    report?.status === "Real" ? "success" : report?.status === "AI Generated" ? "risk" : "violet";
+
   return (
     <>
-      <header className="mb-7 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-        <div>
-          <Badge variant="cyan">Multimodal intelligence / visual forensics</Badge>
-          <h1 className="type-display-lg mt-4 premium-gradient-text">AI Analyst</h1>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/56 md:text-base">
-            Securely stage visual evidence, direct the investigation, and generate a defensible AI-assisted authenticity assessment.
+      <section className="mb-7 grid gap-5 xl:grid-cols-[1fr_360px]">
+        <Card className="relative overflow-visible p-6 md:p-8" glow>
+          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-cyan-300/[0.08] blur-3xl" />
+          <Badge variant="cyan">Visual Forensics / multimodal analyst</Badge>
+          <h1 className="type-display-lg relative mt-4 premium-gradient-text">
+            Investigate visual evidence with AI forensics.
+          </h1>
+          <p className="relative mt-4 max-w-3xl text-sm leading-7 text-white/57 md:text-base">
+            Stage images, direct the investigation, and receive a defensible authenticity assessment with scores, scene analysis, and comparison review.
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={() => setComparisonMode((current) => !current)}>
-            <Layers2 className="h-4 w-4" /> Compare images
-          </Button>
-          <Button variant="ghost" onClick={resetInvestigation}>
-            <RotateCcw className="h-4 w-4" /> New case
-          </Button>
-        </div>
-      </header>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_350px]">
-        <div className="grid gap-5">
-          <Card className="overflow-hidden p-5 md:p-7" glow>
-            {!primary ? (
-              <motion.button
-                type="button"
-                onClick={() => primaryInput.current?.click()}
-                onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={handleDrop}
-                className={cn(
-                  "sentra-focus flex min-h-[430px] w-full flex-col items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/[0.025] px-6 text-center transition",
-                  dragging && "border-cyan-200/55 bg-cyan-300/[0.06]",
+          {!primary ? (
+            <motion.button
+              type="button"
+              onClick={() => primaryInput.current?.click()}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              className={cn(
+                "sentra-focus relative mt-6 flex min-h-48 w-full flex-col items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/[0.025] px-6 text-center transition",
+                dragging && "border-cyan-200/55 bg-cyan-300/[0.06]",
+              )}
+            >
+              <UploadCloud className="h-10 w-10 text-sentra-cyan" />
+              <p className="mt-4 text-lg font-semibold text-white">Drop evidence to open a case</p>
+              <p className="mt-2 max-w-md text-sm text-white/48">PNG, JPEG, or WEBP up to 20 MB. Add a comparison image after staging.</p>
+            </motion.button>
+          ) : (
+            <div className="relative mt-6 grid gap-5">
+              <div className={cn("grid gap-4", comparisonMode && "md:grid-cols-2")}>
+                <EvidencePreview
+                  evidence={primary}
+                  title="Primary evidence"
+                  scanning={loading}
+                  compact
+                  onInspect={() => setInspecting(primary)}
+                  onRemove={() => setPrimary(null)}
+                />
+                {comparisonMode &&
+                  (comparison ? (
+                    <EvidencePreview
+                      evidence={comparison}
+                      title="Comparison evidence"
+                      scanning={loading}
+                      compact
+                      onInspect={() => setInspecting(comparison)}
+                      onRemove={() => setComparison(null)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => comparisonInput.current?.click()}
+                      className="sentra-focus flex h-36 flex-col items-center justify-center rounded-2xl border border-dashed border-white/14 bg-white/[0.03] text-white/50 transition"
+                    >
+                      <ImagePlus className="h-6 w-6 text-sentra-cyan" />
+                      <span className="mt-2 text-sm">Add comparison evidence</span>
+                    </button>
+                  ))}
+              </div>
+              <Textarea
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder="Describe the evidence question, suspected alteration, location hypothesis, or threat concern..."
+                className="min-h-20"
+                aria-label="Investigation question"
+              />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-white/40">
+                  {listening
+                    ? liveTranscript
+                      ? `Listening: ${liveTranscript}`
+                      : "Listening — transcript appears as you speak."
+                    : transcribing
+                      ? "Refining transcript..."
+                      : "Speak the investigation question or type it manually."}
+                </p>
+                {settings.voice.microphone && (
+                  <Button
+                    variant={listening ? "neon" : "ghost"}
+                    size="sm"
+                    onClick={() => void toggleSpeechInput()}
+                    disabled={!listening && (transcribing || loading)}
+                  >
+                    {listening ? <MicOff className="h-4 w-4 text-rose-200" /> : <Mic className="h-4 w-4" />}
+                    {listening ? "Stop voice" : transcribing ? "Transcribing" : "Voice input"}
+                  </Button>
                 )}
-              >
-                <span className="relative grid h-24 w-24 place-items-center rounded-3xl border border-cyan-200/15 bg-cyan-300/[0.06] text-sentra-cyan">
-                  <UploadCloud className="h-10 w-10" />
-                  <span className="absolute inset-0 animate-pulse-glow rounded-3xl shadow-glow" />
-                </span>
-                <h2 className="mt-8 text-2xl font-semibold text-white">Drop evidence to open a case</h2>
-                <p className="mt-3 max-w-md text-sm leading-6 text-white/48">Drag and drop an image or select a file. PNG, JPEG, or WEBP up to 20 MB.</p>
-                <Badge variant="violet" className="mt-7">Preview appears instantly after upload</Badge>
-              </motion.button>
-            ) : (
-              <div className="grid gap-5">
-                <div className={cn("grid gap-4", comparisonMode && "lg:grid-cols-2")}>
-                  <EvidencePreview
-                    evidence={primary}
-                    title="Primary evidence"
-                    scanning={loading}
-                    onInspect={() => setInspecting(primary)}
-                    onRemove={() => setPrimary(null)}
+              </div>
+              <div className="relative z-20 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <SuggestedPromptsMenu
+                    prompts={investigationPrompts}
+                    disabled={loading || !settings.forensics.authenticityDetection}
+                    menuId="vision-suggested-menu"
+                    menuSubtitle="Pick one to prefill your investigation question."
+                    onSelect={setPrompt}
                   />
-                  {comparisonMode && (
-                    comparison ? (
-                      <EvidencePreview
-                        evidence={comparison}
-                        title="Comparison evidence"
-                        scanning={loading}
-                        onInspect={() => setInspecting(comparison)}
-                        onRemove={() => setComparison(null)}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => comparisonInput.current?.click()}
-                        className="sentra-focus flex h-72 flex-col items-center justify-center rounded-3xl border border-dashed border-white/14 bg-white/[0.03] text-white/50 transition"
-                      >
-                        <ImagePlus className="h-7 w-7 text-sentra-cyan" />
-                        <span className="mt-3 text-sm">Add comparison evidence</span>
-                      </button>
-                    )
+                  <Button variant="ghost" size="sm" onClick={() => setComparisonMode((current) => !current)}>
+                    <Layers2 className="h-4 w-4" /> {comparisonMode ? "Hide compare" : "Compare images"}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={resetInvestigation}>
+                    <RotateCcw className="h-4 w-4" /> New case
+                  </Button>
+                  {(loading || pipeline.logs.length > 0) && settings.analyst.liveLogs && (
+                    <Button variant="ghost" size="sm" onClick={() => setLogModalOpen(true)}>
+                      <TerminalSquare className="h-4 w-4" />
+                      {loading ? "Live log" : "Activity log"}
+                    </Button>
+                  )}
+                  {report && (
+                    <>
+                      <Button variant="ghost" size="sm" onClick={() => setInsightModalOpen(true)}>
+                        <Eye className="h-4 w-4" /> View verdict
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => downloadInvestigationReport(report, "markdown")}>
+                        <Download className="h-4 w-4" /> Download
+                      </Button>
+                    </>
                   )}
                 </div>
-                <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5 md:p-6">
-                  <div className="flex items-center gap-3">
-                    <Sparkles className="h-5 w-5 text-sentra-cyan" />
-                    <h2 className="text-xl font-semibold text-white">What would you like to investigate about this image?</h2>
-                  </div>
-                  <div className="mt-5 grid gap-3">
-                    <Textarea
-                      value={prompt}
-                      onChange={(event) => setPrompt(event.target.value)}
-                      placeholder="Describe the evidence question, suspected alteration, location hypothesis, or threat concern..."
-                      className="min-h-24"
-                      aria-label="Investigation question"
-                    />
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-xs text-white/40">
-                        {listening
-                          ? liveTranscript
-                            ? `Listening: ${liveTranscript}`
-                            : "Listening — transcript appears as you speak."
-                          : transcribing
-                            ? "Refining transcript..."
-                            : "Speak the investigation question or type it manually."}
-                      </p>
-                      {settings.voice.microphone && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => void toggleSpeechInput()}
-                          disabled={!listening && (transcribing || loading)}
-                          aria-label={listening ? "Stop voice recording" : transcribing ? "Transcribing voice prompt" : "Record voice prompt"}
-                        >
-                          {listening ? <MicOff className="h-4 w-4 text-rose-200" /> : <Mic className="h-4 w-4" />}
-                          {listening ? "Stop recording" : transcribing ? "Transcribing" : "Voice input"}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  <p className="mt-5 text-[11px] uppercase tracking-[0.2em] text-white/36">AI suggested investigations</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {investigationPrompts.map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        type="button"
-                        onClick={() => setPrompt(suggestion)}
-                        className={cn(
-                          "sentra-focus rounded-full border border-white/10 bg-white/[0.045] px-3.5 py-2 text-xs text-white/58 transition",
-                          prompt === suggestion && "border-cyan-200/35 bg-cyan-300/[0.1] text-cyan-50",
-                        )}
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-6 flex flex-col items-start justify-between gap-3 border-t border-white/10 pt-5 sm:flex-row sm:items-center">
-                    <p className="text-xs text-white/40">Analysis begins only when you authorize the investigation.</p>
-                    <Button variant="neon" disabled={!prompt.trim() || loading || !settings.forensics.authenticityDetection} onClick={investigate}>
-                      {loading ? <ScanSearch className="h-4 w-4 animate-pulse" /> : <Sparkles className="h-4 w-4" />}
-                      {loading ? "Investigating" : "Run investigation"} <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+                <Button
+                  variant="neon"
+                  className="w-full sm:w-fit sm:self-end"
+                  disabled={!prompt.trim() || loading || !settings.forensics.authenticityDetection}
+                  onClick={investigate}
+                >
+                  {loading ? <ScanSearch className="h-4 w-4 animate-pulse" /> : <Send className="h-4 w-4" />}
+                  {loading ? "Investigating…" : "Run investigation"}
+                </Button>
               </div>
-            )}
-            <input ref={primaryInput} className="hidden" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => event.target.files?.[0] && stageFile(event.target.files[0], "primary")} />
-            <input ref={comparisonInput} className="hidden" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => event.target.files?.[0] && stageFile(event.target.files[0], "comparison")} />
-          </Card>
-        </div>
-
-        <aside className="grid content-start gap-5">
-          <Card className="relative overflow-hidden p-6 text-center" glow>
-            <div className="absolute inset-0 bg-gradient-to-b from-cyan-300/[0.06] to-transparent" />
-            <AiOrb speaking={loading || speaking || listening || transcribing} size="md" className="relative mx-auto" />
-            <p className="relative mt-5 text-lg font-semibold text-white">{loading ? "Processing evidence" : primary ? "Case staged" : "Awaiting evidence"}</p>
-            <p className="relative mt-2 text-xs uppercase tracking-[0.2em] text-cyan-100/45">
-              {listening ? "Voice input active" : speaking ? "Voice output active" : loading ? "Neural inspection active" : "Vision analyst standing by"}
-            </p>
-            {report && (
-              <Button variant="ghost" size="sm" className="relative mt-5" onClick={() => void playReportVoice()} disabled={!settings.voice.enabled}>
-                {speaking ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                {voiceStatus === "loading" ? "Preparing voice" : speaking ? "Stop voice" : "Read report"}
-              </Button>
-            )}
-          </Card>
-          {primary && <ScanTimeline activeStep={activeStep} loading={loading} />}
-          <Card className="p-5">
-            <p className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-white/42"><History className="h-4 w-4" /> Saved history</p>
-            {history.length ? (
-              <div className="mt-4 grid gap-2">
-                {history.slice(0, 4).map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onClick={() => setReport(entry)}
-                    className="sentra-focus rounded-2xl border border-white/8 bg-white/[0.035] p-3 text-left transition"
-                  >
-                    <span className="flex items-center justify-between gap-2 text-xs text-white/65">
-                      <span className="truncate">{entry.status} verdict</span>
-                      <span className="text-cyan-100/52">{entry.scores.confidence}%</span>
-                    </span>
-                    <span className="mt-2 flex items-center gap-1 text-[10px] text-white/38">
-                      <Clock3 className="h-3 w-3" /> {new Date(entry.createdAt).toLocaleString()}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-4 rounded-2xl border border-dashed border-white/10 p-4 text-xs leading-5 text-white/42">
-                Completed runs are saved automatically. Open History to review every visual forensics analysis.
-              </p>
-            )}
-          </Card>
-        </aside>
-      </div>
-
-      {settings.analyst.liveLogs && (loading || pipeline.logs.length > 0) && (
-        <Card className="forensics-terminal mt-7 w-full overflow-hidden rounded-[30px] p-0" glow>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[0.018] px-5 py-4 md:px-7">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-cyan-100/48">Forensics terminal</p>
-              <p className="mt-1 text-sm text-white/48">Live evidence-processing activity stream</p>
             </div>
-            <Badge variant={pipeline.running ? "cyan" : "success"}>
-              {pipeline.running ? "Analysis running" : "Run complete"}
-            </Badge>
+          )}
+
+          <input
+            ref={primaryInput}
+            className="hidden"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(event) => event.target.files?.[0] && stageFile(event.target.files[0], "primary")}
+          />
+          <input
+            ref={comparisonInput}
+            className="hidden"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(event) => event.target.files?.[0] && stageFile(event.target.files[0], "comparison")}
+          />
+        </Card>
+
+        <Card className="flex flex-col items-center justify-center p-6 text-center" glow>
+          <AiOrb speaking={loading || speaking || listening || transcribing} size="md" />
+          <p className="mt-5 text-lg font-semibold text-white">
+            {loading ? "Processing evidence" : primary ? "Case staged" : "Awaiting evidence"}
+          </p>
+          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-cyan-100/45">
+            {listening ? "Voice input active" : speaking ? "Voice output active" : loading ? "Neural inspection active" : "Vision analyst standing by"}
+          </p>
+          {report && (
+            <Button variant="ghost" size="sm" className="mt-5" onClick={() => void playReportVoice()} disabled={!settings.voice.enabled}>
+              {speaking ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              {voiceStatus === "loading" ? "Preparing voice" : speaking ? "Stop voice" : "Read report"}
+            </Button>
+          )}
+        </Card>
+      </section>
+
+      {loading && settings.analyst.liveLogs && (
+        <Card className="mb-5 flex flex-wrap items-center justify-between gap-4 p-4 md:p-5" glow>
+          <div className="flex items-center gap-3">
+            <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-sentra-cyan shadow-[0_0_12px_rgba(83,244,255,.85)]" />
+            <div>
+              <p className="text-sm font-medium text-white">Visual forensics analysis in progress</p>
+              <p className="mt-1 font-mono text-[11px] text-white/42">
+                STAGE: {investigationTimeline[Math.max(0, activeStep)]?.label ?? "Scanning"}
+              </p>
+            </div>
           </div>
-          <div className="terminal-panel border-t border-cyan-300/[0.04] px-2 py-3 md:px-5 md:py-4">
-            <LiveAgentLogs
-              logs={pipeline.logs}
-              running={pipeline.running}
-              className="h-[clamp(420px,55vh,640px)] rounded-2xl border border-cyan-300/[0.08] bg-black/10"
-            />
-          </div>
+          <Button variant="ghost" onClick={() => setLogModalOpen(true)}>
+            <TerminalSquare className="h-4 w-4" /> Open activity log
+          </Button>
         </Card>
       )}
 
-      {loading ? (
-        <ReportSkeleton />
-      ) : report && (
-        <InvestigationResults
-          report={report}
-          onShare={shareReport}
-          onExport={exportPdf}
-          onSpeak={playReportVoice}
-          speaking={speaking}
-          voiceLoading={voiceStatus === "loading"}
-        />
+      {loading && <ReportSkeleton />}
+
+      {!settings.forensics.authenticityDetection && (
+        <Card className="mb-5 grid min-h-40 place-items-center p-8 text-center" glow>
+          <p className="text-sm text-white/48">Image authenticity detection is disabled in Settings.</p>
+        </Card>
       )}
+
+      {!loading && !report && primary && settings.forensics.authenticityDetection && (
+        <Card className="grid min-h-40 place-items-center p-8 text-center" glow>
+          <ScanSearch className="h-10 w-10 text-sentra-cyan" />
+          <h2 className="mt-4 text-xl font-semibold text-white">Evidence staged — awaiting directive</h2>
+          <p className="mt-2 text-sm text-white/48">Choose a suggested investigation or describe what to analyze, then run the investigation.</p>
+        </Card>
+      )}
+
+      {!loading && report && (
+        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} aria-label="Visual forensics report">
+          <Card className="p-6 md:p-8" glow>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={verdictVariant}>{report.status}</Badge>
+              {report.source === "demo" && <Badge variant="violet">Demo mode</Badge>}
+              <Badge variant="cyan">{report.threatLevel} threat</Badge>
+            </div>
+            <h2 className="mt-4 text-2xl font-semibold text-white md:text-3xl">
+              {report.status}
+              <span className="ml-3 text-lg font-normal text-white/44">{report.scores.confidence}% confidence</span>
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-white/58">{report.summary}</p>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                ["Authenticity", `${report.scores.authenticity}%`, "text-emerald-200"],
+                ["AI signal", `${report.scores.aiGeneratedProbability}%`, "text-violet-200"],
+                ["Manipulation", `${report.scores.manipulationProbability}%`, "text-amber-200"],
+                ["Deepfake", `${report.scores.deepfakeProbability}%`, "text-rose-200"],
+              ].map(([label, value, color]) => (
+                <div key={String(label)} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/38">{label}</p>
+                  <p className={cn("mt-1 text-xl font-semibold", String(color))}>{value}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-6 text-xs text-white/40">Full forensic detail is in the views below — the main page stays clean.</p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Button variant="neon" className="justify-start" onClick={() => setInsightModalOpen(true)}>
+                <Eye className="h-4 w-4" /> View full verdict
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("verdict")}>
+                <Sparkles className="h-4 w-4" /> Scores & findings
+              </Button>
+              {(primary || comparison) && (
+                <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("evidence")}>
+                  <Expand className="h-4 w-4" /> Evidence images
+                </Button>
+              )}
+              <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("timeline")}>
+                <Waypoints className="h-4 w-4" /> Investigation timeline
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => void playReportVoice()} disabled={!settings.voice.enabled}>
+                <Volume2 className="h-4 w-4" /> Read aloud
+              </Button>
+              {settings.analyst.liveLogs && (
+                <Button variant="ghost" className="justify-start" onClick={() => setLogModalOpen(true)}>
+                  <TerminalSquare className="h-4 w-4" /> Activity log
+                </Button>
+              )}
+              <Button variant="ghost" className="justify-start" onClick={() => downloadInvestigationReport(report, "markdown")}>
+                <FileText className="h-4 w-4" /> Download brief
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={exportPdf}>
+                <Download className="h-4 w-4" /> Export PDF
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => void shareReport()}>
+                <ArrowRight className="h-4 w-4" /> Share summary
+              </Button>
+              {history.length > 0 && (
+                <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("history")}>
+                  <History className="h-4 w-4" /> Case history
+                </Button>
+              )}
+            </div>
+          </Card>
+        </motion.div>
+      )}
+
+      <StudioModal
+        open={logModalOpen && settings.analyst.liveLogs}
+        title="Forensics activity log"
+        description="Live evidence-processing activity stream."
+        onClose={() => setLogModalOpen(false)}
+        className="max-w-6xl"
+      >
+        <LiveAgentLogs
+          logs={pipeline.logs}
+          running={pipeline.running}
+          className="h-[clamp(420px,55vh,640px)] rounded-2xl border border-cyan-300/[0.08] bg-black/10"
+        />
+      </StudioModal>
+
+      <StudioModal
+        open={insightModalOpen && Boolean(report)}
+        title="Visual forensics verdict"
+        description={report?.prompt}
+        onClose={() => setInsightModalOpen(false)}
+        className="max-w-6xl"
+      >
+        {report ? (
+          <InvestigationResults
+            report={report}
+            onShare={shareReport}
+            onExport={exportPdf}
+            onSpeak={playReportVoice}
+            speaking={speaking}
+            voiceLoading={voiceStatus === "loading"}
+          />
+        ) : null}
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "verdict" && Boolean(report)}
+        title="Scores & forensic findings"
+        description="Probability telemetry, scene analysis, and analyst limitations."
+        onClose={() => setViewPanel(null)}
+        className="max-w-6xl"
+      >
+        {report ? (
+          <InvestigationResults
+            report={report}
+            onShare={shareReport}
+            onExport={exportPdf}
+            onSpeak={playReportVoice}
+            speaking={speaking}
+            voiceLoading={voiceStatus === "loading"}
+          />
+        ) : null}
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "evidence"}
+        title="Evidence images"
+        description="Primary and comparison visuals under investigation."
+        onClose={() => setViewPanel(null)}
+        className="max-w-5xl"
+      >
+        <div className={cn("grid gap-5", comparisonMode && comparison && primary && "md:grid-cols-2")}>
+          {primary && (
+            <EvidencePreview
+              evidence={primary}
+              title="Primary evidence"
+              scanning={false}
+              onInspect={() => {
+                setViewPanel(null);
+                setInspecting(primary);
+              }}
+              onRemove={() => setPrimary(null)}
+            />
+          )}
+          {comparisonMode && comparison && (
+            <EvidencePreview
+              evidence={comparison}
+              title="Comparison evidence"
+              scanning={false}
+              onInspect={() => {
+                setViewPanel(null);
+                setInspecting(comparison);
+              }}
+              onRemove={() => setComparison(null)}
+            />
+          )}
+        </div>
+        {!primary && !comparison && <p className="text-sm text-white/50">Evidence was cleared after analysis. Re-upload to inspect images again.</p>}
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "timeline"}
+        title="Investigation timeline"
+        description="Pipeline stages from evidence intake to final verdict."
+        onClose={() => setViewPanel(null)}
+      >
+        <ScanTimeline activeStep={activeStep} loading={loading} />
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "history"}
+        title="Saved case history"
+        description="Reports stored on this device."
+        onClose={() => setViewPanel(null)}
+      >
+        {history.length ? (
+          <div className="grid gap-2 md:grid-cols-2">
+            {history.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => {
+                  setReport(entry);
+                  setViewPanel(null);
+                }}
+                className="sentra-focus rounded-2xl border border-white/8 bg-white/[0.035] p-4 text-left transition"
+              >
+                <span className="flex items-center justify-between gap-2 text-sm text-white/70">
+                  <span className="truncate">{entry.status} verdict</span>
+                  <span className="text-cyan-100/52">{entry.scores.confidence}%</span>
+                </span>
+                <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/48">{entry.summary}</p>
+                <span className="mt-2 flex items-center gap-1 text-[10px] text-white/38">
+                  <Clock3 className="h-3 w-3" /> {new Date(entry.createdAt).toLocaleString()}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-white/50">No saved investigations yet.</p>
+        )}
+      </StudioModal>
 
       <AnimatePresence>
         {inspecting && (
@@ -666,10 +871,24 @@ export function InvestigationStudio() {
             <div className="mb-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.05] p-3">
               <p className="truncate text-sm text-white/68">{inspecting.file.name}</p>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={() => setZoom((value) => Math.max(0.5, value - 0.2))} aria-label="Zoom out"><ZoomOut className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" onClick={() => setZoom((value) => Math.max(0.5, value - 0.2))} aria-label="Zoom out">
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
                 <span className="min-w-12 text-center text-xs text-white/50">{Math.round(zoom * 100)}%</span>
-                <Button variant="ghost" size="icon" onClick={() => setZoom((value) => Math.min(3, value + 0.2))} aria-label="Zoom in"><ZoomIn className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => { setInspecting(null); setZoom(1); }} aria-label="Close inspection"><X className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" onClick={() => setZoom((value) => Math.min(3, value + 0.2))} aria-label="Zoom in">
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setInspecting(null);
+                    setZoom(1);
+                  }}
+                  aria-label="Close inspection"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
             </div>
             <div className="flex flex-1 items-center justify-center overflow-auto rounded-3xl border border-white/10 bg-black/40">

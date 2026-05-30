@@ -15,9 +15,12 @@ import {
   ImagePlus,
   Layers2,
   LocateFixed,
+  RotateCcw,
   ScanFace,
+  Send,
   Share2,
   ShieldCheck,
+  TerminalSquare,
   UploadCloud,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -31,14 +34,19 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { toast } from "sonner";
+import { AiOrb } from "@/components/shared/ai-orb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { StudioModal } from "@/features/world-engine/studio-modal";
 import { listWorkspaceHistory, recordFaceIntelligenceHistory } from "@/lib/history/workspace-history";
+import { downloadFaceReport } from "@/lib/image-intelligence/export-report";
 import { cn } from "@/lib/utils";
 import { useSettings } from "@/settings/settings-context";
 import type { FaceIntelligenceReport } from "@/types/workspace-history";
+
+type FacePanel = "map" | "telemetry" | "report" | "comparison" | "regions" | "notes" | "history" | null;
 
 type EvidenceImage = { file: File; url: string; width?: number; height?: number };
 type FaceBox = { x: number; y: number; width: number; height: number };
@@ -411,6 +419,86 @@ function Telemetry({ report }: { report: FaceReport }) {
   );
 }
 
+function FaceReportDetail({
+  report,
+  settings,
+  onNotesChange,
+}: {
+  report: FaceReport;
+  settings: ReturnType<typeof useSettings>["settings"];
+  onNotesChange: (notes: string) => void;
+}) {
+  return (
+    <div className="grid gap-5">
+      <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
+        <Telemetry report={report} />
+        <Card className="p-5 md:p-6" glow>
+          <p className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-cyan-100/48">
+            <FileText className="h-4 w-4" /> Face intelligence report
+          </p>
+          <h2 className="mt-3 text-2xl font-semibold text-white">{report.summary}</h2>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-emerald-200/12 bg-emerald-300/[0.035] p-4">
+              <p className="flex items-center gap-2 text-sm font-medium text-white">
+                <ShieldCheck className="h-4 w-4 text-emerald-200" /> Authenticity indicators
+              </p>
+              <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/58">
+                {report.authenticReasons.map((item) => (
+                  <li key={item}>- {item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-2xl border border-rose-200/12 bg-rose-300/[0.035] p-4">
+              <p className="flex items-center gap-2 text-sm font-medium text-white">
+                <AlertTriangle className="h-4 w-4 text-rose-200" /> Suspicious evidence
+              </p>
+              <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/58">
+                {report.manipulationReasons.map((item) => (
+                  <li key={item}>- {item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </Card>
+      </div>
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        {([
+          ["Faces detected", report.faces.length, Camera],
+          ["Face quality", report.faces[0]?.quality ?? 0, BadgeCheck],
+          ["Lighting consistency", report.scores.lighting, Eye],
+          ["Manipulation risk", report.scores.manipulation, Fingerprint],
+        ] as Array<[string, number, LucideIcon]>).map(([label, value, Icon]) => (
+          <Card key={String(label)} className="p-5">
+            <Icon className="h-5 w-5 text-sentra-cyan" />
+            <p className="mt-4 text-xs uppercase tracking-[0.2em] text-white/38">{String(label)}</p>
+            <p className="mt-2 text-3xl font-semibold text-white">
+              {String(value)}
+              {typeof value === "number" && label !== "Faces detected" ? "%" : ""}
+            </p>
+          </Card>
+        ))}
+      </div>
+      <div className="grid gap-5 md:grid-cols-2">
+        {settings.forensics.aiGeneratedProbability && <Gauge label="AI Generated Confidence" value={report.scores.aiGenerated} tone="risk" />}
+        {settings.forensics.deepfakeRisk && <Gauge label="Deepfake Risk Score" value={report.scores.deepfake} tone="risk" />}
+        <Gauge label="Real Image Confidence" value={report.scores.authenticity} tone="green" />
+        <Gauge label="Investigation Readiness" value={report.scores.readiness} tone="cyan" />
+      </div>
+      <Card className="p-5" glow>
+        <p className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-white/42">
+          <BrainCircuit className="h-4 w-4 text-sentra-cyan" /> Analyst notes
+        </p>
+        <Textarea
+          value={report.notes}
+          onChange={(event) => onNotesChange(event.target.value)}
+          className="mt-4 min-h-40"
+          placeholder="Add case notes, reviewer observations, or escalation details..."
+        />
+      </Card>
+    </div>
+  );
+}
+
 function compareReports(a: FaceReport, b: FaceReport): ComparisonReport {
   const faceA = a.faces[0];
   const faceB = b.faces[0];
@@ -441,6 +529,8 @@ export function FaceIntelligenceStudio() {
   const [logs, setLogs] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [history, setHistory] = useState<FaceReport[]>([]);
+  const [viewPanel, setViewPanel] = useState<FacePanel>(null);
+  const [logModalOpen, setLogModalOpen] = useState(false);
   const primaryInput = useRef<HTMLInputElement>(null);
   const secondaryInput = useRef<HTMLInputElement>(null);
 
@@ -517,6 +607,16 @@ export function FaceIntelligenceStudio() {
     }
   }
 
+  function resetCase() {
+    setPrimary(null);
+    setSecondary(null);
+    setReport(null);
+    setSecondaryReport(null);
+    setCompareMode(false);
+    setViewPanel(null);
+    setLogs([]);
+  }
+
   if (!settings.forensics.faceIntelligence) {
     return (
       <Card className="grid min-h-[420px] place-items-center p-8 text-center" glow>
@@ -532,160 +632,344 @@ export function FaceIntelligenceStudio() {
   }
 
   return (
-    <div className="grid gap-5">
-      <header className="grid gap-5 xl:grid-cols-[1fr_360px]">
-        <Card className="relative overflow-hidden p-6 md:p-8" glow>
-          <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-cyan-300/[0.08] blur-3xl" />
-          <Badge variant="cyan">AI Face Intelligence</Badge>
-          <h1 className="type-display-lg relative mt-4 premium-gradient-text">Face authenticity intelligence for forensic review.</h1>
+    <>
+      <section className="mb-7 grid gap-5 xl:grid-cols-[1fr_360px]">
+        <Card className="relative overflow-visible p-6 md:p-8" glow>
+          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-cyan-300/[0.08] blur-3xl" />
+          <Badge variant="cyan">AI Face Intelligence / authenticity forensics</Badge>
+          <h1 className="type-display-lg relative mt-4 premium-gradient-text">
+            Detect faces, landmarks, and synthetic risk.
+          </h1>
           <p className="relative mt-4 max-w-3xl text-sm leading-7 text-white/57 md:text-base">
-            Analyze uploaded face evidence for authenticity, manipulation risk, landmarks, lighting consistency, and comparison confidence without identity lookup.
+            Upload facial evidence for landmark mapping, authenticity scoring, deepfake risk, and optional two-face comparison — without identity lookup or biometric search.
           </p>
-          <div className="relative mt-6 flex flex-wrap gap-3">
-            <Button variant="neon" onClick={() => primaryInput.current?.click()}><UploadCloud className="h-4 w-4" /> Upload face image</Button>
-            {settings.forensics.faceComparison && (
-              <Button variant="ghost" onClick={() => setCompareMode((value) => !value)}><Layers2 className="h-4 w-4" /> Compare Two Faces</Button>
-            )}
-            {report && <Button variant="ghost" onClick={() => window.print()}><Download className="h-4 w-4" /> Export PDF</Button>}
-            {report && <Button variant="ghost" onClick={() => void shareReport()}><Share2 className="h-4 w-4" /> Share</Button>}
-          </div>
-          <input ref={primaryInput} className="hidden" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => event.target.files?.[0] && void runAnalysis(event.target.files[0], "primary")} />
-          <input ref={secondaryInput} className="hidden" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => event.target.files?.[0] && void runAnalysis(event.target.files[0], "secondary")} />
-        </Card>
-        <Card className="grid content-center p-6 text-center" glow>
-          <ScanFace className="mx-auto h-10 w-10 text-sentra-cyan" />
-          <p className="mt-4 text-xl font-semibold text-white">{report ? report.caseId : "Awaiting face evidence"}</p>
-          <p className="mt-2 text-sm leading-6 text-white/52">No identity recognition. Uploaded images only.</p>
-        </Card>
-      </header>
 
-      {settings.analyst.liveLogs && running && <LiveLogs logs={logs} running={running} />}
-
-      <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
-        <div className="grid gap-5">
-          {primary ? (
-            <ImageAnalysisPanel evidence={primary} report={report ?? undefined} />
+          {!primary ? (
+            <button
+              type="button"
+              onClick={() => primaryInput.current?.click()}
+              className="sentra-focus relative mt-6 flex min-h-48 w-full flex-col items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/[0.025] px-6 text-center transition"
+            >
+              <UploadCloud className="h-10 w-10 text-sentra-cyan" />
+              <p className="mt-4 text-lg font-semibold text-white">Upload facial evidence</p>
+              <p className="mt-2 max-w-md text-sm text-white/48">PNG, JPEG, or WEBP. Analysis runs on upload and stays scoped to your files.</p>
+            </button>
           ) : (
-            <Card className="grid min-h-96 place-items-center border-dashed p-8 text-center" glow>
-              <button type="button" onClick={() => primaryInput.current?.click()} className="sentra-focus grid place-items-center text-white/60">
-                <UploadCloud className="mx-auto h-12 w-12 text-sentra-cyan" />
-                <span className="mt-4 text-lg font-semibold text-white">Upload facial evidence</span>
-                <span className="mt-2 max-w-md text-sm leading-6 text-white/45">PNG, JPEG, or WEBP. Analysis stays scoped to uploaded files.</span>
-              </button>
-            </Card>
+            <div className="relative mt-6">
+              <ImageAnalysisPanel evidence={primary} report={report ?? undefined} />
+            </div>
           )}
-          {settings.forensics.faceComparison && compareMode && (
-            <Card className="p-5" glow>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-white/42">Face comparison mode</p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">Compare Two Faces</h2>
-                </div>
-                <Button variant="ghost" onClick={() => secondaryInput.current?.click()}><ImagePlus className="h-4 w-4" /> Upload Image B</Button>
-              </div>
-              <p className="mt-3 text-sm text-white/50">Only compares Image A and Image B. No public face recognition or identity lookup is performed.</p>
-              {comparison && (
-                <div className="mt-5 grid gap-4 md:grid-cols-[260px_1fr]">
-                  <Gauge label="Same Person Probability" value={comparison.score} tone="cyan" />
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                    <p className="text-sm font-medium text-white">Matching confidence {comparison.confidence}%</p>
-                    <p className="mt-2 text-sm text-white/55">Landmark similarity {comparison.landmarkSimilarity}%</p>
-                    <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/58">
-                      {comparison.featureComparison.map((item) => <li key={item}>- {item}</li>)}
-                    </ul>
-                  </div>
-                </div>
+
+          <div className="relative z-20 mt-6 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="neon" size="sm" onClick={() => primaryInput.current?.click()} disabled={running}>
+                <UploadCloud className="h-4 w-4" /> {primary ? "Replace image" : "Upload face image"}
+              </Button>
+              {settings.forensics.faceComparison && (
+                <Button variant="ghost" size="sm" onClick={() => setCompareMode((value) => !value)}>
+                  <Layers2 className="h-4 w-4" /> {compareMode ? "Hide compare" : "Compare two faces"}
+                </Button>
               )}
-            </Card>
+              <Button variant="ghost" size="sm" onClick={resetCase}>
+                <RotateCcw className="h-4 w-4" /> New case
+              </Button>
+              {(running || logs.length > 0) && settings.analyst.liveLogs && (
+                <Button variant="ghost" size="sm" onClick={() => setLogModalOpen(true)}>
+                  <TerminalSquare className="h-4 w-4" />
+                  {running ? "Live log" : "Activity log"}
+                </Button>
+              )}
+              {report && (
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => setViewPanel("report")}>
+                    <Eye className="h-4 w-4" /> View report
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => downloadFaceReport(report, "markdown")}>
+                    <Download className="h-4 w-4" /> Download
+                  </Button>
+                </>
+              )}
+            </div>
+            {settings.forensics.faceComparison && compareMode && (
+              <Button variant="ghost" size="sm" className="w-full sm:w-fit" onClick={() => secondaryInput.current?.click()} disabled={running}>
+                <ImagePlus className="h-4 w-4" /> Upload comparison face (Image B)
+              </Button>
+            )}
+            <Button
+              variant="neon"
+              className="w-full sm:w-fit sm:self-end"
+              onClick={() => primaryInput.current?.click()}
+              disabled={running}
+            >
+              <Send className="h-4 w-4" /> {running ? "Analyzing…" : primary ? "Re-run face analysis" : "Launch face analysis"}
+            </Button>
+          </div>
+
+          <input
+            ref={primaryInput}
+            className="hidden"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(event) => event.target.files?.[0] && void runAnalysis(event.target.files[0], "primary")}
+          />
+          <input
+            ref={secondaryInput}
+            className="hidden"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(event) => event.target.files?.[0] && void runAnalysis(event.target.files[0], "secondary")}
+          />
+        </Card>
+
+        <Card className="flex flex-col items-center justify-center p-6 text-center" glow>
+          <AiOrb speaking={running} size="md" />
+          <p className="mt-5 text-lg font-semibold text-white">{report ? report.caseId : running ? "Analyzing faces" : "Awaiting face evidence"}</p>
+          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-cyan-100/45">
+            {running ? "Landmark & authenticity scan" : "No identity recognition"}
+          </p>
+          {report && (
+            <p className="mt-3 text-sm text-white/52">
+              {report.faces.length} face{report.faces.length === 1 ? "" : "s"} · {report.scores.authenticity}% real confidence
+            </p>
+          )}
+        </Card>
+      </section>
+
+      {running && settings.analyst.liveLogs && (
+        <Card className="mb-5 flex flex-wrap items-center justify-between gap-4 p-4 md:p-5" glow>
+          <div className="flex items-center gap-3">
+            <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-sentra-cyan shadow-[0_0_12px_rgba(83,244,255,.85)]" />
+            <div>
+              <p className="text-sm font-medium text-white">Face intelligence analysis in progress</p>
+              <p className="mt-1 font-mono text-[11px] text-white/42">{logs[logs.length - 1] ?? "[FACE] Starting scan"}</p>
+            </div>
+          </div>
+          <Button variant="ghost" onClick={() => setLogModalOpen(true)}>
+            <TerminalSquare className="h-4 w-4" /> Open activity log
+          </Button>
+        </Card>
+      )}
+
+      {!running && !report && !primary && (
+        <Card className="mb-5 grid min-h-40 place-items-center p-8 text-center" glow>
+          <ScanFace className="h-10 w-10 text-sentra-cyan" />
+          <h2 className="mt-4 text-xl font-semibold text-white">Face engine awaiting evidence</h2>
+          <p className="mt-2 text-sm text-white/48">Upload a front-facing image to map landmarks and score authenticity risk.</p>
+        </Card>
+      )}
+
+      {!running && report && (
+        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} aria-label="Face intelligence report">
+          <Card className="p-6 md:p-8" glow>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="success">Analysis ready</Badge>
+              <Badge variant="cyan">{report.faces.length} face{report.faces.length === 1 ? "" : "s"} detected</Badge>
+            </div>
+            <h2 className="mt-4 text-2xl font-semibold text-white md:text-3xl">{report.caseId}</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-white/58">{report.summary}</p>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                ["Real confidence", `${report.scores.authenticity}%`, "text-emerald-200"],
+                ["Deepfake risk", `${report.scores.deepfake}%`, "text-rose-200"],
+                ["Manipulation", `${report.scores.manipulation}%`, "text-amber-200"],
+                ["Readiness", `${report.scores.readiness}%`, "text-cyan-100"],
+              ].map(([label, value, color]) => (
+                <div key={String(label)} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/38">{label}</p>
+                  <p className={cn("mt-1 text-xl font-semibold", String(color))}>{value}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-6 text-xs text-white/40">Landmarks, telemetry, and comparison open in views below.</p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Button variant="neon" className="justify-start" onClick={() => setViewPanel("map")} disabled={!primary}>
+                <ScanFace className="h-4 w-4" /> Face map & landmarks
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("report")}>
+                <FileText className="h-4 w-4" /> Full intelligence report
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("telemetry")}>
+                <Eye className="h-4 w-4" /> AI face telemetry
+              </Button>
+              {settings.forensics.faceComparison && compareMode && (
+                <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("comparison")}>
+                  <Layers2 className="h-4 w-4" /> Face comparison
+                </Button>
+              )}
+              <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("regions")}>
+                <LocateFixed className="h-4 w-4" /> Suspicious regions
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("notes")}>
+                <BrainCircuit className="h-4 w-4" /> Analyst notes
+              </Button>
+              {settings.analyst.liveLogs && (
+                <Button variant="ghost" className="justify-start" onClick={() => setLogModalOpen(true)}>
+                  <TerminalSquare className="h-4 w-4" /> Activity log
+                </Button>
+              )}
+              <Button variant="ghost" className="justify-start" onClick={() => downloadFaceReport(report, "markdown")}>
+                <FileText className="h-4 w-4" /> Download brief
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => window.print()}>
+                <Download className="h-4 w-4" /> Export PDF
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={() => void shareReport()}>
+                <Share2 className="h-4 w-4" /> Share summary
+              </Button>
+              {history.length > 0 && (
+                <Button variant="ghost" className="justify-start" onClick={() => setViewPanel("history")}>
+                  <History className="h-4 w-4" /> Case history
+                </Button>
+              )}
+            </div>
+          </Card>
+        </motion.div>
+      )}
+
+      <StudioModal
+        open={logModalOpen && settings.analyst.liveLogs}
+        title="Face analysis log"
+        description="Landmark detection, authenticity scoring, and report synthesis."
+        onClose={() => setLogModalOpen(false)}
+      >
+        <LiveLogs logs={logs.length ? logs : ["[STANDBY] Face intelligence engine ready."]} running={running} />
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "map" && Boolean(primary)}
+        title="Face map & landmarks"
+        description="Detected regions, landmark points, and suspicious zones."
+        onClose={() => setViewPanel(null)}
+        className="max-w-5xl"
+      >
+        {primary ? <ImageAnalysisPanel evidence={primary} report={report ?? undefined} /> : null}
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "telemetry" && Boolean(report)}
+        title="AI face telemetry"
+        description="Radar view of authenticity, risk, and quality signals."
+        onClose={() => setViewPanel(null)}
+      >
+        {report ? <Telemetry report={report} /> : null}
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "report" && Boolean(report)}
+        title="Face intelligence report"
+        description={report?.caseId}
+        onClose={() => setViewPanel(null)}
+        className="max-w-6xl"
+      >
+        {report ? <FaceReportDetail report={report} settings={settings} onNotesChange={updateNotes} /> : null}
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "comparison" && compareMode}
+        title="Compare two faces"
+        description="Image A vs Image B — no identity lookup."
+        onClose={() => setViewPanel(null)}
+        className="max-w-5xl"
+      >
+        <div className="grid gap-5">
+          <p className="text-sm text-white/50">Only compares the two uploaded images. No public face recognition is performed.</p>
+          <div className="grid gap-5 md:grid-cols-2">
+            {primary && <ImageAnalysisPanel evidence={primary} report={report ?? undefined} />}
+            {secondary ? (
+              <ImageAnalysisPanel evidence={secondary} report={secondaryReport ?? undefined} />
+            ) : (
+              <Card className="grid min-h-64 place-items-center border-dashed p-6 text-center" glow>
+                <Button variant="ghost" onClick={() => secondaryInput.current?.click()}>
+                  <ImagePlus className="h-4 w-4" /> Upload Image B
+                </Button>
+              </Card>
+            )}
+          </div>
+          {comparison ? (
+            <div className="grid gap-4 md:grid-cols-[260px_1fr]">
+              <Gauge label="Same person probability" value={comparison.score} tone="cyan" />
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <p className="text-sm font-medium text-white">Matching confidence {comparison.confidence}%</p>
+                <p className="mt-2 text-sm text-white/55">Landmark similarity {comparison.landmarkSimilarity}%</p>
+                <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/58">
+                  {comparison.featureComparison.map((item) => (
+                    <li key={item}>- {item}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-white/48">Upload Image B to run a side-by-side comparison.</p>
           )}
         </div>
+      </StudioModal>
 
-        <aside className="grid content-start gap-5">
-          {report ? (
-            <>
-              <Gauge label="Real Image Confidence" value={report.scores.authenticity} tone="green" />
-              {settings.forensics.aiGeneratedProbability && <Gauge label="AI Generated Confidence" value={report.scores.aiGenerated} tone="risk" />}
-              {settings.forensics.deepfakeRisk && <Gauge label="Deepfake Risk Score" value={report.scores.deepfake} tone="risk" />}
-              <Card className="p-5" glow>
-                <p className="text-xs uppercase tracking-[0.22em] text-white/42">Investigation Readiness</p>
-                <p className={cn("mt-3 text-5xl font-semibold", scoreTone(report.scores.readiness))}>{report.scores.readiness}%</p>
-                <p className="mt-2 text-sm text-white/52">{report.scores.readiness >= 85 ? "Excellent forensic quality" : report.scores.readiness >= 65 ? "Usable forensic quality" : "Limited forensic quality"}</p>
-              </Card>
-            </>
-          ) : settings.analyst.liveLogs ? (
-            <LiveLogs logs={logs.length ? logs : ["[STANDBY] Face intelligence engine ready."]} running={running} />
-          ) : null}
-        </aside>
-      </div>
-
-      {report && (
-        <motion.section initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="grid gap-5">
-          <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
-            <Telemetry report={report} />
-            <Card className="p-5 md:p-6" glow>
-              <p className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-cyan-100/48"><FileText className="h-4 w-4" /> Visual Forensics Report</p>
-              <h2 className="mt-3 text-2xl font-semibold text-white">{report.summary}</h2>
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border border-emerald-200/12 bg-emerald-300/[0.035] p-4">
-                  <p className="flex items-center gap-2 text-sm font-medium text-white"><ShieldCheck className="h-4 w-4 text-emerald-200" /> Authenticity indicators</p>
-                  <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/58">{report.authenticReasons.map((item) => <li key={item}>- {item}</li>)}</ul>
-                </div>
-                <div className="rounded-2xl border border-rose-200/12 bg-rose-300/[0.035] p-4">
-                  <p className="flex items-center gap-2 text-sm font-medium text-white"><AlertTriangle className="h-4 w-4 text-rose-200" /> Suspicious evidence</p>
-                  <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/58">{report.manipulationReasons.map((item) => <li key={item}>- {item}</li>)}</ul>
-                </div>
-              </div>
-            </Card>
+      <StudioModal
+        open={viewPanel === "regions" && Boolean(report)}
+        title="Suspicious region detection"
+        description="Anomalies and image quality metrics for manual review."
+        onClose={() => setViewPanel(null)}
+      >
+        {report ? (
+          <div className="grid gap-5">
+            <div className="grid gap-2 text-sm leading-6 text-white/58">
+              {report.anomalies.map((item) => (
+                <p key={item}>- {item}</p>
+              ))}
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <Gauge label="Compression quality" value={report.quality.compression} />
+              <Gauge label="Image sharpness" value={report.quality.sharpness} />
+              <Gauge label="Exposure quality" value={report.quality.exposure} />
+            </div>
+            {primary && <ImageAnalysisPanel evidence={primary} report={report} />}
           </div>
+        ) : null}
+      </StudioModal>
 
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            {([
-              ["Faces detected", report.faces.length, Camera],
-              ["Face quality", report.faces[0]?.quality ?? 0, BadgeCheck],
-              ["Lighting consistency", report.scores.lighting, Eye],
-              ["Manipulation risk", report.scores.manipulation, Fingerprint],
-            ] as Array<[string, number, LucideIcon]>).map(([label, value, Icon]) => (
-              <Card key={String(label)} className="p-5">
-                <Icon className="h-5 w-5 text-sentra-cyan" />
-                <p className="mt-4 text-xs uppercase tracking-[0.2em] text-white/38">{String(label)}</p>
-                <p className="mt-2 text-3xl font-semibold text-white">{String(value)}{typeof value === "number" && label !== "Faces detected" ? "%" : ""}</p>
-              </Card>
+      <StudioModal
+        open={viewPanel === "notes" && Boolean(report)}
+        title="Analyst notes"
+        description="Case notes and escalation details."
+        onClose={() => setViewPanel(null)}
+      >
+        {report ? (
+          <Textarea
+            value={report.notes}
+            onChange={(event) => updateNotes(event.target.value)}
+            className="min-h-48"
+            placeholder="Add case notes, reviewer observations, or escalation details..."
+          />
+        ) : null}
+      </StudioModal>
+
+      <StudioModal
+        open={viewPanel === "history"}
+        title="Saved face analysis history"
+        description="Reports stored in your workspace."
+        onClose={() => setViewPanel(null)}
+      >
+        {history.length ? (
+          <div className="grid gap-2 md:grid-cols-2">
+            {history.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => {
+                  setReport(entry);
+                  setViewPanel(null);
+                }}
+                className="sentra-focus rounded-2xl border border-white/8 bg-white/[0.035] p-4 text-left"
+              >
+                <span className="block truncate text-sm text-white/70">{entry.caseId}</span>
+                <span className="mt-2 block text-xs text-cyan-100/52">{entry.scores.authenticity}% real confidence</span>
+              </button>
             ))}
           </div>
-
-          <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
-            <Card className="p-5" glow>
-              <p className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-white/42"><LocateFixed className="h-4 w-4 text-sentra-cyan" /> Suspicious Region Detection</p>
-              <div className="mt-4 grid gap-2 text-sm leading-6 text-white/58">
-                {report.anomalies.map((item) => <p key={item}>- {item}</p>)}
-              </div>
-              <div className="mt-5 grid gap-3 md:grid-cols-3">
-                <Gauge label="Compression Quality" value={report.quality.compression} />
-                <Gauge label="Image Sharpness" value={report.quality.sharpness} />
-                <Gauge label="Exposure Quality" value={report.quality.exposure} />
-              </div>
-            </Card>
-            <Card className="p-5" glow>
-              <p className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-white/42"><BrainCircuit className="h-4 w-4 text-sentra-cyan" /> Analyst Notes</p>
-              <Textarea value={report.notes} onChange={(event) => updateNotes(event.target.value)} className="mt-4 min-h-40" placeholder="Add case notes, reviewer observations, or escalation details..." />
-            </Card>
-          </div>
-
-          {history.length > 0 && (
-            <Card className="p-5">
-              <p className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-white/42"><History className="h-4 w-4" /> Saved Face Analysis History</p>
-              <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                {history.slice(0, 4).map((entry) => (
-                  <button key={entry.id} type="button" onClick={() => setReport(entry)} className="sentra-focus rounded-2xl border border-white/8 bg-white/[0.035] p-3 text-left">
-                    <span className="block truncate text-sm text-white/70">{entry.caseId}</span>
-                    <span className="mt-2 block text-xs text-cyan-100/52">{entry.scores.authenticity}% real confidence</span>
-                  </button>
-                ))}
-              </div>
-            </Card>
-          )}
-        </motion.section>
-      )}
-    </div>
+        ) : (
+          <p className="text-sm text-white/50">No saved face analyses yet.</p>
+        )}
+      </StudioModal>
+    </>
   );
 }
