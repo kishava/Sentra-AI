@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { createChatCompletion } from "@/lib/llm/client";
+import { createChatCompletion, getLlmClient } from "@/lib/llm/client";
 import { getPlatformEnv } from "@/lib/secrets/platform-secrets";
 
 const FEATHERLESS_BASE_URL = "https://api.featherless.ai/v1";
