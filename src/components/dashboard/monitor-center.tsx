@@ -297,6 +297,12 @@ export function MonitorCenter() {
         });
         const data = (await response.json()) as { intent?: MonitorIntent; error?: string };
 
+        if (response.status === 401 || response.status === 403) {
+          setMonitorIntent(null);
+          setIntentError("");
+          return;
+        }
+
         if (!response.ok || !data.intent) {
           throw new Error(data.error || "Sentra could not understand this monitor yet.");
         }
@@ -307,7 +313,12 @@ export function MonitorCenter() {
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setMonitorIntent(null);
-        setIntentError(error instanceof Error ? error.message : "Intent analysis failed.");
+        const message = error instanceof Error ? error.message : "Intent analysis failed.";
+        if (/401|signed in|unauthorized/i.test(message)) {
+          setIntentError("");
+          return;
+        }
+        setIntentError(message);
       } finally {
         if (!abortController.signal.aborted) {
           setIntentLoading(false);
@@ -763,7 +774,7 @@ export function MonitorCenter() {
             Check now).
           </p>
 
-          <div className="mt-6">
+          <div className="mt-6 space-y-5">
             <MonitorPromptField
               value={requirement}
               onChange={setRequirement}
@@ -774,30 +785,34 @@ export function MonitorCenter() {
                 }
               }}
             />
+
+            {(intentLoading || monitorIntent) && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-cyan-200/15 bg-cyan-300/5 px-3 py-2.5 text-sm">
+                <Sparkles className={cn("h-4 w-4 shrink-0 text-sentra-cyan", intentLoading && "animate-pulse")} />
+                {intentLoading ? (
+                  <span className="text-white/50">Understanding your monitor…</span>
+                ) : monitorIntent ? (
+                  <>
+                    <Badge variant="cyan">{monitorIntent.category}</Badge>
+                    <Badge variant="risk">{monitorIntent.minimumSeverity}+</Badge>
+                    <span className="text-white/55">AI interpreted — adjust below if needed</span>
+                  </>
+                ) : null}
+              </div>
+            )}
+
+            {intentError && !intentLoading && (
+              <p className="text-sm text-amber-100/90">{intentError}</p>
+            )}
           </div>
 
-          {(intentLoading || monitorIntent || intentError) && (
-            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm">
-              <Sparkles className={cn("h-4 w-4 shrink-0 text-sentra-cyan", intentLoading && "animate-pulse")} />
-              {intentLoading && <span className="text-white/50">Understanding your monitor…</span>}
-              {intentError && !intentLoading && <span className="text-amber-100">{intentError}</span>}
-              {monitorIntent && !intentLoading && (
-                <>
-                  <Badge variant="cyan">{monitorIntent.category}</Badge>
-                  <Badge variant="risk">{monitorIntent.minimumSeverity}+</Badge>
-                  <span className="min-w-0 flex-1 text-white/60 line-clamp-2">
-                    {monitorIntent.normalizedRequirement}
-                  </span>
-                </>
-              )}
-            </div>
-          )}
-
-          <details className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-            <summary className="sentra-focus cursor-pointer text-sm text-white/55 hover:text-white/75">
-              Fine-tune category &amp; severity
+          <details className="group mt-6 rounded-2xl border border-white/10 bg-white/[0.03] open:bg-white/[0.02]">
+            <summary className="sentra-focus cursor-pointer list-none px-4 py-3 text-sm text-white/55 marker:content-none hover:text-white/75 [&::-webkit-details-marker]:hidden">
+              <span className="font-medium text-white/70">Options</span>
+              <span className="text-white/40"> — category, severity, webhooks</span>
             </summary>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="space-y-4 border-t border-white/10 px-4 pb-4 pt-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2 text-xs text-white/45">
                 Category
                 <select
@@ -827,19 +842,18 @@ export function MonitorCenter() {
                 </select>
               </label>
             </div>
-          </details>
 
-          <div className="mt-4">
+            <div>
             <Button
               type="button"
               variant="ghost"
               className="h-auto px-0 text-sm text-white/45 hover:text-white/70"
               onClick={() => setShowAdvanced((value) => !value)}
             >
-              {showAdvanced ? "Hide" : "Show"} webhooks &amp; demo options
+              {showAdvanced ? "Hide" : "Show"} webhooks &amp; demo
             </Button>
             {showAdvanced && (
-              <div className="mt-3 grid gap-4 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <div className="mt-3 grid gap-3">
                 <Button
                   variant="ghost"
                   className="w-fit"
@@ -884,9 +898,11 @@ export function MonitorCenter() {
                 </div>
               </div>
             )}
-          </div>
+            </div>
+            </div>
+          </details>
 
-          <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-8 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-white/45">
               {activeMonitorCount === 0
                 ? "No active monitors yet"
