@@ -130,6 +130,7 @@ Hosting the full Next.js app on **Cloudflare Pages** requires an adapter (e.g. O
 | Issue | Fix |
 |-------|-----|
 | **Plugin: publish = base directory** | Set **Publish directory** to `.next` in Netlify UI (or use `netlify.toml` in repo). Do not leave publish blank. |
+| **Secrets scanning failed** | Repo sets `SECRETS_SCAN_ENABLED=false` (Next.js embeds public env in bundles). Do not put real keys in `.env.example`. |
 | **Build failed (exit code 2)** | Remove `NODE_ENV=production` from site env vars. Redeploy. |
 | Auth redirect loop | Add exact production URL `/auth/callback` in Supabase |
 | Cron 401 | `CRON_SECRET` must match on host and cron caller |

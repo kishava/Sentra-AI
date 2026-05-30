@@ -21,6 +21,7 @@ pnpm-debug.log*
 next-dev*.log
 
 # misc
+tmp/
 .DS_Store
 *.pem
 scripts/restore-vault-now.mjs
