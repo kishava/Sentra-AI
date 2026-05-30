@@ -1206,7 +1206,6 @@ export function MonitorCenter() {
           </div>
         </div>
       )}
-      </WorkspaceSection>
     </>
   );
 }
