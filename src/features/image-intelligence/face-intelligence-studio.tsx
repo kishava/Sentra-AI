@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -39,7 +38,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { FaceOverlayPanel } from "@/features/image-intelligence/face-overlay";
 import { StudioModal } from "@/features/world-engine/studio-modal";
+import {
+  detectSkinToneFaceRegion,
+  isPlausibleFaceBox,
+  pickBestFaceBox,
+  portraitFaceFallback,
+  type FaceBox,
+} from "@/lib/face-detection/region";
 import { listWorkspaceHistory, recordFaceIntelligenceHistory } from "@/lib/history/workspace-history";
 import { downloadFaceReport } from "@/lib/image-intelligence/export-report";
 import { cn } from "@/lib/utils";
@@ -49,7 +56,6 @@ import type { FaceIntelligenceReport } from "@/types/workspace-history";
 type FacePanel = "map" | "telemetry" | "report" | "comparison" | "regions" | "notes" | "history" | null;
 
 type EvidenceImage = { file: File; url: string; width?: number; height?: number };
-type FaceBox = { x: number; y: number; width: number; height: number };
 type Landmark = { x: number; y: number; label: string };
 type FaceDetection = {
   id: string;
@@ -191,16 +197,6 @@ function imageMetrics(image: HTMLImageElement) {
   };
 }
 
-function fallbackFace(width: number, height: number): FaceBox {
-  const size = Math.min(width, height) * 0.42;
-  return {
-    x: (width - size) / 2,
-    y: Math.max(height * 0.14, (height - size) / 2),
-    width: size,
-    height: size * 1.12,
-  };
-}
-
 function landmarksFor(box: FaceBox): Landmark[] {
   const points = [
     [0.34, 0.36, "left eye"],
@@ -334,43 +330,11 @@ function Gauge({ label, value, tone = "cyan" }: { label: string; value: number; 
 function ImageAnalysisPanel({ evidence, report }: { evidence: EvidenceImage; report?: FaceReport }) {
   return (
     <Card className="overflow-hidden p-4 md:p-5" glow>
-      <div className="relative h-[420px] overflow-hidden rounded-2xl border border-white/10 bg-black/35">
-        <Image src={evidence.url} alt="Face intelligence evidence" fill unoptimized className="object-contain" />
-        {report?.faces.map((face) => (
-          <div
-            key={face.id}
-            className="absolute border border-cyan-200/80 bg-cyan-300/[0.055] shadow-[0_0_22px_rgba(83,244,255,.28)]"
-            style={{
-              left: `${(face.box.x / report.width) * 100}%`,
-              top: `${(face.box.y / report.height) * 100}%`,
-              width: `${(face.box.width / report.width) * 100}%`,
-              height: `${(face.box.height / report.height) * 100}%`,
-            }}
-          >
-            <span className="absolute -top-7 left-0 rounded-full border border-cyan-200/30 bg-sentra-ink/80 px-2 py-1 text-[10px] text-cyan-100">FACE {face.quality}%</span>
-          </div>
-        ))}
-        {report?.faces.flatMap((face) => face.landmarks).map((point) => (
-          <span
-            key={`${point.label}-${point.x}-${point.y}`}
-            className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-100 shadow-[0_0_12px_rgba(83,244,255,.8)]"
-            style={{ left: `${(point.x / report.width) * 100}%`, top: `${(point.y / report.height) * 100}%` }}
-          />
-        ))}
-        {report?.suspiciousRegions.map((region, index) => (
-          <span
-            key={index}
-            className="absolute border border-rose-300/70 bg-rose-400/[0.09]"
-            style={{
-              left: `${(region.x / report.width) * 100}%`,
-              top: `${(region.y / report.height) * 100}%`,
-              width: `${(region.width / report.width) * 100}%`,
-              height: `${(region.height / report.height) * 100}%`,
-            }}
-          />
-        ))}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-cyan-300/[0.14] to-transparent" />
-      </div>
+      <FaceOverlayPanel
+        imageUrl={evidence.url}
+        imageAlt="Face intelligence evidence"
+        report={report}
+      />
     </Card>
   );
 }
