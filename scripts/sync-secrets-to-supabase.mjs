@@ -99,7 +99,18 @@ const rows = entries.map((entry) => ({
   updated_at: new Date().toISOString(),
 }));
 
-const map = Object.fromEntries(entries.map((entry) => [entry.key, entry.value]));
+let map = Object.fromEntries(entries.map((entry) => [entry.key, entry.value]));
+
+async function loadExistingVaultMap() {
+  try {
+    const { data, error } = await admin.storage.from(STORAGE_BUCKET).download(STORAGE_OBJECT);
+    if (error || !data) return {};
+    const parsed = JSON.parse(await data.text());
+    return typeof parsed === "object" && parsed ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 async function syncToTable() {
   const { error } = await admin.from("platform_env").upsert(rows, { onConflict: "key" });
@@ -137,7 +148,7 @@ try {
     backend = await syncToStorage();
   }
 
-  console.log(`Synced ${rows.length} key(s) to Supabase (${backend}):`);
+  console.log(`Synced ${rows.length} key(s) to Supabase (${backend}); vault now has ${Object.keys(map).length} key(s):`);
   for (const row of rows) {
     console.log(`  • ${row.key} (${row.kind})`);
   }
