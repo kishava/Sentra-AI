@@ -13,17 +13,19 @@ import {
   Sparkles,
   Workflow,
 } from "lucide-react";
+import { LandingAuthLink } from "@/components/landing/landing-auth-link";
 import { MotionSection } from "@/components/shared/motion-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { sentraServices } from "@/data/our-services";
+import { SENTRA_HOME } from "@/lib/landing/auth-links";
 
 const workflowSteps = [
   { icon: Radar, label: "Collect live web evidence" },
   { icon: Sparkles, label: "Analyze with enterprise prompts" },
   { icon: ShieldCheck, label: "Score risk and confidence" },
-  { icon: Workflow, label: "Trigger recommendations and alerts" },
+  { icon: Workflow, label: "Trigger recommendations and briefings" },
 ];
 
 const features = [
@@ -39,8 +41,8 @@ const features = [
   },
   {
     icon: BellRing,
-    title: "Autonomous alert center",
-    body: "Severity queues surface launches, sentiment shifts, and pricing changes when monitors run on schedule or you click Check now.",
+    title: "Signal monitors",
+    body: "Severity queues surface launches, sentiment shifts, and pricing changes when monitors run on schedule or you check in from the workspace.",
   },
   {
     icon: Mic2,
@@ -203,7 +205,7 @@ export function LandingSections() {
               Build the enterprise intelligence muscle your competitors cannot see.
             </h2>
             <Button asChild size="lg" variant="neon" className="mt-9">
-              <a href="/dashboard">Launch the live demo</a>
+              <LandingAuthLink href={SENTRA_HOME}>Launch workspace</LandingAuthLink>
             </Button>
           </div>
         </Card>

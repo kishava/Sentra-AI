@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/shared/brand-mark";
 import { Button } from "@/components/ui/button";
+import { SENTRA_HOME, signInFor } from "@/lib/landing/auth-links";
 
 export function Navbar() {
   const links = [
     { label: "Platform", href: "#platform" },
     { label: "Our Services", href: "/services" },
     { label: "Intelligence", href: "#intelligence" },
-    { label: "Alerts", href: "/sign-up?next=%2Falerts" },
     { label: "Integrations", href: "#integrations" },
   ];
 
@@ -32,10 +32,10 @@ export function Navbar() {
         </nav>
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" className="hidden sm:inline-flex">
-            <Link href="/sign-up">Register</Link>
+            <Link href={signInFor(SENTRA_HOME)}>Sign in</Link>
           </Button>
           <Button asChild variant="neon">
-            <Link href="/sign-in?next=%2Fdashboard">Launch OS</Link>
+            <Link href={signInFor(SENTRA_HOME)}>Launch OS</Link>
           </Button>
         </div>
       </div>

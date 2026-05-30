@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { ArrowRight, FileCheck2, Radar, ShieldAlert } from "lucide-react";
+import { LandingAuthLink } from "@/components/landing/landing-auth-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SENTRA_HOME } from "@/lib/landing/auth-links";
 
 const HeroVisual = dynamic(
   () => import("@/components/landing/hero-visual").then((module) => module.HeroVisual),
@@ -37,16 +38,16 @@ export function Hero() {
           </h1>
           <p className="type-body-lg mt-6 max-w-[58ch] text-white/65">
             Sentra AI turns live web signals into verified intelligence reports with risk
-            scoring, source evidence, action plans, and alert delivery for fast-moving teams.
+            scoring, source evidence, action plans, and executive briefings for fast-moving teams.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button asChild size="lg" variant="neon">
-              <Link href="/alerts">
-                Create a monitor <ArrowRight className="h-5 w-5" />
-              </Link>
+              <LandingAuthLink href={SENTRA_HOME}>
+                Launch workspace <ArrowRight className="h-5 w-5" />
+              </LandingAuthLink>
             </Button>
             <Button asChild size="lg" variant="ghost">
-              <Link href="/reports">View reports</Link>
+              <LandingAuthLink href="/reports">View reports</LandingAuthLink>
             </Button>
           </div>
           <div className="mt-9 grid gap-3 sm:grid-cols-3">
