@@ -8,6 +8,8 @@ import {
   BrainCircuit,
   Download,
   Expand,
+  Eye,
+  FileText,
   Filter,
   Globe2,
   Mic,
@@ -15,9 +17,11 @@ import {
   MicOff,
   Play,
   RadioTower,
+  ScrollText,
   Send,
   Share2,
   Sparkles,
+  TerminalSquare,
   Volume2,
   VolumeX,
   X,
@@ -25,6 +29,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AIActivityConsole } from "@/features/activity-console/ai-activity-console";
+import { StudioModal } from "@/features/world-engine/studio-modal";
+import { downloadWorldReport } from "@/lib/world-engine/export-report";
 import { AiOrb } from "@/components/shared/ai-orb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -360,6 +366,8 @@ export function WorldEngineStudio() {
   const [sources, setSources] = useState<CollectionSource[]>([]);
   const [health, setHealth] = useState<PipelineHealth>();
   const [thoughts, setThoughts] = useState<WorldEngineReport["reasoning"]>([]);
+  const [logModalOpen, setLogModalOpen] = useState(false);
+  const [insightModalOpen, setInsightModalOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activityRequestRef = useRef<AbortController | null>(null);
   const narrationAbortRef = useRef<AbortController | null>(null);
@@ -650,9 +658,27 @@ export function WorldEngineStudio() {
           </div>
           <div className="relative mt-6 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-white/38">Observed evidence and modeled forecasts are explicitly separated in each brief.</p>
-            <Button variant="neon" onClick={() => void runWorldEngine()} disabled={loading || !prompt.trim() || !settings.analyst.worldIntelligence}>
-              <Send className="h-4 w-4" /> Launch World Engine
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {(loading || logs.length > 0) && settings.analyst.liveLogs && (
+                <Button variant="ghost" onClick={() => setLogModalOpen(true)}>
+                  <TerminalSquare className="h-4 w-4" />
+                  {loading ? "Live log" : "Activity log"}
+                </Button>
+              )}
+              {report && (
+                <>
+                  <Button variant="ghost" onClick={() => setInsightModalOpen(true)}>
+                    <Eye className="h-4 w-4" /> View insight
+                  </Button>
+                  <Button variant="ghost" onClick={() => downloadWorldReport(report, "markdown")}>
+                    <Download className="h-4 w-4" /> Download
+                  </Button>
+                </>
+              )}
+              <Button variant="neon" onClick={() => void runWorldEngine()} disabled={loading || !prompt.trim() || !settings.analyst.worldIntelligence}>
+                <Send className="h-4 w-4" /> {loading ? "Running…" : "Launch World Engine"}
+              </Button>
+            </div>
           </div>
         </Card>
         <Card className="flex flex-col items-center justify-center p-6 text-center" glow>
@@ -666,10 +692,21 @@ export function WorldEngineStudio() {
         </Card>
       </section>
 
-      {settings.analyst.liveLogs && (loading || (logs.length > 0 && !report)) && (
-        <section className="mb-5">
-          <AIActivityConsole logs={logs} sources={sources} thoughts={thoughts} health={health} running={loading} />
-        </section>
+      {loading && settings.analyst.liveLogs && (
+        <Card className="mb-5 flex flex-wrap items-center justify-between gap-4 p-4 md:p-5" glow>
+          <div className="flex items-center gap-3">
+            <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-sentra-cyan shadow-[0_0_12px_rgba(83,244,255,.85)]" />
+            <div>
+              <p className="text-sm font-medium text-white">World Engine is synthesizing intelligence</p>
+              <p className="mt-1 font-mono text-[11px] text-white/42">
+                STAGE: {health?.stage ?? "Collecting evidence"} · {health ? `${(health.elapsedMs / 1000).toFixed(1)}s` : "—"}
+              </p>
+            </div>
+          </div>
+          <Button variant="ghost" onClick={() => setLogModalOpen(true)}>
+            <TerminalSquare className="h-4 w-4" /> Open activity log
+          </Button>
+        </Card>
       )}
 
       {!settings.analyst.worldIntelligence && (
@@ -829,11 +866,55 @@ export function WorldEngineStudio() {
               </div>
             </Card>
           </section>
-          {settings.analyst.liveLogs && <section id="analyst-activity" className="scroll-mt-24">
-            <AIActivityConsole logs={logs} sources={sources} thoughts={thoughts} health={health} running={false} />
-          </section>}
         </motion.div>
       )}
+
+      <StudioModal
+        open={logModalOpen && settings.analyst.liveLogs}
+        title="Activity log"
+        description="Live pipeline events, source collection, and model synthesis steps."
+        onClose={() => setLogModalOpen(false)}
+        className="max-w-6xl"
+      >
+        <AIActivityConsole logs={logs} sources={sources} thoughts={thoughts} health={health} running={loading} />
+      </StudioModal>
+
+      <StudioModal
+        open={insightModalOpen && Boolean(report)}
+        title="World intelligence insight"
+        description={report?.headline}
+        onClose={() => setInsightModalOpen(false)}
+      >
+        {report ? (
+          <div className="grid gap-5">
+            <VerdictStrip report={report} />
+            <Card className="p-5" glow>
+              <p className="flex items-center gap-2 text-xs uppercase tracking-[0.23em] text-white/38">
+                <ScrollText className="h-4 w-4 text-sentra-cyan" /> Executive briefing
+              </p>
+              <p className="mt-4 text-sm leading-7 text-white/68">{report.executiveSummary}</p>
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.19em] text-white/38">Quick briefing</p>
+                  <p className="mt-2 text-sm leading-6 text-white/62">{report.briefings.quick}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.19em] text-white/38">Deep briefing</p>
+                  <p className="mt-2 text-sm leading-6 text-white/62">{report.briefings.deep}</p>
+                </div>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Button variant="ghost" size="sm" onClick={() => downloadWorldReport(report, "markdown")}>
+                  <FileText className="h-4 w-4" /> Download markdown
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => downloadWorldReport(report, "json")}>
+                  <Download className="h-4 w-4" /> Download JSON
+                </Button>
+              </div>
+            </Card>
+          </div>
+        ) : null}
+      </StudioModal>
 
       <AnimatePresence>
         {pulseMode && report && (

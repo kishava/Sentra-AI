@@ -77,19 +77,35 @@ function list<T>(value: unknown, map: (item: Record<string, unknown>, index: num
     : [];
 }
 
+function repairJsonCandidate(value: string) {
+  return value
+    .replace(/,\s*([}\]])/g, "$1")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"');
+}
+
 function parseReportJson(output: string): RawReport {
   const trimmed = output.trim();
-  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
-  try {
-    return JSON.parse(unfenced) as RawReport;
-  } catch {
-    const firstBrace = unfenced.indexOf("{");
-    const lastBrace = unfenced.lastIndexOf("}");
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-      return JSON.parse(unfenced.slice(firstBrace, lastBrace + 1)) as RawReport;
+  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  const candidates = [
+    unfenced,
+    unfenced.slice(unfenced.indexOf("{"), unfenced.lastIndexOf("}") + 1),
+    unfenced.match(/\{[\s\S]*\}/)?.[0] ?? "",
+  ].filter((candidate) => candidate.length > 2);
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate) as RawReport;
+    } catch {
+      try {
+        return JSON.parse(repairJsonCandidate(candidate)) as RawReport;
+      } catch {
+        // try next candidate
+      }
     }
-    throw new Error("The world engine returned an invalid intelligence model.");
   }
+
+  throw new Error("The world engine returned an invalid intelligence model.");
 }
 
 function resolveProvider(input: WorldEngineInput): WorldEngineReport["provider"] {
@@ -252,23 +268,36 @@ async function generateViaChatCompletions(
   observer?.onWebSearchCompleted?.(Math.round(performance.now() - searchStartedAt));
   observer?.onSynthesisStarted?.();
 
-  const response = await createChatCompletion(client, {
-    model: getSearchModel(),
-    temperature: 0.25,
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: `${instructions}\nThe current date for resolving time-sensitive requests is ${currentDateLabel()}.`,
-      },
-      { role: "user", content: buildWorldUserPrompt(input) },
-    ],
-  });
+  const systemContent = `${instructions}\nThe current date for resolving time-sensitive requests is ${currentDateLabel()}.`;
+  const userContent = buildWorldUserPrompt(input);
+  const models = [getWorldModel(), getSearchModel(), "gpt-4o-mini"].filter(
+    (model, index, list) => model && list.indexOf(model) === index,
+  );
 
-  const output = response.choices[0]?.message?.content?.trim();
-  if (!output) throw new Error("The world engine returned no intelligence model.");
-  const parsed = parseReportJson(output);
-  return normalizeReport(parsed, input);
+  let lastError: unknown;
+  for (const model of models) {
+    try {
+      const response = await createChatCompletion(client, {
+        model,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemContent },
+          { role: "user", content: userContent },
+        ],
+      });
+
+      const output = response.choices[0]?.message?.content?.trim();
+      if (!output) continue;
+      return normalizeReport(parseReportJson(output), input);
+    } catch (error) {
+      lastError = error;
+      console.warn(`World engine model "${model}" failed`, error);
+    }
+  }
+
+  if (lastError instanceof Error) throw lastError;
+  throw new Error("The world engine returned no intelligence model.");
 }
 
 type WebSearchOutput = {
