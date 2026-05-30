@@ -33,6 +33,14 @@ routes.
 - Demo-safe fallbacks in **local dev** when provider keys are absent; **production**
   requires live Bright Data for GTM collection paths.
 
+## Deploy on Vercel
+
+1. Import the repo at [vercel.com/new](https://vercel.com/new) (Next.js auto-detected).
+2. Set env vars from `.env.example` (Vercel block) — run `npm run env:check:vercel` for the list.
+3. Add Supabase redirect URL: `https://<your-app>.vercel.app/auth/callback`
+4. Run `npm run secrets:sync` locally so AIML / Bright Data keys live in the Supabase vault.
+5. Deploy — `vercel.json` uses a **daily** cron (Hobby-safe). Full guide: [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md).
+
 ## Getting Started
 
 ```bash

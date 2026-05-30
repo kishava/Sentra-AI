@@ -30,3 +30,4 @@ scripts/restore-vault-now.mjs
 scripts/*
 !scripts/configure-supabase-auth.mjs
 !scripts/apply-provider-usage-migration.mjs
+!scripts/check-vercel-env.mjs

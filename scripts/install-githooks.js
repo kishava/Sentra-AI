@@ -3,6 +3,10 @@ const { execSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
+if (process.env.VERCEL === "1" || process.env.CI === "true") {
+  process.exit(0);
+}
+
 const root = path.join(__dirname, "..");
 const hookPath = path.join(root, ".githooks", "prepare-commit-msg");
 

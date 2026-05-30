@@ -1,8 +1,29 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install --ignore-scripts",
   "crons": [
     {
       "path": "/api/cron/monitors",
       "schedule": "0 9 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "src/app/api/cron/monitors/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/monitors/[id]/check/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/chat/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/world-engine/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/intelligence/route.ts": {
+      "maxDuration": 60
+    }
+  }
 }

@@ -5,10 +5,10 @@ Sentra is a **Next.js 15** app. Vercel is the recommended host. The repo include
 ## 1. Import the project
 
 1. [vercel.com/new](https://vercel.com/new) → import your Git repo.
-2. Framework: **Next.js** (auto-detected).
-3. Build command: `npm run build` (default).
-4. Install command: `npm install` (default).
-5. Node: **20.x** or **22.x** (matches `package.json` `engines`).
+2. Framework: **Next.js** (from `vercel.json`).
+3. Build: `npm run build` · Install: `npm install --ignore-scripts` (set in `vercel.json`).
+4. Node: **20.x** or **22.x** (matches `package.json` `engines`).
+5. Local checklist: `npm run env:check:vercel` and copy names from [`.env.example`](../.env.example).
 
 ## 2. Environment variables
 
