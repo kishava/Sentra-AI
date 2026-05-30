@@ -17,6 +17,7 @@
     "db:migrate": "node scripts/apply-supabase-migrations.mjs",
     "env:setup": "node scripts/setup-env-local.mjs",
     "env:check": "node scripts/check-env.mjs",
+    "auth:configure": "node scripts/configure-supabase-auth.mjs",
     "secrets:sync": "node scripts/sync-secrets-to-supabase.mjs",
     "secrets:restore": "node scripts/restore-vault-now.mjs",
     "secrets:patch-missing": "node scripts/patch-vault-missing.mjs",

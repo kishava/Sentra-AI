@@ -35,7 +35,7 @@ export async function GET() {
     if (response.ok) {
       const settings = (await response.json()) as SupabaseAuthSettings;
       providers = {
-        email: Boolean(settings.external?.email),
+        email: settings.external?.email !== false,
         google: Boolean(settings.external?.google),
         github: Boolean(settings.external?.github),
       };
